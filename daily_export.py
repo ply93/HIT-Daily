@@ -19,7 +19,7 @@ if not os.path.exists(download_dir):
     os.makedirs(download_dir)
     print(f"創建下載目錄: {download_dir}")
 
-# 設置 Chrome 選項 (移除 --headless)
+# 設置 Chrome 選項 (non-headless)
 chrome_options = Options()
 chrome_options.add_argument('--no-sandbox')
 chrome_options.add_argument('--disable-dev-shm-usage')
@@ -41,12 +41,12 @@ prefs = {
     "directory_upgrade": True
 }
 chrome_options.add_experimental_option("prefs", prefs)
-chrome_options.binary_location = os.environ.get('CHROME_BIN', '/usr/bin/chromium-browser')
+chrome_options.binary_location = '/usr/bin/google-chrome-stable'  # 指定 Chrome binary 路徑
 
 # 初始化 WebDriver
 print("嘗試初始化 WebDriver...")
 try:
-    service = Service(os.environ.get('CHROMEDRIVER_PATH', '/usr/bin/chromedriver'))  # 指定 ChromeDriver 路徑
+    service = Service('/usr/bin/chromedriver')  # 指定 ChromeDriver 路徑
     driver = webdriver.Chrome(service=service, options=chrome_options)
     print("WebDriver 初始化成功")
 except Exception as e:
