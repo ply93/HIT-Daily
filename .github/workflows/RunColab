@@ -1,0 +1,20 @@
+name: Run Colab Script
+
+on:
+  schedule:
+    - cron: '15 0 * * *'  # UTC 00:15 = HKT 08:15
+  workflow_dispatch:  # 支援手動觸發
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+            - name: Install colabctl
+              run: pip install colabctl
+            - name: Run Colab
+              run: colabctl.py run 'https://colab.research.google.com/drive/1BbJxRsYnrlHi_RN9zspiErEh3NAf9n83'
