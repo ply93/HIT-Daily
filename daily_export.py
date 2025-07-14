@@ -13,7 +13,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
 # 設置下載目錄
-download_dir = "/content/downloads"
+download_dir = "downloads"
 if not os.path.exists(download_dir):
     os.makedirs(download_dir)
     print(f"創建下載目錄: {download_dir}")
