@@ -12,11 +12,6 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
-# 清理殘留進程
-os.system('killall chromedriver || true')
-os.system('killall chrome || true')
-time.sleep(2)
-
 # 設置下載目錄
 download_dir = "/content/downloads"
 if not os.path.exists(download_dir):
