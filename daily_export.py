@@ -239,4 +239,52 @@ try:
 
     # 設置腳本完成標記
     with open("script_completed.txt", "w") as f:
-        f.write(f"腳本完成於: {datetime.now()}\n
+        f.write(f"腳本完成於: {datetime.now()}\n")
+    print("腳本完成標記已創建")
+
+    # 檢查標記是否有效
+    if os.path.exists("script_completed.txt"):
+        print("確認腳本完成標記存在")
+        with open("script_completed.txt", "r") as f:
+            print(f"腳本完成時間: {f.read().strip()}")
+    else:
+        print("腳本完成標記創建失敗")
+        with open("error_log.txt", "a") as f:
+            f.write(f"腳本完成標記創建失敗 - {datetime.now()}\n")
+
+    # 確保失敗後亦執行登出
+    print("嘗試登出...")
+    try:
+        logout_menu = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button")))
+        logout_menu.click()
+        time.sleep(2)
+        logout_button = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='menu-list-grow']/div[6]/li")))
+        logout_button.click()
+        print("登出完成")
+    except Exception as logout_error:
+        print("登出失敗:", logout_error)
+        with open("error_log.txt", "a") as f:
+            f.write(f"登出失敗: {str(logout_error)} - {datetime.now()}\n")
+
+except Exception as e:
+    print("發生錯誤:", e)
+    with open("error_log.txt", "a") as f:
+        f.write(f"發生錯誤: {str(e)} - {datetime.now()}\n")
+    try:
+        print("嘗試緊急登出...")
+        try:
+            logout_menu = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button")))
+            logout_menu.click()
+            time.sleep(2)
+            logout_button = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='menu-list-grow']/div[6]/li")))
+            logout_button.click()
+            print("緊急登出完成")
+        except Exception as emergency_logout_error:
+            print("緊急登出失敗:", emergency_logout_error)
+            with open("error_log.txt", "a") as f:
+                f.write(f"緊急登出失敗: {str(emergency_logout_error)} - {datetime.now()}\n")
+    except Exception:
+        pass
+
+finally:
+    driver.quit()
