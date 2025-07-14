@@ -27,6 +27,8 @@ chrome_options.add_argument('--disable-gpu')
 chrome_options.add_argument('--remote-debugging-port=9222')
 chrome_options.add_argument('--window-size=1920,1080')
 chrome_options.add_argument('--ignore-certificate-errors')
+chrome_options.add_argument('--disable-software-rasterizer')  # 添加以解決 Chromium 錯誤
+chrome_options.add_argument('--disable-web-security')  # 添加以處理潛在 CORS 問題
 prefs = {"download.default_directory": download_dir, "download.prompt_for_download": False}
 chrome_options.add_experimental_option("prefs", prefs)
 chrome_options.binary_location = '/usr/bin/chromium-browser'
@@ -47,15 +49,15 @@ try:
     print("嘗試打開網站 https://cplus.hit.com.hk/frontpage/#/...")
     driver.get("https://cplus.hit.com.hk/frontpage/#/")
     print(f"網站已成功打開，當前 URL: {driver.current_url}")
-    time.sleep(2)
+    time.sleep(5)  # 增加等待時間
 
     # 點擊登錄前嘅按鈕
     print("點擊登錄前按鈕...")
-    wait = WebDriverWait(driver, 20)
+    wait = WebDriverWait(driver, 30)  # 延長等待時間至 30 秒
     login_button_pre = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
     login_button_pre.click()
     print("登錄前按鈕點擊成功")
-    time.sleep(2)
+    time.sleep(5)
 
     # 輸入 COMPANY CODE
     print("輸入 COMPANY CODE...")
@@ -83,7 +85,7 @@ try:
     login_button = driver.find_element(By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/div[2]/div/div/form/button/span[1]")
     login_button.click()
     print("LOGIN 按鈕點擊成功")
-    time.sleep(10)
+    time.sleep(15)  # 增加登錄後等待時間
 
     # 檢查當前 URL 進行調試
     current_url = driver.current_url
@@ -92,7 +94,7 @@ try:
     # 直接前往 Container Movement Log 頁面
     print("直接前往 Container Movement Log...")
     driver.get("https://cplus.hit.com.hk/app/#/enquiry/ContainerMovementLog")
-    time.sleep(5)
+    time.sleep(10)  # 增加頁面加載時間
     wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
     print("Container Movement Log 頁面加載完成")
     time.sleep(5)
@@ -113,14 +115,14 @@ try:
     search_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[1]/div/form/div[2]/div/div[4]/button/span[1]")))
     search_button.click()
     print("Search 按鈕點擊成功")
-    time.sleep(10)
+    time.sleep(15)  # 增加搜索後等待時間
 
     # 點擊 Download
     print("點擊 Download...")
     download_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[2]/div/div[2]/div/div[1]/div[1]/button")))
     download_button.click()
     print("Download 按鈕點擊成功")
-    time.sleep(15)
+    time.sleep(30)  # 增加下載等待時間至 30 秒
 
     # 檢查下載文件
     print("檢查下載文件...")
@@ -137,7 +139,7 @@ try:
     # 前往 OnHandContainerList 頁面
     print("前往 OnHandContainerList 頁面...")
     driver.get("https://cplus.hit.com.hk/app/#/enquiry/OnHandContainerList")
-    time.sleep(5)
+    time.sleep(10)  # 增加頁面加載時間
     wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
     print("OnHandContainerList 頁面加載完成")
     time.sleep(5)
@@ -147,21 +149,21 @@ try:
     search_button_onhand = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div[1]/form/div[1]/div[24]/div[2]/button/span[1]")))
     search_button_onhand.click()
     print("Search 按鈕點擊成功")
-    time.sleep(10)
+    time.sleep(15)  # 增加搜索後等待時間
 
     # 點擊 Export
     print("點擊 Export...")
     export_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div/div[2]/div[1]/div[1]/div/div/div[4]/div/div/span[1]/button")))
     export_button.click()
     print("Export 按鈕點擊成功")
-    time.sleep(2)
+    time.sleep(5)  # 增加點擊後等待
 
     # 點擊 Export as CSV
     print("點擊 Export as CSV...")
     export_csv_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//li[contains(@class, 'MuiMenuItem-root') and text()='Export as CSV']")))
     export_csv_button.click()
     print("Export as CSV 按鈕點擊成功")
-    time.sleep(15)
+    time.sleep(30)  # 增加下載等待時間至 30 秒
 
     # 檢查下載文件（包括 OnHandContainerList）
     print("檢查下載文件（包括 OnHandContainerList）...")
@@ -233,10 +235,10 @@ try:
     # 確保失敗後亦執行登出
     print("嘗試登出...")
     try:
-        logout_menu = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button")))
+        logout_menu = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button")))
         logout_menu.click()
-        time.sleep(2)
-        logout_button = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='menu-list-grow']/div[6]/li")))
+        time.sleep(5)
+        logout_button = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='menu-list-grow']/div[6]/li")))
         logout_button.click()
         print("登出完成")
     except Exception as logout_error:
@@ -251,10 +253,10 @@ except Exception as e:
     try:
         print("嘗試緊急登出...")
         try:
-            logout_menu = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button")))
+            logout_menu = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button")))
             logout_menu.click()
-            time.sleep(2)
-            logout_button = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='menu-list-grow']/div[6]/li")))
+            time.sleep(5)
+            logout_button = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='menu-list-grow']/div[6]/li")))
             logout_button.click()
             print("緊急登出完成")
         except Exception as emergency_logout_error:
