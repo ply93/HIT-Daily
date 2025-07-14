@@ -14,13 +14,14 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.9'
-      - name: Install dependencies
+      - name: Install system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y chromium-browser chromium-chromedriver
-          pip install selenium
+      - name: Install Python dependencies
+        run: pip install selenium
       - name: Run Script
         env:
           SITE_PASSWORD: ${{ secrets.SITE_PASSWORD }}
           ZOHO_PASSWORD: ${{ secrets.ZOHO_PASSWORD }}
-        run: python daily_export.py  # 確保文件名正確，喺根目錄
+        run: python daily_export.py
