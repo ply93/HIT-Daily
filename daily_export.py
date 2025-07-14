@@ -40,7 +40,7 @@ prefs = {
     "directory_upgrade": True
 }
 chrome_options.add_experimental_option("prefs", prefs)
-chrome_options.binary_location = os.environ.get('GOOGLE_CHROME_BIN', '/usr/bin/chromium-browser')  # Actions 環境位置
+chrome_options.binary_location = os.environ.get('CHROME_BIN', '/usr/bin/chromium-browser')  # 從 setup-chrome 環境變量獲取
 
 # 初始化 WebDriver
 print("嘗試初始化 WebDriver...")
