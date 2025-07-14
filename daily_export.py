@@ -18,9 +18,8 @@ if not os.path.exists(download_dir):
     os.makedirs(download_dir)
     print(f"創建下載目錄: {download_dir}")
 
-# 設置 Chrome 選項
+# 設置 Chrome 選項 (移除 headless)
 chrome_options = Options()
-chrome_options.add_argument('--headless=new')  # 使用新 headless 模式
 chrome_options.add_argument('--no-sandbox')
 chrome_options.add_argument('--disable-dev-shm-usage')
 chrome_options.add_argument('--disable-gpu')
@@ -31,17 +30,16 @@ chrome_options.add_argument('--allow-running-insecure-content')
 chrome_options.add_argument('--disable-features=DownloadBubble')
 chrome_options.add_argument('--disable-popup-blocking')
 chrome_options.add_argument('--disable-save-password-bubble')
-chrome_options.add_argument('--user-data-dir=/tmp/chrome_user_data')  # 指定唯一的 user data directory
 prefs = {
     "download.default_directory": download_dir,
     "download.prompt_for_download": False,
-    "safebrowsing.enabled": False,  # 禁用安全瀏覽以允許下載
+    "safebrowsing.enabled": False,
     "safebrowsing.disable_download_protection": True,
     "profile.default_content_settings.popups": 0,
     "directory_upgrade": True
 }
 chrome_options.add_experimental_option("prefs", prefs)
-chrome_options.binary_location = os.environ.get('CHROME_BIN', '/usr/bin/chromium-browser')  # 從 setup-chrome 環境變量獲取
+chrome_options.binary_location = '/usr/bin/chromium-browser'
 
 # 初始化 WebDriver
 print("嘗試初始化 WebDriver...")
@@ -266,26 +264,3 @@ try:
         print("登出失敗:", logout_error)
         with open("error_log.txt", "a") as f:
             f.write(f"登出失敗: {str(logout_error)} - {datetime.now()}\n")
-
-except Exception as e:
-    print("發生錯誤:", e)
-    with open("error_log.txt", "a") as f:
-        f.write(f"發生錯誤: {str(e)} - {datetime.now()}\n")
-    try:
-        print("嘗試緊急登出...")
-        try:
-            logout_menu = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button")))
-            logout_menu.click()
-            time.sleep(2)
-            logout_button = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='menu-list-grow']/div[6]/li")))
-            logout_button.click()
-            print("緊急登出完成")
-        except Exception as emergency_logout_error:
-            print("緊急登出失敗:", emergency_logout_error)
-            with open("error_log.txt", "a") as f:
-                f.write(f"緊急登出失敗: {str(emergency_logout_error)} - {datetime.now()}\n")
-    except Exception:
-        pass
-
-finally:
-    driver.quit()
