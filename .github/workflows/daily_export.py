@@ -126,7 +126,7 @@ try:
     # 輸入 PASSWORD
     print("輸入 PASSWORD...")
     password_field = driver.find_element(By.XPATH, "//*[@id='passwd']")
-    password_field.send_keys(os.environ.get('SITE_PASSWORD', 'default_password'))  # 從 secret 讀取網站 PASSWORD
+    password_field.send_keys("Ken2807890")  # 請替換為你的 PASSWORD
     print("PASSWORD 輸入完成")
     time.sleep(1)
 
@@ -235,7 +235,7 @@ try:
             smtp_server = 'smtp.zoho.com'
             smtp_port = 587
             sender_email = 'paklun_ckline@zohomail.com'  # 發送人電郵
-            sender_password = os.environ.get('ZOHO_PASSWORD', 'default_zoho_password')  # 從 secret 讀取 Zoho 密碼
+            sender_password = '@d6G.Pie5UkEPqm'  # 請替換為你的 Zoho 密碼或 App Password
             receiver_email = 'paklun@ckline.com.hk'  # 收件人電郵
 
             # 創建郵件
