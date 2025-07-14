@@ -20,7 +20,7 @@ if not os.path.exists(download_dir):
 
 # 設置 Chrome 選項
 chrome_options = Options()
-chrome_options.add_argument('--headless')
+chrome_options.add_argument('--headless=new')  # 使用新 headless 模式
 chrome_options.add_argument('--no-sandbox')
 chrome_options.add_argument('--disable-dev-shm-usage')
 chrome_options.add_argument('--disable-gpu')
@@ -34,12 +34,13 @@ chrome_options.add_argument('--disable-save-password-bubble')
 prefs = {
     "download.default_directory": download_dir,
     "download.prompt_for_download": False,
-    "safebrowsing.enabled": True,
+    "safebrowsing.enabled": False,  # 禁用安全瀏覽以允許下載
+    "safebrowsing.disable_download_protection": True,
     "profile.default_content_settings.popups": 0,
     "directory_upgrade": True
 }
 chrome_options.add_experimental_option("prefs", prefs)
-chrome_options.binary_location = '/usr/bin/chromium-browser'
+chrome_options.binary_location = os.environ.get('GOOGLE_CHROME_BIN', '/usr/bin/chromium-browser')  # Actions 環境位置
 
 # 初始化 WebDriver
 print("嘗試初始化 WebDriver...")
@@ -63,7 +64,7 @@ try:
     print("點擊登錄前按鈕...")
     wait = WebDriverWait(driver, 20)
     login_button_pre = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
-    driver.execute_script("arguments[0].click();", login_button_pre)  # 用 JS 點擊
+    driver.execute_script("arguments[0].click();", login_button_pre)
     print("登錄前按鈕點擊成功")
     time.sleep(2)
 
@@ -91,7 +92,7 @@ try:
     # 點擊 LOGIN 按鈕
     print("點擊 LOGIN 按鈕...")
     login_button = driver.find_element(By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/div[2]/div/div/form/button/span[1]")
-    driver.execute_script("arguments[0].click();", login_button)  # 用 JS 點擊
+    driver.execute_script("arguments[0].click();", login_button)
     print("LOGIN 按鈕點擊成功")
     time.sleep(10)
 
@@ -121,14 +122,14 @@ try:
     # 點擊 Search
     print("點擊 Search...")
     search_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[1]/div/form/div[2]/div/div[4]/button/span[1]")))
-    driver.execute_script("arguments[0].click();", search_button)  # 用 JS 點擊
+    driver.execute_script("arguments[0].click();", search_button)
     print("Search 按鈕點擊成功")
     time.sleep(10)
 
     # 點擊 Download
     print("點擊 Download...")
     download_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[2]/div/div[2]/div/div[1]/div[1]/button")))
-    driver.execute_script("arguments[0].click();", download_button)  # 用 JS 點擊
+    driver.execute_script("arguments[0].click();", download_button)
     print("Download 按鈕點擊成功")
     time.sleep(60)
 
@@ -161,21 +162,21 @@ try:
     # 點擊 Search
     print("點擊 Search...")
     search_button_onhand = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div[1]/form/div[1]/div[24]/div[2]/button/span[1]")))
-    driver.execute_script("arguments[0].click();", search_button_onhand)  # 用 JS 點擊
+    driver.execute_script("arguments[0].click();", search_button_onhand)
     print("Search 按鈕點擊成功")
     time.sleep(10)
 
     # 點擊 Export
     print("點擊 Export...")
     export_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div/div[2]/div[1]/div[1]/div/div/div[4]/div/div/span[1]/button")))
-    driver.execute_script("arguments[0].click();", export_button)  # 用 JS 點擊
+    driver.execute_script("arguments[0].click();", export_button)
     print("Export 按鈕點擊成功")
     time.sleep(2)
 
     # 點擊 Export as CSV
     print("點擊 Export as CSV...")
     export_csv_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//li[contains(@class, 'MuiMenuItem-root') and text()='Export as CSV']")))
-    driver.execute_script("arguments[0].click();", export_csv_button)  # 用 JS 點擊
+    driver.execute_script("arguments[0].click();", export_csv_button)
     print("Export as CSV 按鈕點擊成功")
     time.sleep(60)
 
@@ -238,52 +239,4 @@ try:
 
     # 設置腳本完成標記
     with open("script_completed.txt", "w") as f:
-        f.write(f"腳本完成於: {datetime.now()}\n")
-    print("腳本完成標記已創建")
-
-    # 檢查標記是否有效
-    if os.path.exists("script_completed.txt"):
-        print("確認腳本完成標記存在")
-        with open("script_completed.txt", "r") as f:
-            print(f"腳本完成時間: {f.read().strip()}")
-    else:
-        print("腳本完成標記創建失敗")
-        with open("error_log.txt", "a") as f:
-            f.write(f"腳本完成標記創建失敗 - {datetime.now()}\n")
-
-    # 確保失敗後亦執行登出
-    print("嘗試登出...")
-    try:
-        logout_menu = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button")))
-        logout_menu.click()
-        time.sleep(2)
-        logout_button = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='menu-list-grow']/div[6]/li")))
-        logout_button.click()
-        print("登出完成")
-    except Exception as logout_error:
-        print("登出失敗:", logout_error)
-        with open("error_log.txt", "a") as f:
-            f.write(f"登出失敗: {str(logout_error)} - {datetime.now()}\n")
-
-except Exception as e:
-    print("發生錯誤:", e)
-    with open("error_log.txt", "a") as f:
-        f.write(f"發生錯誤: {str(e)} - {datetime.now()}\n")
-    try:
-        print("嘗試緊急登出...")
-        try:
-            logout_menu = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button")))
-            logout_menu.click()
-            time.sleep(2)
-            logout_button = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='menu-list-grow']/div[6]/li")))
-            logout_button.click()
-            print("緊急登出完成")
-        except Exception as emergency_logout_error:
-            print("緊急登出失敗:", emergency_logout_error)
-            with open("error_log.txt", "a") as f:
-                f.write(f"緊急登出失敗: {str(emergency_logout_error)} - {datetime.now()}\n")
-    except Exception:
-        pass
-
-finally:
-    driver.quit()
+        f.write(f"腳本完成於: {datetime.now()}\n
