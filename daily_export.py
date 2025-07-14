@@ -18,8 +18,9 @@ if not os.path.exists(download_dir):
     os.makedirs(download_dir)
     print(f"創建下載目錄: {download_dir}")
 
-# 設置 Chrome 選項 (移除 headless 測試 non-headless)
+# 設置 Chrome 選項
 chrome_options = Options()
+chrome_options.add_argument('--headless=new')  # 使用新 headless 模式
 chrome_options.add_argument('--no-sandbox')
 chrome_options.add_argument('--disable-dev-shm-usage')
 chrome_options.add_argument('--disable-gpu')
@@ -30,16 +31,17 @@ chrome_options.add_argument('--allow-running-insecure-content')
 chrome_options.add_argument('--disable-features=DownloadBubble')
 chrome_options.add_argument('--disable-popup-blocking')
 chrome_options.add_argument('--disable-save-password-bubble')
+chrome_options.add_argument('--user-data-dir=/tmp/chrome_user_data')  # 指定唯一的 user data directory
 prefs = {
     "download.default_directory": download_dir,
     "download.prompt_for_download": False,
-    "safebrowsing.enabled": False,
+    "safebrowsing.enabled": False,  # 禁用安全瀏覽以允許下載
     "safebrowsing.disable_download_protection": True,
     "profile.default_content_settings.popups": 0,
     "directory_upgrade": True
 }
 chrome_options.add_experimental_option("prefs", prefs)
-chrome_options.binary_location = os.environ.get('CHROME_BIN', '/usr/bin/chromium-browser')
+chrome_options.binary_location = os.environ.get('CHROME_BIN', '/usr/bin/chromium-browser')  # 從 setup-chrome 環境變量獲取
 
 # 初始化 WebDriver
 print("嘗試初始化 WebDriver...")
