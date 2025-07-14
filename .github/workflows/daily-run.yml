@@ -3,6 +3,7 @@ name: Daily HIT Script Run
 on:
   schedule:
     - cron: '15 0 * * *'  # UTC 00:15 = HKT 08:15
+  workflow_dispatch:  # 添加呢行，啟用手動觸發
 
 jobs:
   run-script:
