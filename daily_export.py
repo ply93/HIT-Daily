@@ -11,7 +11,6 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.chrome.service import Service
 
 # 設置下載目錄
 download_dir = "downloads"
@@ -19,35 +18,25 @@ if not os.path.exists(download_dir):
     os.makedirs(download_dir)
     print(f"創建下載目錄: {download_dir}")
 
-# 設置 Chrome 選項 (non-headless)
+# 設置 Chrome 選項
 chrome_options = Options()
+chrome_options.add_argument('--headless')
 chrome_options.add_argument('--no-sandbox')
 chrome_options.add_argument('--disable-dev-shm-usage')
 chrome_options.add_argument('--disable-gpu')
 chrome_options.add_argument('--remote-debugging-port=9222')
 chrome_options.add_argument('--window-size=1920,1080')
 chrome_options.add_argument('--ignore-certificate-errors')
-chrome_options.add_argument('--allow-running-insecure-content')
-chrome_options.add_argument('--disable-features=DownloadBubble')
-chrome_options.add_argument('--disable-popup-blocking')
-chrome_options.add_argument('--disable-save-password-bubble')
-chrome_options.add_argument('--user-data-dir=/tmp/chrome_user_data')  # 指定唯一的 user data directory
-prefs = {
-    "download.default_directory": download_dir,
-    "download.prompt_for_download": False,
-    "safebrowsing.enabled": False,
-    "safebrowsing.disable_download_protection": True,
-    "profile.default_content_settings.popups": 0,
-    "directory_upgrade": True
-}
+chrome_options.add_argument('--allow-running-insecure-content')  # 允許不安全內容
+chrome_options.add_argument('--disable-features=DownloadBubble')  # 禁用下載泡泡
+prefs = {"download.default_directory": download_dir, "download.prompt_for_download": False, "safebrowsing.enabled": True}
 chrome_options.add_experimental_option("prefs", prefs)
-chrome_options.binary_location = '/usr/bin/google-chrome-stable'  # 指定 Chrome binary 路徑
+chrome_options.binary_location = '/usr/bin/chromium-browser'
 
 # 初始化 WebDriver
 print("嘗試初始化 WebDriver...")
 try:
-    service = Service('/usr/bin/chromedriver')  # 指定 ChromeDriver 路徑
-    driver = webdriver.Chrome(service=service, options=chrome_options)
+    driver = webdriver.Chrome(options=chrome_options)
     print("WebDriver 初始化成功")
 except Exception as e:
     print(f"WebDriver 初始化失敗: {str(e)}")
@@ -66,7 +55,7 @@ try:
     print("點擊登錄前按鈕...")
     wait = WebDriverWait(driver, 20)
     login_button_pre = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
-    driver.execute_script("arguments[0].click();", login_button_pre)
+    login_button_pre.click()
     print("登錄前按鈕點擊成功")
     time.sleep(2)
 
@@ -94,7 +83,7 @@ try:
     # 點擊 LOGIN 按鈕
     print("點擊 LOGIN 按鈕...")
     login_button = driver.find_element(By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/div[2]/div/div/form/button/span[1]")
-    driver.execute_script("arguments[0].click();", login_button)
+    login_button.click()
     print("LOGIN 按鈕點擊成功")
     time.sleep(10)
 
@@ -124,22 +113,22 @@ try:
     # 點擊 Search
     print("點擊 Search...")
     search_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[1]/div/form/div[2]/div/div[4]/button/span[1]")))
-    driver.execute_script("arguments[0].click();", search_button)
+    search_button.click()
     print("Search 按鈕點擊成功")
     time.sleep(10)
 
     # 點擊 Download
     print("點擊 Download...")
     download_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[2]/div/div[2]/div/div[1]/div[1]/button")))
-    driver.execute_script("arguments[0].click();", download_button)
+    download_button.click()
     print("Download 按鈕點擊成功")
-    time.sleep(60)
+    time.sleep(60)  # 增加等待時間至 60 秒
 
     # 檢查下載文件（循環檢查）
     print("檢查下載文件...")
     start_time = time.time()
     downloaded_files = []
-    while time.time() - start_time < 60:
+    while time.time() - start_time < 60:  # 超時 60 秒
         downloaded_files = [f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx'))]
         if downloaded_files:
             break
@@ -164,23 +153,23 @@ try:
     # 點擊 Search
     print("點擊 Search...")
     search_button_onhand = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div[1]/form/div[1]/div[24]/div[2]/button/span[1]")))
-    driver.execute_script("arguments[0].click();", search_button_onhand)
+    search_button_onhand.click()
     print("Search 按鈕點擊成功")
     time.sleep(10)
 
     # 點擊 Export
     print("點擊 Export...")
     export_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div/div[2]/div[1]/div[1]/div/div/div[4]/div/div/span[1]/button")))
-    driver.execute_script("arguments[0].click();", export_button)
+    export_button.click()
     print("Export 按鈕點擊成功")
     time.sleep(2)
 
     # 點擊 Export as CSV
     print("點擊 Export as CSV...")
     export_csv_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//li[contains(@class, 'MuiMenuItem-root') and text()='Export as CSV']")))
-    driver.execute_script("arguments[0].click();", export_csv_button)
+    export_csv_button.click()
     print("Export as CSV 按鈕點擊成功")
-    time.sleep(60)
+    time.sleep(60)  # 增加等待時間至 60 秒
 
     # 檢查下載文件（循環檢查）
     print("檢查下載文件（包括 OnHandContainerList）...")
