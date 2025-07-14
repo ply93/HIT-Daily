@@ -20,4 +20,4 @@ jobs:
         env:
           SITE_PASSWORD: ${{ secrets.SITE_PASSWORD }}
           ZOHO_PASSWORD: ${{ secrets.ZOHO_PASSWORD }}
-        run: python daily_export.py
+        run: python .github/workflows/daily_export.py
