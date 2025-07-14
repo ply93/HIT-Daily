@@ -11,6 +11,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.chrome.service import Service
 
 # 設置下載目錄
 download_dir = "downloads"
@@ -45,7 +46,8 @@ chrome_options.binary_location = os.environ.get('CHROME_BIN', '/usr/bin/chromium
 # 初始化 WebDriver
 print("嘗試初始化 WebDriver...")
 try:
-    driver = webdriver.Chrome(options=chrome_options)
+    service = Service(os.environ.get('CHROMEDRIVER_PATH', '/usr/bin/chromedriver'))  # 指定 ChromeDriver 路徑
+    driver = webdriver.Chrome(service=service, options=chrome_options)
     print("WebDriver 初始化成功")
 except Exception as e:
     print(f"WebDriver 初始化失敗: {str(e)}")
