@@ -1,0 +1,23 @@
+name: Daily HIT Script Run2
+
+on:
+  schedule:
+    - cron: '15 0 * * *'  # UTC 00:15 = HKT 08:15
+  workflow_dispatch:  # 添加呢行，啟用手動觸發
+
+jobs:
+  run-script:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+      - name: Install dependencies
+        run: pip install selenium requests tqdm  # 添加你腳本所需庫
+      - name: Run Script
+        env:
+          SITE_PASSWORD: ${{ secrets.SITE_PASSWORD }}
+          ZOHO_PASSWORD: ${{ secrets.ZOHO_PASSWORD }}
+        run: python daily_export.py
