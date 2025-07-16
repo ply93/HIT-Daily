@@ -1,8 +1,6 @@
 name: HIT
 
 on:
-  schedule:
-    - cron: '15 0 * * *'  # UTC 00:15 = HKT 08:15
   workflow_dispatch:  # 手動觸發
 
 jobs:
