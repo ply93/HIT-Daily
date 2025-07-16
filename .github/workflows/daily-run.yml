@@ -1,27 +1,34 @@
-name: Daily HIT Script Run
+name: Run Daily Export Script
 
 on:
   schedule:
     - cron: '15 0 * * *'  # UTC 00:15 = HKT 08:15
-  workflow_dispatch:  # 手動觸發
+  workflow_dispatch:  # 支援手動觸發
 
 jobs:
-  run-script:
+  run:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.9'
+
       - name: Install system dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y chromium-browser chromium-chromedriver xvfb
+          sudo apt-get update -qq
+          sudo apt-get install -y chromium-chromedriver
+
       - name: Install Python dependencies
-        run: pip install selenium
-      - name: Run Script
+        run: |
+          pip install --upgrade pip
+          pip install selenium
+
+      - name: Run Daily Export script
         env:
           SITE_PASSWORD: ${{ secrets.SITE_PASSWORD }}
           ZOHO_PASSWORD: ${{ secrets.ZOHO_PASSWORD }}
-        run: xvfb-run -a python daily_export.py  # 用 xvfb 模擬顯示
+        run: python Daily_Export.py
