@@ -9,7 +9,7 @@ options.add_argument('--headless')
 options.add_argument('--no-sandbox')
 options.add_argument('--disable-dev-shm-usage')
 driver = webdriver.Chrome(options=options)
-driver.get("https://colab.research.google.com/drive/YOUR_COLAB_NOTEBOOK_ID")
+driver.get("https://colab.research.google.com/drive/1BbJxRsYnrlHi_RN9zspiErEh3NAf9n83?usp=drive_link")
 
 try:
     cookies = pickle.load(open("cookies.pkl", "rb"))
