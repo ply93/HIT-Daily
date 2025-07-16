@@ -16,7 +16,7 @@ jobs:
           python-version: '3.9'
       - name: Install dependencies
         run: pip install selenium requests tqdm  # 添加你腳本所需庫
-      - name: Run Script
+      - name: Run Script2
         env:
           SITE_PASSWORD: ${{ secrets.SITE_PASSWORD }}
           ZOHO_PASSWORD: ${{ secrets.ZOHO_PASSWORD }}
