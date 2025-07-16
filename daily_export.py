@@ -1,3 +1,6 @@
+import sys
+print("Script started", file=sys.stderr)  # 確保輸出到 stderr
+
 # -*- coding: utf-8 -*-
 """Daily.Export
 
