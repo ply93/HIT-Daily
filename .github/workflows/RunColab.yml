@@ -15,4 +15,4 @@ jobs:
       - name: Install colabctl
         run: pip install colabctl
       - name: Run Colab
-        run: colabctl.py run 'https://colab.research.google.com/drive/1BbJxRsYnrlHi_RN9zspiErEh3NAf9n83'
+        run: colabctl.py run 'https://colab.research.google.com/drive/1BbJxRsYnrlHi_RN9zspiErEh3NAf9n83#scrollTo=Ny-t6BiW_3kz&line=1&uniqifier=1'
