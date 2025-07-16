@@ -25,7 +25,7 @@ jobs:
         id: run-colab
         run: |
           echo "Attempting to run Colab notebook..."
-          colabctl.py run 'https://colab.research.google.com/drive/1BbJxRsYnrlHi_RN9zspiErEh3NAf9n83?usp=drive_link' --verbose
+          colabctl.py run 'https://colab.research.google.com/drive/1BbJxRsYnrlHi_RN9zspiErEh3NAf9n83#scrollTo=Ny-t6BiW_3kz&line=8&uniqifier=1' --verbose
         continue-on-error: true  # 即使失敗也繼續，方便檢查日志
 
       - name: Check Output
