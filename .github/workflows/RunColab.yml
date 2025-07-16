@@ -10,5 +10,8 @@ steps:
 
 uses: actions/checkout@v4
 name: Set up Python uses: actions/setup-python@v5 with: python-version: '3.9'
-name: Install colabctl run: pip install colabctl
-name: Run Colab run: colabctl.py run 'https://colab.research.google.com/drive/1BbJxRsYnrlHi_RN9zspiErEh3NAf9n83#scrollTo=Ny-t6BiW_3kz&line=1&uniqifier=1'
+name: Install colabctl
+run: pip install colabctl
+name: Run Colab 
+run: colabctl.py
+run 'https://colab.research.google.com/drive/1BbJxRsYnrlHi_RN9zspiErEh3NAf9n83#scrollTo=Ny-t6BiW_3kz&line=1&uniqifier=1
