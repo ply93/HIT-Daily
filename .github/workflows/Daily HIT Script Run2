@@ -1,4 +1,4 @@
-name: Daily HIT Script Run2
+name: Daily HIT(2)
 
 on:
   schedule:
