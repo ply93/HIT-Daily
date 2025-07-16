@@ -1,7 +1,7 @@
 name: Trigger Colab with colabctl
 
 on:
-  workflow_dispatch:  # 只支援手動觸發（先測試，成功後加 schedule）
+  workflow_dispatch:  # 只支援手動觸發（測試用，成功後加 schedule）
 
 jobs:
   run-colab:
@@ -26,7 +26,8 @@ jobs:
         run: |
           echo "Attempting to run Colab notebook..."
           colabctl.py run 'https://colab.research.google.com/drive/1BbJxRsYnrlHi_RN9zspiErEh3NAf9n83' --verbose
-        continue-on-error: true  # 即使失敗也繼續，方便檢查日志
+          sleep 5  # 延遲 5 秒確保觸發
+        continue-on-error: true
 
       - name: Check Output
         run: |
