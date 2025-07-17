@@ -144,7 +144,12 @@ if exists_by_text(wd, "Sign in"):
     chrome_options_gui.add_argument('--no-sandbox')
     #chrome_options.add_argument("user-data-dir=profile") # left for debugging
     chrome_options_gui.add_argument('--disable-infobars')
-    wd = webdriver.Chrome('chromedriver', options=chrome_options_gui)
+    from selenium.webdriver.chrome.service import Service
+import os
+user_data_dir = os.path.join(os.getcwd(), "temp_user_data_" + str(time.time()))  # 唯一用戶數據目錄
+chrome_options_gui.add_argument(f'--user-data-dir={user_data_dir}')
+service = Service('/usr/bin/chromedriver')  # 指定 ChromeDriver 路徑
+wd = webdriver.Chrome(service=service, options=chrome_options_gui)
     wd.get("https://accounts.google.com/signin")
     wait_for_xpath(wd, '//*[@id="yDmH0d"]/c-wiz/div/div[2]/c-wiz/c-wiz/div/div[4]/div/div/header/div[2]')
     print("Login detected. Saving cookie & restarting connection.")
