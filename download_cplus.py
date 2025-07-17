@@ -10,7 +10,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
 
 # 設置下載目錄
-download_dir = "downloads"
+download_dir = os.path.abspath("downloads")  # 使用絕對路徑
 if not os.path.exists(download_dir):
     os.makedirs(download_dir)
     print(f"創建下載目錄: {download_dir}", flush=True)
@@ -35,7 +35,8 @@ chrome_options.add_argument('--disable-dev-shm-usage')
 chrome_options.add_argument('--disable-gpu')
 chrome_options.add_argument('--ignore-certificate-errors')
 chrome_options.add_argument('--disable-popup-blocking')
-prefs = {"download.default_directory": download_dir, "download.prompt_for_download": False}
+chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36')
+prefs = {"download.default_directory": download_dir, "download.prompt_for_download": False, "safebrowsing.enabled": False}
 chrome_options.add_experimental_option("prefs", prefs)
 chrome_options.binary_location = '/usr/bin/chromium-browser'
 
@@ -112,11 +113,17 @@ try:
     download_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[2]/div/div[2]/div/div[1]/div[1]/button")))
     download_button.click()
     print("Download 按鈕點擊成功", flush=True)
-    time.sleep(60)
+    time.sleep(120)  # 延長下載等待時間
 
-    # 檢查下載文件
+    # 檢查下載文件（循環檢查）
     print("檢查下載文件...", flush=True)
-    downloaded_files = [f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx'))]
+    start_time = time.time()
+    downloaded_files = []
+    while time.time() - start_time < 120:  # 延長檢查時間
+        downloaded_files = [f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx'))]
+        if downloaded_files:
+            break
+        time.sleep(5)
     if downloaded_files:
         print(f"下載完成，檔案位於: {download_dir}", flush=True)
         for file in downloaded_files:
