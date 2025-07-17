@@ -128,6 +128,20 @@ chrome_options.add_argument('--no-sandbox')
 chrome_options.add_argument('--disable-dev-shm-usage')
 wd = webdriver.Chrome('chromedriver', options=chrome_options)
 
+from selenium.webdriver.common.keys import Keys
+print("Attempting to log in to Google...")
+wd.get("https://accounts.google.com")
+time.sleep(5)
+email_field = wd.find_element(By.ID, "identifierId")
+email_field.send_keys(os.environ.get('GOOGLE_EMAIL', 'your_email@gmail.com'))
+email_field.send_keys(Keys.RETURN)
+time.sleep(5)
+password_field = wd.find_element(By.NAME, "Passwd")
+password_field.send_keys(os.environ.get('GOOGLE_PASSWORD', 'your_password'))
+password_field.send_keys(Keys.RETURN)
+time.sleep(10)  # 等待登入完成
+print("Google login completed.")
+
 wd.get(colab_1)
 try:
     for cookie in pickle.load(open("gCookies.pkl", "rb")):
