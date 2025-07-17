@@ -1,7 +1,7 @@
 name: Download CPLUS Files
 
 on:
-  push:
+  push:  # 添加 push 事件
   schedule:
     - cron: '15 0 * * *'  # UTC 00:15 = HKT 08:15
   workflow_dispatch:  # 支援手動觸發
