@@ -112,8 +112,9 @@ def new_tab(driver, url, tab_index):
     
 
 fork = sys.argv[1]
-timeout = int(sys.argv[2])
-colab_urls = file_to_list('notebooks.csv')
+if len(sys.argv) > 2 and sys.argv[1] == 'run':
+    timeout = int(sys.argv[2]) if len(sys.argv) > 2 and sys.argv[2].isdigit() else 60
+    colab_urls = [sys.argv[3]] if len(sys.argv) > 3 else file_to_list('notebooks.csv')
 
 if len(colab_urls) > 0 and validators.url(colab_urls[0]):
     colab_1 = colab_urls[0]
