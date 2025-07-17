@@ -21,11 +21,11 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install git+https://github.com/bitnom/colabctl.git
-          pip install selenium
+          pip install selenium==4.9.0  # 指定 Selenium 版本，兼容舊 API
           sudo apt-get update -qq
           sudo apt-get install -y chromium-browser chromium-chromedriver
-          export PATH=$PATH:/usr/lib/chromium-browser
-          export PATH=$PATH:$(python -m site --user-base)/bin
+          export PATH=$PATH:/usr/lib/chromium-browser:/usr/bin
+          export CHROMEDRIVER_PATH=/usr/bin/chromedriver
           colabctl --version || echo "colabctl installation failed"
 
       - name: Run Colab
