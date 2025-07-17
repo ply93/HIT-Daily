@@ -122,11 +122,17 @@ try:
     email_field.send_keys(os.environ.get('GOOGLE_EMAIL', 'your_email@gmail.com'))
     email_field.send_keys(Keys.RETURN)
     time.sleep(10)  # 延長等待密碼頁加載
-    password_field = WebDriverWait(wd, 20).until(EC.presence_of_element_located((By.NAME, "Passwd")))
-    password_field.send_keys(os.environ.get('GOOGLE_PASSWORD', 'your_password'))
-    password_field.send_keys(Keys.RETURN)
-    time.sleep(15)  # 延長等待登入完成
-    print("Google login completed.")
+    # 檢查是否進入密碼頁
+    try:
+        WebDriverWait(wd, 20).until(EC.presence_of_element_located((By.ID, "passwordNext")))
+        password_field = WebDriverWait(wd, 20).until(EC.presence_of_element_located((By.NAME, "Passwd")))
+        password_field.send_keys(os.environ.get('GOOGLE_PASSWORD', 'your_password'))
+        password_field.send_keys(Keys.RETURN)
+        time.sleep(15)  # 延長等待登入完成
+        print("Google login completed.")
+    except TimeoutException as e:
+        print(f"Failed to locate password field: {e}. Possible CAPTCHA or verification required.")
+        raise
 except Exception as e:
     print(f"Login failed: {e}")
     raise
