@@ -20,9 +20,12 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install requests  # colabctl 可能依賴 requests
+          pip install git+https://github.com/bitnom/colabctl.git
+          pip install selenium  # 明確安裝 selenium
+          export PATH=$PATH:$(python -m site --user-base)/bin
+          colabctl --version || echo "colabctl installation failed"
 
       - name: Run Colab
         run: |
           echo "Attempting to run Colab notebook..."
-          python colabctl.py run 60 'https://colab.research.google.com/drive/1BbJxRsYnrlHi_RN9zspiErEh3NAf9n83' --verbose
+          python -m colabctl run 60 'https://colab.research.google.com/drive/1BbJxRsYnrlHi_RN9zspiErEh3NAf9n83' --verbose
