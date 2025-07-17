@@ -17,15 +17,12 @@ jobs:
         with:
           python-version: '3.9'
 
-      - name: Install colabctl
+      - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install git+https://github.com/bitnom/colabctl.git
-          export PATH=$PATH:$(python -m site --user-base)/bin
-          colabctl --version || echo "colabctl installation failed"
+          pip install requests  # colabctl 可能依賴 requests
 
       - name: Run Colab
         run: |
           echo "Attempting to run Colab notebook..."
-          # 調整參數順序，timeout 喺 url 之前
-          python -m colabctl run 60 'https://colab.research.google.com/drive/1BbJxRsYnrlHi_RN9zspiErEh3NAf9n83' --verbose
+          python colabctl.py run 60 'https://colab.research.google.com/drive/1BbJxRsYnrlHi_RN9zspiErEh3NAf9n83' --verbose
