@@ -27,5 +27,5 @@ jobs:
       - name: Run Colab
         run: |
           echo "Attempting to run Colab notebook..."
-          python -m colabctl run 60 'https://colab.research.google.com/drive/1BbJxRsYnrlHi_RN9zspiErEh3NAf9n83?usp=drive_link' --verbose
-          # timeout=60 秒，URL 後跟 --verbose
+          # 直接運行 colabctl 並傳遞 URL 作為參數，忽略 notebooks.csv
+          python -m colabctl run --url 'https://colab.research.google.com/drive/1BbJxRsYnrlHi_RN9zspiErEh3NAf9n83' --timeout 60 --verbose
