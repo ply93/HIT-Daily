@@ -9,14 +9,19 @@ jobs:
   run-colab:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.9'
+
       - name: Install colabctl
         run: |
           pip install --upgrade pip
-          pip install git+https://github.com/bitnom/colabctl/blob/master/colabctl.py
+          pip install git+https://github.com/bitnom/colabctl.git  # 修正為倉庫 URL
+          colabctl --version || echo "colabctl installation failed"
+
       - name: Run Colab
-        run: colabctl.py run 'https://colab.research.google.com/drive/1BbJxRsYnrlHi_RN9zspiErEh3NAf9n83'
+        run: colabctl.py run 'https://colab.research.google.com/drive/1BbJxRsYnrlHi_RN9zspiErEh3NAf9n83' --verbose
