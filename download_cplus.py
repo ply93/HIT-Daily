@@ -120,8 +120,8 @@ try:
     print("Download 按鈕點擊成功", flush=True)
     time.sleep(120)  # 延長下載等待時間
 
-    # 檢查下載文件（循環檢查）
-    print("檢查下載文件...", flush=True)
+    # 檢查 Container Movement Log 下載文件
+    print("檢查 Container Movement Log 下載文件...", flush=True)
     start_time = time.time()
     downloaded_files = []
     while time.time() - start_time < 120:  # 延長檢查時間
@@ -130,7 +130,51 @@ try:
             break
         time.sleep(5)
     if downloaded_files:
-        print(f"下載完成，檔案位於: {download_dir}", flush=True)
+        print(f"Container Movement Log 下載完成，檔案位於: {download_dir}", flush=True)
+        for file in downloaded_files:
+            print(f"找到檔案: {file}", flush=True)
+    else:
+        print("Container Movement Log 下載失敗，無找到檔案", flush=True)
+
+    # 前往 OnHandContainerList 頁面
+    print("前往 OnHandContainerList 頁面...", flush=True)
+    driver.get("https://cplus.hit.com.hk/app/#/enquiry/OnHandContainerList")
+    time.sleep(5)
+    wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
+    print("OnHandContainerList 頁面加載完成", flush=True)
+    time.sleep(5)
+
+    # 點擊 Search
+    print("點擊 Search...", flush=True)
+    search_button_onhand = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div[1]/form/div[1]/div[24]/div[2]/button/span[1]")))
+    search_button_onhand.click()
+    print("Search 按鈕點擊成功", flush=True)
+    time.sleep(10)
+
+    # 點擊 Export
+    print("點擊 Export...", flush=True)
+    export_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div/div[2]/div[1]/div[1]/div/div/div[4]/div/div/span[1]/button")))
+    export_button.click()
+    print("Export 按鈕點擊成功", flush=True)
+    time.sleep(2)
+
+    # 點擊 Export as CSV
+    print("點擊 Export as CSV...", flush=True)
+    export_csv_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//li[contains(@class, 'MuiMenuItem-root') and text()='Export as CSV']")))
+    export_csv_button.click()
+    print("Export as CSV 按鈕點擊成功", flush=True)
+    time.sleep(120)  # 延長下載等待時間
+
+    # 檢查 OnHandContainerList 下載文件
+    print("檢查 OnHandContainerList 下載文件...", flush=True)
+    start_time = time.time()
+    while time.time() - start_time < 120:  # 延長檢查時間
+        downloaded_files = [f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx'))]
+        if downloaded_files:
+            break
+        time.sleep(5)
+    if downloaded_files:
+        print(f"OnHandContainerList 下載完成，檔案位於: {download_dir}", flush=True)
         for file in downloaded_files:
             print(f"找到檔案: {file}", flush=True)
 
@@ -139,15 +183,15 @@ try:
         try:
             smtp_server = 'smtp.zoho.com'
             smtp_port = 587
-            sender_email = 'paklun_ckline@zohomail.com'
-            sender_password = '@d6G.Pie5UkEPqm'  # 硬碼密碼，建議用環境變量
+            sender_email = os.environ.get('ZOHO_EMAIL', 'paklun_ckline@zohomail.com')
+            sender_password = os.environ.get('ZOHO_PASSWORD', '@d6G.Pie5UkEPqm')
             receiver_email = 'paklun@ckline.com.hk'
 
             # 創建郵件
             msg = MIMEMultipart()
             msg['From'] = sender_email
             msg['To'] = receiver_email
-            msg['Subject'] = f"HIT DAILY + {datetime.now().strftime('%Y-%m-%d')}"
+            msg['Subject'] = f"HIT DAILY TESTING + {datetime.now().strftime('%Y-%m-%d')}"
 
             # 添加附件
             for file in downloaded_files:
@@ -168,7 +212,7 @@ try:
         except Exception as e:
             print(f"郵件發送失敗: {str(e)}", flush=True)
     else:
-        print("下載失敗，無文件可發送", flush=True)
+        print("OnHandContainerList 下載失敗，無文件可發送", flush=True)
 
     print("腳本完成", flush=True)
 
