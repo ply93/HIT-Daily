@@ -20,8 +20,12 @@ jobs:
       - name: Install colabctl
         run: |
           pip install --upgrade pip
-          pip install git+https://github.com/bitnom/colabctl.git  # 修正為倉庫 URL
-          colabctl --version || echo "colabctl installation failed"
+          pip install git+https://github.com/bitnom/colabctl.git
+          # 檢查安裝路徑並添加可執行文件
+          export PATH=$PATH:$(python -m site --user-base)/bin
+          colabctl --version || echo "colabctl installation failed or not executable"
 
       - name: Run Colab
-        run: colabctl.py run 'https://colab.research.google.com/drive/1BbJxRsYnrlHi_RN9zspiErEh3NAf9n83' --verbose
+        run: |
+          # 用 Python 模塊方式運行 colabctl
+          python -m colabctl run 'https://colab.research.google.com/drive/1BbJxRsYnrlHi_RN9zspiErEh3NAf9n83' --verbose
