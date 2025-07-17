@@ -39,7 +39,7 @@ def exists_by_xpath(driver, thex, howlong):
 def exists_by_text(driver, text):
     driver.implicitly_wait(2)
     try:
-        driver.find_element_by_xpath("//*[contains(text(), '"+str(text)+"')]")
+        driver.find_element(By.XPATH, "//*[contains(text(), '{}')]".format(str(text)))
     except NoSuchElementException:
         driver.implicitly_wait(5)
         return False
