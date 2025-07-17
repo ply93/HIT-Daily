@@ -115,19 +115,21 @@ chrome_options.add_argument('--disable-dev-shm-usage')
 wd = webdriver.Chrome('chromedriver', options=chrome_options)
 
 try:
-    # Google 登入邏輯
     print("Attempting to log in to Google...")
     wd.get("https://accounts.google.com")
     time.sleep(5)
-    email_field = wd.find_element(By.ID, "identifierId")
+    email_field = WebDriverWait(wd, 20).until(EC.presence_of_element_located((By.ID, "identifierId")))
     email_field.send_keys(os.environ.get('GOOGLE_EMAIL', 'your_email@gmail.com'))
     email_field.send_keys(Keys.RETURN)
-    time.sleep(5)
-    password_field = wd.find_element(By.NAME, "Passwd")
+    time.sleep(10)  # 延長等待密碼頁加載
+    password_field = WebDriverWait(wd, 20).until(EC.presence_of_element_located((By.NAME, "Passwd")))
     password_field.send_keys(os.environ.get('GOOGLE_PASSWORD', 'your_password'))
     password_field.send_keys(Keys.RETURN)
-    time.sleep(10)  # 等待登入完成
+    time.sleep(15)  # 延長等待登入完成
     print("Google login completed.")
+except Exception as e:
+    print(f"Login failed: {e}")
+    raise
 
     wd.get(colab_1)
     try:
