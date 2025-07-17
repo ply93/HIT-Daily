@@ -21,6 +21,7 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install selenium==4.9.0
+          pip install validators  # 添加 validators 依賴
           sudo apt-get update -qq
           sudo apt-get install -y chromium-browser chromium-chromedriver
           export PATH=$PATH:/usr/lib/chromium-browser:/usr/bin
