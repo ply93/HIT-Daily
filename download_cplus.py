@@ -2,6 +2,11 @@ import os
 import time
 import subprocess
 from datetime import datetime
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email.mime.text import MIMEText
+from email import encoders
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
@@ -128,8 +133,42 @@ try:
         print(f"下載完成，檔案位於: {download_dir}", flush=True)
         for file in downloaded_files:
             print(f"找到檔案: {file}", flush=True)
+
+        # 發送 Zoho Mail
+        print("開始發送郵件...", flush=True)
+        try:
+            smtp_server = 'smtp.zoho.com'
+            smtp_port = 587
+            sender_email = 'paklun_ckline@zohomail.com'
+            sender_password = '@d6G.Pie5UkEPqm'  # 硬碼密碼，建議用環境變量
+            receiver_email = 'paklun@ckline.com.hk'
+
+            # 創建郵件
+            msg = MIMEMultipart()
+            msg['From'] = sender_email
+            msg['To'] = receiver_email
+            msg['Subject'] = f"HIT DAILY + {datetime.now().strftime('%Y-%m-%d')}"
+
+            # 添加附件
+            for file in downloaded_files:
+                file_path = os.path.join(download_dir, file)
+                attachment = MIMEBase('application', 'octet-stream')
+                attachment.set_payload(open(file_path, 'rb').read())
+                encoders.encode_base64(attachment)
+                attachment.add_header('Content-Disposition', f'attachment; filename={file}')
+                msg.attach(attachment)
+
+            # 連接 SMTP 伺服器並發送
+            server = smtplib.SMTP(smtp_server, smtp_port)
+            server.starttls()
+            server.login(sender_email, sender_password)
+            server.sendmail(sender_email, receiver_email, msg.as_string())
+            server.quit()
+            print("郵件發送成功!", flush=True)
+        except Exception as e:
+            print(f"郵件發送失敗: {str(e)}", flush=True)
     else:
-        print("下載失敗，無找到檔案", flush=True)
+        print("下載失敗，無文件可發送", flush=True)
 
     print("腳本完成", flush=True)
 
