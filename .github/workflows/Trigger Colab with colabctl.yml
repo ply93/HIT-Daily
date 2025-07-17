@@ -27,5 +27,5 @@ jobs:
       - name: Run Colab
         run: |
           echo "Attempting to run Colab notebook..."
-          # 直接運行 colabctl 並傳遞 URL 作為參數，忽略 notebooks.csv
-          python -m colabctl run --url 'https://colab.research.google.com/drive/1BbJxRsYnrlHi_RN9zspiErEh3NAf9n83' --timeout 60 --verbose
+          # 調整參數順序，timeout 喺 url 之前
+          python -m colabctl run 60 'https://colab.research.google.com/drive/1BbJxRsYnrlHi_RN9zspiErEh3NAf9n83' --verbose
