@@ -21,13 +21,15 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install selenium==4.9.0
-          pip install git+https://github.com/bitnom/colabctl.git  # 可選，保留原版檢查
           sudo apt-get update -qq
           sudo apt-get install -y chromium-browser chromium-chromedriver
           export PATH=$PATH:/usr/lib/chromium-browser:/usr/bin
           export CHROMEDRIVER_PATH=/usr/bin/chromedriver
 
       - name: Run Colab
+        env:
+          GOOGLE_EMAIL: ${{ secrets.GOOGLE_EMAIL }}
+          GOOGLE_PASSWORD: ${{ secrets.GOOGLE_PASSWORD }}
         run: |
           echo "Attempting to run Colab notebook..."
-          python /home/runner/work/HIT-Daily/HIT-Daily/colabctl_modified.py run 60 'https://colab.research.google.com/drive/1BbJxRsYnrlHi_RN9zspiErEh3NAf9n83?usp=sharing' --verbose
+          python /home/runner/work/HIT-Daily/HIT-Daily/colabctl_modified.py run 60 'https://colab.research.google.com/drive/1BbJxRsYnrlHi_RN9zspiErEh3NAf9n83' --verbose
