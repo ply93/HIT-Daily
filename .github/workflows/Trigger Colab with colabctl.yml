@@ -15,6 +15,8 @@ jobs:
         with:
           python-version: '3.9'
       - name: Install colabctl
-        run: pip install colabctl
+        run: |
+          pip install --upgrade pip
+          pip install git+https://github.com/bitnom/colabctl/blob/master/colabctl.py
       - name: Run Colab
         run: colabctl.py run 'https://colab.research.google.com/drive/1BbJxRsYnrlHi_RN9zspiErEh3NAf9n83'
