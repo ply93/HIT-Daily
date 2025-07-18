@@ -9,7 +9,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
 
-# 設置下載目錄（現時無需下載，但保留以兼容可能嘅未來需求）
+# 設置下載目錄
 download_dir = os.path.abspath("housekeep_downloads")
 if not os.path.exists(download_dir):
     os.makedirs(download_dir)
@@ -108,9 +108,17 @@ try:
 
     # 觸發報告選項（模擬點擊下拉框）
     print("觸發報告選項...", flush=True)
-    report_dropdown = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='mat-select-value-']/span")))  # 假設下拉框類似
-    report_dropdown.click()
-    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//div[contains(@class, 'MuiPaper-root') and contains(@role, 'menu')]")))
+    try:
+        report_dropdown = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='mat-select-value-']/span")), timeout=20)  # 延長等待時間
+        report_dropdown.click()
+        WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//div[contains(@class, 'MuiPaper-root') and contains(@role, 'menu')]")))
+        print("報告選項觸發成功", flush=True)
+    except TimeoutException:
+        print("下拉框元素未找到，嘗試備用定位...", flush=True)
+        report_dropdown = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[contains(@class, 'MuiSelect-root')]")), timeout=20)
+        report_dropdown.click()
+        WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//div[contains(@class, 'MuiPaper-root') and contains(@role, 'menu')]")))
+        print("備用報告選項觸發成功", flush=True)
 
     # 獲取所有可見報告選項（僅供調試）
     print("獲取所有可見報告選項...", flush=True)
