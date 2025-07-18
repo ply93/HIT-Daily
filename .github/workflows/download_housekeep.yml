@@ -4,7 +4,7 @@ on:
   push:
   schedule:
     - cron: '15 0 * * *'  # UTC 00:15 = HKT 08:15
-  workflow_dispatch:
+  workflow_dispatch:  # 支援手動觸發
 
 jobs:
   download:
@@ -24,18 +24,17 @@ jobs:
           pip install selenium
           sudo apt-get update -qq
           sudo apt-get install -y chromium-browser chromium-chromedriver
-      
-      - name: Upload HTML artifact
-        uses: actions/upload-artifact@v3
-        if: always()
-        with:
-          name: housekeep-report-html
-          path: housekeep_report_html.txt
 
-      
       - name: Run Download Script
         env:
           SITE_PASSWORD: ${{ secrets.SITE_PASSWORD }}
           ZOHO_EMAIL: ${{ secrets.ZOHO_EMAIL }}
           ZOHO_PASSWORD: ${{ secrets.ZOHO_PASSWORD }}
         run: python download_housekeep.py
+
+      - name: Upload HTML artifact
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: housekeep-report-html
+          path: housekeep_report_html.txt
