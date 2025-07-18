@@ -111,7 +111,7 @@ try:
     search_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[1]/div/form/div[2]/div/div[4]/button/span[1]")))
     search_button.click()
     print("Search 按鈕點擊成功", flush=True)
-    time.sleep(10)
+    time.sleep(15)
 
     # 點擊 Download (CPLUS)
     print("點擊 Download...", flush=True)
@@ -147,7 +147,7 @@ try:
     search_button_onhand = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div[1]/form/div[1]/div[24]/div[2]/button/span[1]")))
     search_button_onhand.click()
     print("Search 按鈕點擊成功", flush=True)
-    time.sleep(10)
+    time.sleep(15)
 
     # 點擊 Export (CPLUS)
     print("點擊 Export...", flush=True)
