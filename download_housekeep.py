@@ -86,7 +86,7 @@ try:
 
     # 點擊 LOGIN 按鈕
     print("點擊 LOGIN 按鈕...", flush=True)
-    login_button = driver.find_element(By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/div[2]/div/div/form/button/span[1]")  # 修正多餘括號
+    login_button = driver.find_element(By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div/form/div[2]/div/div/form/button/span[1]")
     login_button.click()
     WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[2]")))
     print("LOGIN 按鈕點擊成功", flush=True)
@@ -94,7 +94,7 @@ try:
     # 前往 housekeepReport 頁面
     print("前往 housekeepReport 頁面...", flush=True)
     driver.get("https://cplus.hit.com.hk/app/#/report/housekeepReport")
-    WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
+    WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))  # 延長等待
     print("housekeepReport 頁面加載完成", flush=True)
     time.sleep(5)
 
@@ -107,29 +107,38 @@ try:
     except TimeoutException:
         print("無發現對話框，繼續執行", flush=True)
 
+    # 等待報告表格加載
+    print("等待報告表格加載...", flush=True)
+    wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div/form/div[1]/div[8]/div/div/div[1]/div[2]/div/div/div/table/tbody")))
+
     # 選擇所有可見報告選項
     print("選擇所有可見報告選項...", flush=True)
     base_xpath = "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div/form/div[1]/div[8]/div/div/div[1]/div[2]/div/div/div/table/tbody"
-    for i in range(1, 7):  # 檢查 tr[1] 到 tr[6]
-        xpath = f"{base_xpath}/tr[{i}]/td[6]/div/span/span[1]/input"
+    inputs = wait.until(EC.presence_of_all_elements_located((By.XPATH, f"{base_xpath}//td[6]//input[@class='jss125' and @type='checkbox']")))
+    for i, input_element in enumerate(inputs, 1):
         try:
             print(f"嘗試選擇 tr[{i}]...", flush=True)
-            input_element = wait.until(EC.element_to_be_clickable((By.XPATH, xpath)))
             if not input_element.is_selected():
                 input_element.click()
                 print(f"tr[{i}] 選擇成功", flush=True)
             else:
                 print(f"tr[{i}] 已選擇，跳過", flush=True)
             time.sleep(1)
-        except (TimeoutException, NoSuchElementException):
-            print(f"tr[{i}] 元素未找到，跳過", flush=True)
+        except Exception as e:
+            print(f"tr[{i}] 選擇失敗: {str(e)}", flush=True)
             continue
 
     # 點擊 EMAIL 按鈕
     print("點擊 EMAIL 按鈕...", flush=True)
-    email_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div/form/div[1]/div[8]/div/div/div[1]/div[1]/div[1]/button/span[1]/svg/svg/path")))
-    email_button.click()
-    print("EMAIL 按鈕點擊成功", flush=True)
+    try:
+        email_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div/form/div[1]/div[8]/div/div/div[1]/div[1]/div[1]/button[1]")), timeout=20)
+        email_button.click()
+        print("EMAIL 按鈕點擊成功", flush=True)
+    except TimeoutException:
+        print("主 EMAIL 按鈕未找到，嘗試備用定位...", flush=True)
+        email_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'MuiButton-contained') and contains(., 'Email')]")), timeout=20)
+        email_button.click()
+        print("備用 EMAIL 按鈕點擊成功", flush=True)
     WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//*[@id='to']")))
 
     # 輸入 TO 字段
