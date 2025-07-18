@@ -86,7 +86,7 @@ try:
 
     # 點擊 LOGIN 按鈕
     print("點擊 LOGIN 按鈕...", flush=True)
-    login_button = driver.find_element(By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/div[2]/div/div/form/button/span[1]"))
+    login_button = driver.find_element(By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/div[2]/div/div/form/button/span[1]")  # 修正多餘括號
     login_button.click()
     WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[2]")))
     print("LOGIN 按鈕點擊成功", flush=True)
