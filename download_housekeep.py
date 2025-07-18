@@ -109,11 +109,20 @@ try:
 
     # 等待報告表格加載
     print("等待報告表格加載...", flush=True)
-    wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div/form/div[1]/div[8]/div/div/div[1]/div[2]/div/div/div/table/tbody")))
+    wait = WebDriverWait(driver, 20)  # 延長等待時間
+    table_body = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']//table[contains(@class, 'MuiTable-root')]//tbody")))  # 通用表格定位
+    print("報告表格加載成功", flush=True)
+
+    # 提取頁面 HTML 進行調試
+    print("提取 housekeepReport 頁面 HTML...", flush=True)
+    html_content = driver.page_source
+    with open("housekeep_report_html.txt", "w", encoding="utf-8") as f:
+        f.write(html_content)
+    print("頁面 HTML 已保存至 housekeep_report_html.txt", flush=True)
 
     # 選擇所有可見報告選項
     print("選擇所有可見報告選項...", flush=True)
-    inputs = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div/form/div[1]/div[8]/div/div/div[1]/div[2]/div/div/div/table/tbody//td[6]//input[@class='jss125' and @type='checkbox']")))
+    inputs = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//*[@id='root']//table[contains(@class, 'MuiTable-root')]//tbody//td[6]//input[@class='jss125' and @type='checkbox']")))
     for i, input_element in enumerate(inputs, 1):
         try:
             print(f"嘗試選擇 tr[{i}]...", flush=True)
