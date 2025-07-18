@@ -49,47 +49,47 @@ except Exception as e:
     raise
 
 try:
-    # 前往登入頁面
+    # 前往登入頁面 (CPLUS)
     print("嘗試打開網站 https://cplus.hit.com.hk/frontpage/#/", flush=True)
     driver.get("https://cplus.hit.com.hk/frontpage/#/")
-    WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
     print(f"網站已成功打開，當前 URL: {driver.current_url}", flush=True)
+    time.sleep(2)
 
-    # 點擊登錄前嘅按鈕
+    # 點擊登錄前嘅按鈕 (CPLUS)
     print("點擊登錄前按鈕...", flush=True)
-    wait = WebDriverWait(driver, 10)
+    wait = WebDriverWait(driver, 20)
     login_button_pre = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
     login_button_pre.click()
-    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//*[@id='companyCode']")))
     print("登錄前按鈕點擊成功", flush=True)
+    time.sleep(2)
 
-    # 輸入 COMPANY CODE
+    # 輸入 COMPANY CODE (CPLUS)
     print("輸入 COMPANY CODE...", flush=True)
     company_code_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='companyCode']")))
     company_code_field.send_keys("CKL")
     print("COMPANY CODE 輸入完成", flush=True)
     time.sleep(1)
 
-    # 輸入 USER ID
+    # 輸入 USER ID (CPLUS)
     print("輸入 USER ID...", flush=True)
     user_id_field = driver.find_element(By.XPATH, "//*[@id='userId']")
     user_id_field.send_keys("KEN")
     print("USER ID 輸入完成", flush=True)
     time.sleep(1)
 
-    # 輸入 PASSWORD
+    # 輸入 PASSWORD (CPLUS)
     print("輸入 PASSWORD...", flush=True)
     password_field = driver.find_element(By.XPATH, "//*[@id='passwd']")
-    password_field.send_keys(os.environ.get('SITE_PASSWORD', 'Ken2807890'))
+    password_field.send_keys(os.environ.get('SITE_PASSWORD'))
     print("PASSWORD 輸入完成", flush=True)
     time.sleep(1)
 
-    # 點擊 LOGIN 按鈕
+    # 點擊 LOGIN 按鈕 (CPLUS)
     print("點擊 LOGIN 按鈕...", flush=True)
     login_button = driver.find_element(By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/div[2]/div/div/form/button/span[1]")
     login_button.click()
-    WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[2]")))
     print("LOGIN 按鈕點擊成功", flush=True)
+    time.sleep(2)
 
     # 前往 housekeepReport 頁面
     print("前往 housekeepReport 頁面...", flush=True)
