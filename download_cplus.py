@@ -15,7 +15,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
 
 # 設置下載目錄
-download_dir = os.path.abspath("downloads")  # 使用絕對路徑
+download_dir = os.path.abspath("downloads")
 if not os.path.exists(download_dir):
     os.makedirs(download_dir)
     print(f"創建下載目錄: {download_dir}", flush=True)
@@ -56,13 +56,13 @@ except Exception as e:
     raise
 
 try:
-    # 前往登入頁面
+    # 前往登入頁面 (CPLUS)
     print("嘗試打開網站 https://cplus.hit.com.hk/frontpage/#/", flush=True)
     driver.get("https://cplus.hit.com.hk/frontpage/#/")
     print(f"網站已成功打開，當前 URL: {driver.current_url}", flush=True)
     time.sleep(2)
 
-    # 點擊登錄前嘅按鈕
+    # 點擊登錄前嘅按鈕 (CPLUS)
     print("點擊登錄前按鈕...", flush=True)
     wait = WebDriverWait(driver, 20)
     login_button_pre = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
@@ -70,35 +70,35 @@ try:
     print("登錄前按鈕點擊成功", flush=True)
     time.sleep(2)
 
-    # 輸入 COMPANY CODE
+    # 輸入 COMPANY CODE (CPLUS)
     print("輸入 COMPANY CODE...", flush=True)
     company_code_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='companyCode']")))
     company_code_field.send_keys("CKL")
     print("COMPANY CODE 輸入完成", flush=True)
     time.sleep(1)
 
-    # 輸入 USER ID
+    # 輸入 USER ID (CPLUS)
     print("輸入 USER ID...", flush=True)
     user_id_field = driver.find_element(By.XPATH, "//*[@id='userId']")
     user_id_field.send_keys("KEN")
     print("USER ID 輸入完成", flush=True)
     time.sleep(1)
 
-    # 輸入 PASSWORD
+    # 輸入 PASSWORD (CPLUS)
     print("輸入 PASSWORD...", flush=True)
     password_field = driver.find_element(By.XPATH, "//*[@id='passwd']")
     password_field.send_keys(os.environ.get('SITE_PASSWORD', 'Ken2807890'))
     print("PASSWORD 輸入完成", flush=True)
     time.sleep(1)
 
-    # 點擊 LOGIN 按鈕
+    # 點擊 LOGIN 按鈕 (CPLUS)
     print("點擊 LOGIN 按鈕...", flush=True)
     login_button = driver.find_element(By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/div[2]/div/div/form/button/span[1]")
     login_button.click()
     print("LOGIN 按鈕點擊成功", flush=True)
     time.sleep(15)
 
-    # 前往 Container Movement Log 頁面
+    # 前往 Container Movement Log 頁面 (CPLUS)
     print("直接前往 Container Movement Log...", flush=True)
     driver.get("https://cplus.hit.com.hk/app/#/enquiry/ContainerMovementLog")
     time.sleep(10)
@@ -106,14 +106,14 @@ try:
     print("Container Movement Log 頁面加載完成", flush=True)
     time.sleep(5)
 
-    # 點擊 Search
+    # 點擊 Search (CPLUS)
     print("點擊 Search...", flush=True)
     search_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[1]/div/form/div[2]/div/div[4]/button/span[1]")))
     search_button.click()
     print("Search 按鈕點擊成功", flush=True)
     time.sleep(15)
 
-    # 點擊 Download
+    # 點擊 Download (CPLUS)
     print("點擊 Download...", flush=True)
     download_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[2]/div/div[2]/div/div[1]/div[1]/button")))
     download_button.click()
@@ -133,10 +133,8 @@ try:
         print(f"Container Movement Log 下載完成，檔案位於: {download_dir}", flush=True)
         for file in downloaded_files:
             print(f"找到檔案: {file}", flush=True)
-    else:
-        print("Container Movement Log 下載失敗，無找到檔案", flush=True)
 
-    # 前往 OnHandContainerList 頁面
+    # 前往 OnHandContainerList 頁面 (CPLUS)
     print("前往 OnHandContainerList 頁面...", flush=True)
     driver.get("https://cplus.hit.com.hk/app/#/enquiry/OnHandContainerList")
     time.sleep(5)
@@ -144,21 +142,21 @@ try:
     print("OnHandContainerList 頁面加載完成", flush=True)
     time.sleep(5)
 
-    # 點擊 Search
+    # 點擊 Search (CPLUS)
     print("點擊 Search...", flush=True)
     search_button_onhand = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div[1]/form/div[1]/div[24]/div[2]/button/span[1]")))
     search_button_onhand.click()
     print("Search 按鈕點擊成功", flush=True)
     time.sleep(10)
 
-    # 點擊 Export
+    # 點擊 Export (CPLUS)
     print("點擊 Export...", flush=True)
     export_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div/div[2]/div[1]/div[1]/div/div/div[4]/div/div/span[1]/button")))
     export_button.click()
     print("Export 按鈕點擊成功", flush=True)
     time.sleep(2)
 
-    # 點擊 Export as CSV
+    # 點擊 Export as CSV (CPLUS)
     print("點擊 Export as CSV...", flush=True)
     export_csv_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//li[contains(@class, 'MuiMenuItem-root') and text()='Export as CSV']")))
     export_csv_button.click()
@@ -178,6 +176,115 @@ try:
         for file in downloaded_files:
             print(f"找到檔案: {file}", flush=True)
 
+    # 前往 barge.oneport.com 登入頁面
+    print("嘗試打開網站 https://barge.oneport.com/bargeBooking...", flush=True)
+    driver.get("https://barge.oneport.com/bargeBooking")
+    print(f"網站已成功打開，當前 URL: {driver.current_url}", flush=True)
+    time.sleep(5)
+
+    # 輸入 COMPANY ID
+    print("輸入 COMPANY ID...", flush=True)
+    company_id_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='mat-input-0']")))
+    company_id_field.send_keys("CKL")
+    print("COMPANY ID 輸入完成", flush=True)
+    time.sleep(1)
+
+    # 輸入 USER ID
+    print("輸入 USER ID...", flush=True)
+    user_id_field_barge = driver.find_element(By.XPATH, "//*[@id='mat-input-1']")
+    user_id_field_barge.send_keys("barge")
+    print("USER ID 輸入完成", flush=True)
+    time.sleep(1)
+
+    # 輸入 PW
+    print("輸入 PW...", flush=True)
+    password_field_barge = driver.find_element(By.XPATH, "//*[@id='mat-input-2']")
+    password_field_barge.send_keys("123456")
+    print("PW 輸入完成", flush=True)
+    time.sleep(1)
+
+    # 點擊 LOGIN
+    print("點擊 LOGIN 按鈕...", flush=True)
+    login_button_barge = driver.find_element(By.XPATH, "//*[@id='login-form-container']/app-login-form/form/div/button")
+    login_button_barge.click()
+    print("LOGIN 按鈕點擊成功", flush=True)
+    time.sleep(15)
+
+    # 點擊主工具欄
+    print("點擊主工具欄...", flush=True)
+    toolbar_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='main-toolbar']/button[1]/span[1]/mat-icon")))
+    toolbar_button.click()
+    print("主工具欄點擊成功", flush=True)
+    time.sleep(2)
+
+    # 點擊 Report
+    print("點擊 Report...", flush=True)
+    report_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='mat-menu-panel-4']/div/button[4]/span")))
+    report_button.click()
+    print("Report 點擊成功", flush=True)
+    time.sleep(2)
+
+    # 選擇 Report Type
+    print("選擇 Report Type...", flush=True)
+    report_type_select = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='mat-select-value-61']/span")))
+    report_type_select.click()
+    print("Report Type 選擇開始", flush=True)
+    time.sleep(2)
+
+    # 點擊 Container Detail
+    print("點擊 Container Detail...", flush=True)
+    container_detail_option = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='mat-option-508']/span")))
+    container_detail_option.click()
+    print("Container Detail 點擊成功", flush=True)
+    time.sleep(5)
+
+    # 點擊 Download
+    print("點擊 Download...", flush=True)
+    download_button_barge = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='content-mount']/app-download-report/div[2]/div/form/div[2]/button")))
+    download_button_barge.click()
+    print("Download 按鈕點擊成功", flush=True)
+    time.sleep(120)  # 延長下載等待時間
+
+    # 檢查 Barge Container Detail 下載文件
+    print("檢查 Barge Container Detail 下載文件...", flush=True)
+    start_time = time.time()
+    while time.time() - start_time < 120:  # 延長檢查時間
+        downloaded_files = [f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx'))]
+        if downloaded_files:
+            break
+        time.sleep(5)
+    if downloaded_files:
+        print(f"Barge Container Detail 下載完成，檔案位於: {download_dir}", flush=True)
+        for file in downloaded_files:
+            print(f"找到檔案: {file}", flush=True)
+
+    # 點擊工具欄進行登出
+    print("點擊工具欄進行登出...", flush=True)
+    logout_toolbar = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='main-toolbar']/button[4]/span[1]")))
+    logout_toolbar.click()
+    print("工具欄點擊成功", flush=True)
+    time.sleep(2)
+
+    # 點擊 Logout
+    print("點擊 Logout...", flush=True)
+    logout_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='mat-menu-panel-11']/div/button/span")))
+    logout_button.click()
+    print("Logout 點擊成功", flush=True)
+    time.sleep(5)
+
+    # 檢查所有下載文件
+    print("檢查所有下載文件...", flush=True)
+    start_time = time.time()
+    while time.time() - start_time < 120:  # 延長檢查時間
+        downloaded_files = [f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx'))]
+        if downloaded_files:
+            break
+        time.sleep(5)
+    if downloaded_files:
+        print(f"所有下載完成，檔案位於: {download_dir}", flush=True)
+        for file in downloaded_files:
+            print(f"找到檔案: {file}", flush=True)
+
         # 發送 Zoho Mail
         print("開始發送郵件...", flush=True)
         try:
@@ -185,13 +292,13 @@ try:
             smtp_port = 587
             sender_email = os.environ.get('ZOHO_EMAIL', 'paklun_ckline@zohomail.com')
             sender_password = os.environ.get('ZOHO_PASSWORD', '@d6G.Pie5UkEPqm')
-            receiver_email = 'ckeqc@ckline.com.hk'
+            receiver_email = 'paklun@ckline.com.hk'
 
             # 創建郵件
             msg = MIMEMultipart()
             msg['From'] = sender_email
             msg['To'] = receiver_email
-            msg['Subject'] = f"HIT DAILY TESTING + {datetime.now().strftime('%Y-%m-%d')}"
+            msg['Subject'] = f"HIT DAILY + {datetime.now().strftime('%Y-%m-%d')}"
 
             # 添加附件
             for file in downloaded_files:
@@ -212,7 +319,7 @@ try:
         except Exception as e:
             print(f"郵件發送失敗: {str(e)}", flush=True)
     else:
-        print("OnHandContainerList 下載失敗，無文件可發送", flush=True)
+        print("所有下載失敗，無文件可發送", flush=True)
 
     print("腳本完成", flush=True)
 
