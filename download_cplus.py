@@ -129,19 +129,20 @@ try:
         for file in downloaded_files:
             print(f"找到檔案: {file}", flush=True)
 
-    # 前往 OnHandContainerList 頁面 (CPLUS)
-    print("前往 OnHandContainerList 頁面...", flush=True)
-    driver.get("https://cplus.hit.com.hk/app/#/enquiry/OnHandContainerList")
-    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
-    print("OnHandContainerList 頁面加載完成", flush=True)
+    # 前往 Container Movement Log 頁面 (CPLUS)
+    print("直接前往 Container Movement Log...", flush=True)
+    driver.get("https://cplus.hit.com.hk/app/#/enquiry/ContainerMovementLog")
+    WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
+    print("Container Movement Log 頁面加載完成", flush=True)
     time.sleep(5)
-
+    
     # 點擊 Search (CPLUS)
     print("點擊 Search...", flush=True)
-    search_button_onhand = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div[1]/form/div[1]/div[24]/div[2]/button/span[1]")))
-    search_button_onhand.click()
+    wait = WebDriverWait(driver, 20)  # 延長等待時間
+    search_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[1]/div/form/div[2]/div/div[4]/button/span[1]")))
+    search_button.click()
     print("Search 按鈕點擊成功", flush=True)
-    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div[2]")))
+    WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[2]")))  # 等待結果加載
 
     # 點擊 Export (CPLUS)
     print("點擊 Export...", flush=True)
