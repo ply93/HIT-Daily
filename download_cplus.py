@@ -87,7 +87,7 @@ try:
     # 輸入 PASSWORD (CPLUS)
     print("輸入 PASSWORD...", flush=True)
     password_field = driver.find_element(By.XPATH, "//*[@id='passwd']")
-    password_field.send_keys(os.environ.get('SITE_PASSWORD', 'Ken2807890'))
+    password_field.send_keys(os.environ.get('SITE_PASSWORD'))
     print("PASSWORD 輸入完成", flush=True)
     time.sleep(1)
 
@@ -96,12 +96,12 @@ try:
     login_button = driver.find_element(By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/div[2]/div/div/form/button/span[1]")
     login_button.click()
     print("LOGIN 按鈕點擊成功", flush=True)
-    time.sleep(15)
+    time.sleep(5)
 
     # 前往 Container Movement Log 頁面 (CPLUS)
     print("直接前往 Container Movement Log...", flush=True)
     driver.get("https://cplus.hit.com.hk/app/#/enquiry/ContainerMovementLog")
-    time.sleep(10)
+    time.sleep(5)
     wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
     print("Container Movement Log 頁面加載完成", flush=True)
     time.sleep(5)
@@ -111,14 +111,14 @@ try:
     search_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[1]/div/form/div[2]/div/div[4]/button/span[1]")))
     search_button.click()
     print("Search 按鈕點擊成功", flush=True)
-    time.sleep(15)
+    time.sleep(5)
 
     # 點擊 Download (CPLUS)
     print("點擊 Download...", flush=True)
     download_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[2]/div/div[2]/div/div[1]/div[1]/button")))
     download_button.click()
     print("Download 按鈕點擊成功", flush=True)
-    time.sleep(120)  # 延長下載等待時間
+    time.sleep(60)  # 延長下載等待時間
 
     # 檢查 Container Movement Log 下載文件
     print("檢查 Container Movement Log 下載文件...", flush=True)
@@ -147,7 +147,7 @@ try:
     search_button_onhand = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div[1]/form/div[1]/div[24]/div[2]/button/span[1]")))
     search_button_onhand.click()
     print("Search 按鈕點擊成功", flush=True)
-    time.sleep(10)
+    time.sleep(5)
 
     # 點擊 Export (CPLUS)
     print("點擊 Export...", flush=True)
@@ -161,7 +161,7 @@ try:
     export_csv_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//li[contains(@class, 'MuiMenuItem-root') and text()='Export as CSV']")))
     export_csv_button.click()
     print("Export as CSV 按鈕點擊成功", flush=True)
-    time.sleep(120)  # 延長下載等待時間
+    time.sleep(60)  # 延長下載等待時間
 
     # 檢查 OnHandContainerList 下載文件
     print("檢查 OnHandContainerList 下載文件...", flush=True)
@@ -208,7 +208,7 @@ try:
     login_button_barge = driver.find_element(By.XPATH, "//*[@id='login-form-container']/app-login-form/form/div/button")
     login_button_barge.click()
     print("LOGIN 按鈕點擊成功", flush=True)
-    time.sleep(15)
+    time.sleep(5)
 
     # 點擊主工具欄
     print("點擊主工具欄...", flush=True)
@@ -243,7 +243,7 @@ try:
     download_button_barge = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='content-mount']/app-download-report/div[2]/div/form/div[2]/button")))
     download_button_barge.click()
     print("Download 按鈕點擊成功", flush=True)
-    time.sleep(120)  # 延長下載等待時間
+    time.sleep(60)  # 延長下載等待時間
 
     # 檢查 Barge Container Detail 下載文件
     print("檢查 Barge Container Detail 下載文件...", flush=True)
