@@ -101,7 +101,7 @@ try:
     # 前往 Container Movement Log 頁面 (CPLUS)
     print("直接前往 Container Movement Log...", flush=True)
     driver.get("https://cplus.hit.com.hk/app/#/enquiry/ContainerMovementLog")
-    time.sleep(5)
+    time.sleep(3)
     wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
     print("Container Movement Log 頁面加載完成", flush=True)
     time.sleep(5)
@@ -111,7 +111,7 @@ try:
     search_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[1]/div/form/div[2]/div/div[4]/button/span[1]")))
     search_button.click()
     print("Search 按鈕點擊成功", flush=True)
-    time.sleep(5)
+    time.sleep(10)
 
     # 點擊 Download (CPLUS)
     print("點擊 Download...", flush=True)
