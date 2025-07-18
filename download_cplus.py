@@ -261,14 +261,18 @@ try:
     # 點擊工具欄進行登出
     print("點擊工具欄進行登出...", flush=True)
     logout_toolbar = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='main-toolbar']/button[4]/span[1]")))
-    logout_toolbar.click()
+    driver.execute_script("arguments[0].scrollIntoView(true);", logout_toolbar)  # 滾動到元素
+    time.sleep(1)
+    driver.execute_script("arguments[0].click();", logout_toolbar)  # 使用 JavaScript 點擊
     print("工具欄點擊成功", flush=True)
     time.sleep(2)
-
+    
     # 點擊 Logout
     print("點擊 Logout...", flush=True)
     logout_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='mat-menu-panel-11']/div/button/span")))
-    logout_button.click()
+    driver.execute_script("arguments[0].scrollIntoView(true);", logout_button)
+    time.sleep(1)
+    driver.execute_script("arguments[0].click();", logout_button)
     print("Logout 點擊成功", flush=True)
     time.sleep(5)
 
