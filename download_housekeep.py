@@ -98,9 +98,16 @@ try:
     WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
     print("housekeepReport 頁面加載完成", flush=True)
     time.sleep(5)
-
-    # 獲取所有可見報告選項並選擇
+    
+    # 觸發報告選項（模擬點擊下拉框）
+    print("觸發報告選項...", flush=True)
+    report_dropdown = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='mat-select-value-']/span")))  # 假設下拉框類似
+    report_dropdown.click()
+    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//div[contains(@class, 'MuiPaper-root') and contains(@role, 'menu')]")))
+    
+    # 獲取所有可見報告選項
     print("獲取所有可見報告選項...", flush=True)
+    wait = WebDriverWait(driver, 20)  # 延長等待時間至 20 秒
     report_options = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//div[contains(@class, 'MuiPaper-root') and contains(@role, 'menu')]//li[contains(@class, 'MuiMenuItem-root')]")))
     report_types = [option.text.strip() for option in report_options if option.text.strip() in [
         "CY - GATELOG",
@@ -114,17 +121,13 @@ try:
         print("無找到可選擇的報告選項", flush=True)
     else:
         print(f"找到報告類型: {report_types}", flush=True)
-
+    
     for report_type in report_types:
         print(f"選擇報告類型: {report_type}...", flush=True)
-        # 點擊報告類型（模擬下拉選擇）
-        report_select = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='mat-select-value-']/span")))
-        report_select.click()
-        time.sleep(1)
         option = wait.until(EC.element_to_be_clickable((By.XPATH, f"//li[contains(@class, 'MuiMenuItem-root') and text()='{report_type}']")))
         option.click()
         print(f"{report_type} 選擇成功", flush=True)
-        time.sleep(2)
+        time.sleep(1)
 
     # 點擊 EMAIL 按鈕
     print("點擊 EMAIL 按鈕...", flush=True)
