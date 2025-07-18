@@ -24,7 +24,15 @@ jobs:
           pip install selenium
           sudo apt-get update -qq
           sudo apt-get install -y chromium-browser chromium-chromedriver
+      
+      - name: Upload HTML artifact
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: housekeep-report-html
+          path: housekeep_report_html.txt
 
+      
       - name: Run Download Script
         env:
           SITE_PASSWORD: ${{ secrets.SITE_PASSWORD }}
