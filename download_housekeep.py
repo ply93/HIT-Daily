@@ -86,7 +86,7 @@ try:
 
     # 點擊 LOGIN 按鈕
     print("點擊 LOGIN 按鈕...", flush=True)
-    login_button = driver.find_element(By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div/form/div[2]/div/div/form/button/span[1]")
+    login_button = driver.find_element(By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/div[2]/div/div/form/button/span[1]")
     login_button.click()
     WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[2]")))
     print("LOGIN 按鈕點擊成功", flush=True)
@@ -113,8 +113,7 @@ try:
 
     # 選擇所有可見報告選項
     print("選擇所有可見報告選項...", flush=True)
-    base_xpath = "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div/form/div[1]/div[8]/div/div/div[1]/div[2]/div/div/div/table/tbody"
-    inputs = wait.until(EC.presence_of_all_elements_located((By.XPATH, f"{base_xpath}//td[6]//input[@class='jss125' and @type='checkbox']")))
+    inputs = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div/form/div[1]/div[8]/div/div/div[1]/div[2]/div/div/div/table/tbody//td[6]//input[@class='jss125' and @type='checkbox']")))
     for i, input_element in enumerate(inputs, 1):
         try:
             print(f"嘗試選擇 tr[{i}]...", flush=True)
