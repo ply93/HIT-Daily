@@ -1,7 +1,6 @@
 import os
 import time
 import subprocess
-from datetime import datetime
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
@@ -9,7 +8,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
 
-# 設置下載目錄
+# 設置目錄（現時無需下載）
 download_dir = os.path.abspath("housekeep_downloads")
 if not os.path.exists(download_dir):
     os.makedirs(download_dir)
@@ -87,7 +86,7 @@ try:
 
     # 點擊 LOGIN 按鈕
     print("點擊 LOGIN 按鈕...", flush=True)
-    login_button = driver.find_element(By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/div[2]/div/div/form/button/span[1]")
+    login_button = driver.find_element(By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/div[2]/div/div/form/button/span[1]"))
     login_button.click()
     WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[2]")))
     print("LOGIN 按鈕點擊成功", flush=True)
@@ -99,43 +98,32 @@ try:
     print("housekeepReport 頁面加載完成", flush=True)
     time.sleep(5)
 
-    # 提取頁面 HTML 進行分析
-    print("提取 housekeepReport 頁面 HTML...", flush=True)
-    html_content = driver.page_source
-    with open("housekeep_report_html.txt", "w", encoding="utf-8") as f:
-        f.write(html_content)
-    print("頁面 HTML 已保存至 housekeep_report_html.txt", flush=True)
-
-    # 觸發報告選項（模擬點擊下拉框）
-    print("觸發報告選項...", flush=True)
+    # 關閉可能嘅對話框
     try:
-        report_dropdown = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='mat-select-value-']/span")), timeout=20)  # 延長等待時間
-        report_dropdown.click()
-        WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//div[contains(@class, 'MuiPaper-root') and contains(@role, 'menu')]")))
-        print("報告選項觸發成功", flush=True)
+        close_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'MuiButton-containedPrimary') and contains(., 'Close')]")))
+        close_button.click()
+        WebDriverWait(driver, 10).until(EC.invisibility_of_element_located((By.XPATH, "//div[contains(@class, 'MuiDialog-root')]")))
+        print("關閉對話框成功", flush=True)
     except TimeoutException:
-        print("下拉框元素未找到，嘗試備用定位...", flush=True)
-        report_dropdown = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[contains(@class, 'MuiSelect-root')]")), timeout=20)
-        report_dropdown.click()
-        WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//div[contains(@class, 'MuiPaper-root') and contains(@role, 'menu')]")))
-        print("備用報告選項觸發成功", flush=True)
+        print("無發現對話框，繼續執行", flush=True)
 
-    # 獲取所有可見報告選項（僅供調試）
-    print("獲取所有可見報告選項...", flush=True)
-    wait = WebDriverWait(driver, 20)
-    report_options = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//div[contains(@class, 'MuiPaper-root') and contains(@role, 'menu')]//li[contains(@class, 'MuiMenuItem-root')]")))
-    report_types = [option.text.strip() for option in report_options if option.text.strip() in [
-        "CY - GATELOG",
-        "CONTAINER LIST (ON HAND)",
-        "CONTAINER LIST (DAMAGED)",
-        "ACTIVE REEFER CONTAINER ON HAND LIST",
-        "REEFER CONTAINER MONITOR REPORT",
-        "CONTAINER DAMAGE REPORT (LINE) ENTRY GATE + EXIT GATE"
-    ]]
-    if not report_types:
-        print("無找到可選擇的報告選項", flush=True)
-    else:
-        print(f"找到報告類型: {report_types}", flush=True)
+    # 選擇所有可見報告選項
+    print("選擇所有可見報告選項...", flush=True)
+    base_xpath = "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div/form/div[1]/div[8]/div/div/div[1]/div[2]/div/div/div/table/tbody"
+    for i in range(1, 7):  # 檢查 tr[1] 到 tr[6]
+        xpath = f"{base_xpath}/tr[{i}]/td[6]/div/span/span[1]/input"
+        try:
+            print(f"嘗試選擇 tr[{i}]...", flush=True)
+            input_element = wait.until(EC.element_to_be_clickable((By.XPATH, xpath)))
+            if not input_element.is_selected():
+                input_element.click()
+                print(f"tr[{i}] 選擇成功", flush=True)
+            else:
+                print(f"tr[{i}] 已選擇，跳過", flush=True)
+            time.sleep(1)
+        except (TimeoutException, NoSuchElementException):
+            print(f"tr[{i}] 元素未找到，跳過", flush=True)
+            continue
 
     # 點擊 EMAIL 按鈕
     print("點擊 EMAIL 按鈕...", flush=True)
