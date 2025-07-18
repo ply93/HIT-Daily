@@ -111,14 +111,14 @@ try:
     search_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[1]/div/form/div[2]/div/div[4]/button/span[1]")))
     search_button.click()
     print("Search 按鈕點擊成功", flush=True)
-    time.sleep(15)
+    time.sleep(5)
 
     # 點擊 Download (CPLUS)
     print("點擊 Download...", flush=True)
     download_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[2]/div/div[2]/div/div[1]/div[1]/button")))
     download_button.click()
     print("Download 按鈕點擊成功", flush=True)
-    time.sleep(30)  # 延長下載等待時間
+    time.sleep(90)  # 延長下載等待時間
 
     # 檢查 Container Movement Log 下載文件
     print("檢查 Container Movement Log 下載文件...", flush=True)
@@ -147,7 +147,7 @@ try:
     search_button_onhand = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div[1]/form/div[1]/div[24]/div[2]/button/span[1]")))
     search_button_onhand.click()
     print("Search 按鈕點擊成功", flush=True)
-    time.sleep(15)
+    time.sleep(5)
 
     # 點擊 Export (CPLUS)
     print("點擊 Export...", flush=True)
@@ -161,7 +161,7 @@ try:
     export_csv_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//li[contains(@class, 'MuiMenuItem-root') and text()='Export as CSV']")))
     export_csv_button.click()
     print("Export as CSV 按鈕點擊成功", flush=True)
-    time.sleep(30)  # 延長下載等待時間
+    time.sleep(90)  # 延長下載等待時間
 
     # 檢查 OnHandContainerList 下載文件
     print("檢查 OnHandContainerList 下載文件...", flush=True)
@@ -243,7 +243,7 @@ try:
     download_button_barge = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='content-mount']/app-download-report/div[2]/div/form/div[2]/button")))
     download_button_barge.click()
     print("Download 按鈕點擊成功", flush=True)
-    time.sleep(30)  # 延長下載等待時間
+    time.sleep(90)  # 延長下載等待時間
 
     # 檢查 Barge Container Detail 下載文件
     print("檢查 Barge Container Detail 下載文件...", flush=True)
