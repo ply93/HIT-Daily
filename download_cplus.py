@@ -296,13 +296,13 @@ try:
             smtp_port = 587
             sender_email = os.environ.get('ZOHO_EMAIL', 'paklun_ckline@zohomail.com')
             sender_password = os.environ.get('ZOHO_PASSWORD', '@d6G.Pie5UkEPqm')
-            receiver_email = 'paklun@ckline.com.hk'
+            receiver_email = 'ckeqc@ckline.com.hk'
 
             # 創建郵件
             msg = MIMEMultipart()
             msg['From'] = sender_email
             msg['To'] = receiver_email
-            msg['Subject'] = f"HIT DAILY + {datetime.now().strftime('%Y-%m-%d')}"
+            msg['Subject'] = f"[TESTING]HIT DAILY + {datetime.now().strftime('%Y-%m-%d')}"
 
             # 添加附件
             for file in downloaded_files:
