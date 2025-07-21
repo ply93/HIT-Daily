@@ -2,7 +2,7 @@ name: Download CPLUS Files
 
 on:
   schedule:
-    - cron: '0 6 * * *'  # UTC 06:00 = HKT 14:00
+    - cron: '45 6 * * *'  # UTC 06:45 = HKT 14:45
   workflow_dispatch:  # 支援手動觸發
 
 jobs:
@@ -30,3 +30,6 @@ jobs:
           ZOHO_EMAIL: ${{ secrets.ZOHO_EMAIL }}
           ZOHO_PASSWORD: ${{ secrets.ZOHO_PASSWORD }}
         run: python download_cplus.py
+
+      - name: Add debug step
+        run: echo "Workflow triggered at $(date -u)"  # 記錄 UTC 觸發時間
