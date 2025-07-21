@@ -2,7 +2,7 @@ name: Download CPLUS Files
 
 on:
   schedule:
-    - cron: '0 5 * * *'  # UTC 05:00 = HKT 13:00
+    - cron: '0 6 * * *'  # UTC 06:00 = HKT 14:00
   workflow_dispatch:  # 支援手動觸發
 
 jobs:
