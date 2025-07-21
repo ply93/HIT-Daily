@@ -2,7 +2,7 @@ name: Download CPLUS Files
 
 on:
   schedule:
-    - cron: '30 7 * * *'  # UTC 07:15 = HKT 15:15
+    - cron: '15 7 * * *'  # UTC 07:15 = HKT 15:15
   workflow_dispatch:  # 支援手動觸發
 
 jobs:
@@ -25,7 +25,7 @@ jobs:
           sudo apt-get install -y chromium-browser chromium-chromedriver
 
       - name: Check current time
-        run: echo "Current UTC time: $(date -u), HKT time: $(date)"  # 記錄當前時間
+        run: echo "Current UTC time: $(date -u), HKT time: $(date)"
 
       - name: Run Download Script
         env:
@@ -35,4 +35,4 @@ jobs:
         run: python download_cplus.py
 
       - name: Add debug step
-        run: echo "Workflow triggered at $(date -u)"  # 記錄 UTC 觸發時間
+        run: echo "Workflow triggered at $(date -u)"
