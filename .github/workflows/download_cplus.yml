@@ -2,7 +2,7 @@ name: Download CPLUS Files
 
 on:
   schedule:
-    - cron: '45 6 * * *'  # UTC 06:45 = HKT 14:45
+    - cron: '15 7 * * *'  # UTC 07:15 = HKT 15:15
   workflow_dispatch:  # 支援手動觸發
 
 jobs:
@@ -23,6 +23,9 @@ jobs:
           pip install selenium
           sudo apt-get update -qq
           sudo apt-get install -y chromium-browser chromium-chromedriver
+
+      - name: Check current time
+        run: echo "Current UTC time: $(date -u), HKT time: $(date)"  # 記錄當前時間
 
       - name: Run Download Script
         env:
