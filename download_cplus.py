@@ -302,7 +302,7 @@ try:
             msg = MIMEMultipart()
             msg['From'] = sender_email
             msg['To'] = receiver_email
-            msg['Subject'] = f"[TESTING]HIT DAILY + {datetime.now().strftime('%Y-%m-%d')}"
+            msg['Subject'] = f"[TESTING]HIT DAILY {datetime.now().strftime('%Y-%m-%d')}"
 
             # 添加附件
             for file in downloaded_files:
