@@ -209,38 +209,28 @@ try:
     else:
         print("OnHandContainerList 下載失敗，無文件找到", flush=True)
 
-    # 登出 CPLUS
-    print("點擊工具欄進行登出 (CPLUS)...", flush=True)
+    # 登出 CPLUS (新流程)
+    print("點擊登錄按鈕進行登出 (CPLUS)...", flush=True)
     try:
-        logout_toolbar = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='main-toolbar']/button[4]/span[1]")))
-        driver.execute_script("arguments[0].scrollIntoView(true);", logout_toolbar)
+        logout_menu_button = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
+        driver.execute_script("arguments[0].scrollIntoView(true);", logout_menu_button)
         time.sleep(1)
-        driver.execute_script("arguments[0].click();", logout_toolbar)
-        print("工具欄點擊成功", flush=True)
+        driver.execute_script("arguments[0].click();", logout_menu_button)
+        print("登錄按鈕點擊成功", flush=True)
     except TimeoutException:
-        print("主工具欄登出按鈕未找到，嘗試備用定位...", flush=True)
-        logout_toolbar = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'logout-button')]")))
-        driver.execute_script("arguments[0].scrollIntoView(true);", logout_toolbar)
-        time.sleep(1)
-        driver.execute_script("arguments[0].click();", logout_toolbar)
-        print("備用工具欄點擊成功", flush=True)
+        print("登錄按鈕未找到，嘗試備用定位...", flush=True)
+        raise
 
-    time.sleep(2)
-
-    print("點擊 Logout (CPLUS)...", flush=True)
+    print("點擊 Logout 選項 (CPLUS)...", flush=True)
     try:
-        logout_button = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='mat-menu-panel-11']/div/button/span")))
-        driver.execute_script("arguments[0].scrollIntoView(true);", logout_button)
+        logout_option = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='menu-list-grow']/div[6]/li")))
+        driver.execute_script("arguments[0].scrollIntoView(true);", logout_option)
         time.sleep(1)
-        driver.execute_script("arguments[0].click();", logout_button)
-        print("Logout 點擊成功", flush=True)
+        driver.execute_script("arguments[0].click();", logout_option)
+        print("Logout 選項點擊成功", flush=True)
     except TimeoutException:
-        print("Logout 按鈕未找到，嘗試備用定位...", flush=True)
-        logout_button = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Log Out')]")))
-        driver.execute_script("arguments[0].scrollIntoView(true);", logout_button)
-        time.sleep(1)
-        driver.execute_script("arguments[0].click();", logout_button)
-        print("備用 Logout 點擊成功", flush=True)
+        print("Logout 選項未找到，嘗試備用定位...", flush=True)
+        raise
 
     time.sleep(5)
 
