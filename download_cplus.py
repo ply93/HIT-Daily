@@ -93,7 +93,7 @@ try:
 
     # 點擊 LOGIN 按鈕 (CPLUS)
     print("點擊 LOGIN 按鈕...", flush=True)
-    login_button = driver.find_element(By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/div[2]/div/div/form/button/span[1]")
+    login_button = driver.find_element(By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/div[2]/div/div/form/button/span[1]"))
     login_button.click()
     print("LOGIN 按鈕點擊成功", flush=True)
     time.sleep(2)
@@ -118,21 +118,29 @@ try:
     download_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[2]/div/div[2]/div/div[1]/div[1]/button")))
     download_button.click()
     print("Download 按鈕點擊成功", flush=True)
-    time.sleep(90)  # 延長下載等待時間
 
-    # 檢查 Container Movement Log 下載文件
-    print("檢查 Container Movement Log 下載文件...", flush=True)
+    # 等待下載完成 (假設有成功提示或按鈕禁用)
+    try:
+        WebDriverWait(driver, 60).until(
+            EC.invisibility_of_element_located((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[2]/div/div[2]/div/div[1]/div[1]/button"))
+            or EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'Download Complete')]"))
+        )
+        print("Container Movement Log 下載完成", flush=True)
+    except TimeoutException:
+        print("下載完成提示未找到，繼續檢查文件...", flush=True)
+
+    # 檢查文件
     start_time = time.time()
-    downloaded_files = []
-    while time.time() - start_time < 120:  # 延長檢查時間
+    while time.time() - start_time < 30:  # 縮短檢查時間
         downloaded_files = [f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx'))]
         if downloaded_files:
+            print(f"Container Movement Log 下載完成，檔案位於: {download_dir}", flush=True)
+            for file in downloaded_files:
+                print(f"找到檔案: {file}", flush=True)
             break
         time.sleep(2)
-    if downloaded_files:
-        print(f"Container Movement Log 下載完成，檔案位於: {download_dir}", flush=True)
-        for file in downloaded_files:
-            print(f"找到檔案: {file}", flush=True)
+    else:
+        print("Container Movement Log 下載失敗，無文件找到", flush=True)
 
     # 前往 OnHandContainerList 頁面 (CPLUS)
     print("前往 OnHandContainerList 頁面...", flush=True)
@@ -161,20 +169,29 @@ try:
     export_csv_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//li[contains(@class, 'MuiMenuItem-root') and text()='Export as CSV']")))
     export_csv_button.click()
     print("Export as CSV 按鈕點擊成功", flush=True)
-    time.sleep(90)  # 延長下載等待時間
 
-    # 檢查 OnHandContainerList 下載文件
-    print("檢查 OnHandContainerList 下載文件...", flush=True)
+    # 等待下載完成 (假設有成功提示或按鈕禁用)
+    try:
+        WebDriverWait(driver, 60).until(
+            EC.invisibility_of_element_located((By.XPATH, "//li[contains(@class, 'MuiMenuItem-root') and text()='Export as CSV']"))
+            or EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'Export Complete')]"))
+        )
+        print("OnHandContainerList 下載完成", flush=True)
+    except TimeoutException:
+        print("下載完成提示未找到，繼續檢查文件...", flush=True)
+
+    # 檢查文件
     start_time = time.time()
-    while time.time() - start_time < 120:  # 延長檢查時間
+    while time.time() - start_time < 30:
         downloaded_files = [f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx'))]
         if downloaded_files:
+            print(f"OnHandContainerList 下載完成，檔案位於: {download_dir}", flush=True)
+            for file in downloaded_files:
+                print(f"找到檔案: {file}", flush=True)
             break
-        time.sleep(5)
-    if downloaded_files:
-        print(f"OnHandContainerList 下載完成，檔案位於: {download_dir}", flush=True)
-        for file in downloaded_files:
-            print(f"找到檔案: {file}", flush=True)
+        time.sleep(2)
+    else:
+        print("OnHandContainerList 下載失敗，無文件找到", flush=True)
 
     # 前往 barge.oneport.com 登入頁面
     print("嘗試打開網站 https://barge.oneport.com/bargeBooking...", flush=True)
@@ -243,20 +260,29 @@ try:
     download_button_barge = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='content-mount']/app-download-report/div[2]/div/form/div[2]/button")))
     download_button_barge.click()
     print("Download 按鈕點擊成功", flush=True)
-    time.sleep(90)  # 延長下載等待時間
 
-    # 檢查 Barge Container Detail 下載文件
-    print("檢查 Barge Container Detail 下載文件...", flush=True)
+    # 等待下載完成 (假設有成功提示或按鈕禁用)
+    try:
+        WebDriverWait(driver, 60).until(
+            EC.invisibility_of_element_located((By.XPATH, "//*[@id='content-mount']/app-download-report/div[2]/div/form/div[2]/button"))
+            or EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'Download Complete')]"))
+        )
+        print("Barge Container Detail 下載完成", flush=True)
+    except TimeoutException:
+        print("下載完成提示未找到，繼續檢查文件...", flush=True)
+
+    # 檢查文件
     start_time = time.time()
-    while time.time() - start_time < 120:  # 延長檢查時間
+    while time.time() - start_time < 30:
         downloaded_files = [f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx'))]
         if downloaded_files:
+            print(f"Barge Container Detail 下載完成，檔案位於: {download_dir}", flush=True)
+            for file in downloaded_files:
+                print(f"找到檔案: {file}", flush=True)
             break
-        time.sleep(5)
-    if downloaded_files:
-        print(f"Barge Container Detail 下載完成，檔案位於: {download_dir}", flush=True)
-        for file in downloaded_files:
-            print(f"找到檔案: {file}", flush=True)
+        time.sleep(2)
+    else:
+        print("Barge Container Detail 下載失敗，無文件找到", flush=True)
 
     # 點擊工具欄進行登出
     print("點擊工具欄進行登出...", flush=True)
@@ -296,7 +322,7 @@ try:
             smtp_port = 587
             sender_email = os.environ.get('ZOHO_EMAIL', 'paklun_ckline@zohomail.com')
             sender_password = os.environ.get('ZOHO_PASSWORD', '@d6G.Pie5UkEPqm')
-            receiver_email = 'ckeqc@ckline.com.hk'
+            receiver_email = 'paklun@ckline.com.hk'
 
             # 創建郵件
             msg = MIMEMultipart()
