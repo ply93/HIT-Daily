@@ -93,7 +93,7 @@ try:
 
     # 點擊 LOGIN 按鈕 (CPLUS)
     print("點擊 LOGIN 按鈕...", flush=True)
-    login_button = driver.find_element(By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/div[2]/div/div/form/button/span[1]"))
+    login_button = driver.find_element(By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/div[2]/div/div/form/button/span[1]")
     login_button.click()
     print("LOGIN 按鈕點擊成功", flush=True)
     time.sleep(2)
