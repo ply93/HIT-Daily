@@ -13,6 +13,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
+from webdriver_manager.chrome import ChromeDriverManager
 
 # 設置下載目錄
 download_dir = os.path.abspath("downloads")
@@ -23,11 +24,24 @@ if not os.path.exists(download_dir):
 # 確保環境準備
 def setup_environment():
     try:
-        subprocess.run(['sudo', 'apt-get', 'update', '-qq'], check=True)
-        subprocess.run(['sudo', 'apt-get', 'install', '-y', 'chromium-browser', 'chromium-chromedriver'], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        subprocess.run(['pip', 'install', '--upgrade', 'pip'], check=True)
-        subprocess.run(['pip', 'install', 'selenium'], check=True)
-        print("環境準備完成", flush=True)
+        # 檢查 Chromium 同 ChromeDriver
+        result = subprocess.run(['which', 'chromium-browser'], capture_output=True, text=True)
+        if result.returncode != 0:
+            subprocess.run(['sudo', 'apt-get', 'update', '-qq'], check=True)
+            subprocess.run(['sudo', 'apt-get', 'install', '-y', 'chromium-browser', 'chromium-chromedriver'], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            print("Chromium 及 ChromeDriver 已安裝", flush=True)
+        else:
+            print("Chromium 及 ChromeDriver 已存在，跳過安裝", flush=True)
+
+        # 檢查 Selenium
+        result = subprocess.run(['pip', 'show', 'selenium'], capture_output=True, text=True)
+        if "selenium" not in result.stdout:
+            subprocess.run(['pip', 'install', '--upgrade', 'pip'], check=True)
+            subprocess.run(['pip', 'install', 'selenium'], check=True)
+            subprocess.run(['pip', 'install', 'webdriver-manager'], check=True)
+            print("Selenium 及 WebDriver Manager 已安裝", flush=True)
+        else:
+            print("Selenium 已存在，跳過安裝", flush=True)
     except subprocess.CalledProcessError as e:
         print(f"環境準備失敗: {e}", flush=True)
         raise
@@ -40,16 +54,17 @@ chrome_options.add_argument('--disable-dev-shm-usage')
 chrome_options.add_argument('--disable-gpu')
 chrome_options.add_argument('--ignore-certificate-errors')
 chrome_options.add_argument('--disable-popup-blocking')
+chrome_options.add_argument('--disable-extensions')
+chrome_options.add_argument('--no-first-run')
 chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36')
 prefs = {"download.default_directory": download_dir, "download.prompt_for_download": False, "safebrowsing.enabled": False}
 chrome_options.add_experimental_option("prefs", prefs)
-chrome_options.binary_location = '/usr/bin/chromium-browser'
 
 # 初始化 WebDriver
 print("嘗試初始化 WebDriver...", flush=True)
 try:
     setup_environment()
-    driver = webdriver.Chrome(options=chrome_options)
+    driver = webdriver.Chrome(ChromeDriverManager().install(), options=chrome_options)
     print("WebDriver 初始化成功", flush=True)
 except Exception as e:
     print(f"WebDriver 初始化失敗: {str(e)}", flush=True)
@@ -356,6 +371,5 @@ try:
 except Exception as e:
     print(f"發生錯誤: {str(e)}", flush=True)
     raise
-
 finally:
     driver.quit()
