@@ -3,7 +3,7 @@ import time
 import subprocess
 import threading
 from datetime import datetime
-import pytz  # 添加 pytz 模組
+import pytz
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
@@ -38,11 +38,11 @@ def setup_environment():
             print("Chromium 及 ChromeDriver 已存在，跳過安裝", flush=True)
 
         result = subprocess.run(['pip', 'show', 'selenium'], capture_output=True, text=True)
-        if "selenium" not in result.stdout or "webdriver-manager" not in subprocess.run(['pip', 'show', 'webdriver-manager'], capture_output=True, text=True).stdout:
-            subprocess.run(['pip', 'install', 'selenium', 'webdriver-manager', 'pytz'], check=True)  # 添加 pytz
-            print("Selenium 及 WebDriver Manager 已安裝", flush=True)
+        if "selenium" not in result.stdout or "webdriver-manager" not in subprocess.run(['pip', 'show', 'webdriver-manager'], capture_output=True, text=True).stdout or "pytz" not in subprocess.run(['pip', 'show', 'pytz'], capture_output=True, text=True).stdout:
+            subprocess.run(['pip', 'install', 'selenium', 'webdriver-manager', 'pytz'], check=True)
+            print("Selenium、WebDriver Manager 及 pytz 已安裝", flush=True)
         else:
-            print("Selenium 及 WebDriver Manager 已存在，跳過安裝", flush=True)
+            print("Selenium、WebDriver Manager 及 pytz 已存在，跳過安裝", flush=True)
     except subprocess.CalledProcessError as e:
         print(f"環境準備失敗: {e}", flush=True)
         raise
@@ -61,7 +61,11 @@ def get_chrome_options():
     chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36')
     prefs = {"download.default_directory": download_dir, "download.prompt_for_download": False, "safebrowsing.enabled": False}
     chrome_options.add_experimental_option("prefs", prefs)
-    chrome_options.binary_location = '~/chromium-bin/chromium-browser'  # 使用自定義路徑
+    binary_path = os.path.expanduser('~/chromium-bin/chromium-browser')
+    if os.path.exists(binary_path):
+        chrome_options.binary_location = binary_path
+    else:
+        print(f"警告: Chrome 二進制文件 {binary_path} 不存在，使用系統預設", flush=True)
     return chrome_options
 
 # CPLUS 操作
