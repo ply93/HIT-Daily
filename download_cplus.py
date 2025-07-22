@@ -115,20 +115,26 @@ def process_cplus():
         time.sleep(2)
         wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
         # 額外等待確保頁面穩定
-        WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[2]")))
+        WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[2]//form")))
         print("CPLUS: Container Movement Log 頁面加載完成", flush=True)
 
         # 點擊 Search (CPLUS)
         print("CPLUS: 點擊 Search...", flush=True)
         try:
-            search_button = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[1]/div/form/div[2]/div/div[4]/button/span[1]")))
+            search_button = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[1]/div/form/div[2]/div/div[4]/button")))
             search_button.click()
             print("CPLUS: Search 按鈕點擊成功", flush=True)
         except TimeoutException:
-            print("CPLUS: Search 按鈕未找到，嘗試備用定位...", flush=True)
-            search_button = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Search')]")))
-            search_button.click()
-            print("CPLUS: 備用 Search 按鈕點擊成功", flush=True)
+            print("CPLUS: Search 按鈕未找到，嘗試備用定位 1...", flush=True)
+            try:
+                search_button = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'MuiButtonBase-root') and .//span[contains(text(), 'Search')]]")))
+                search_button.click()
+                print("CPLUS: 備用 Search 按鈕 1 點擊成功", flush=True)
+            except TimeoutException:
+                print("CPLUS: 備用 Search 按鈕 1 失敗，嘗試備用定位 2...", flush=True)
+                search_button = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Search')]")))
+                search_button.click()
+                print("CPLUS: 備用 Search 按鈕 2 點擊成功", flush=True)
         time.sleep(5)
 
         # 點擊 Download (CPLUS)
@@ -221,7 +227,7 @@ def process_cplus():
         try:
             if driver:
                 print("CPLUS: 嘗試登出...", flush=True)
-                logout_menu_button = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")), timeout=1)
+                logout_menu_button = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
                 driver.execute_script("arguments[0].scrollIntoView(true);", logout_menu_button)
                 time.sleep(1)
                 driver.execute_script("arguments[0].click();", logout_menu_button)
