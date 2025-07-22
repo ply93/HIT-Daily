@@ -15,9 +15,8 @@ jobs:
         with:
           path: |
             ~/.cache/pip
-            /usr/bin/chromium-browser
-            /usr/bin/chromedriver
-            ~/.wdm
+            ~/.wdm  # WebDriver Manager 緩存
+            ~/chromium-bin  # 自定義目錄儲存 chromium 相關文件
           key: ${{ runner.os }}-pip-chromium-wdm-${{ hashFiles('**/requirements.txt') }}
           restore-keys: |
             ${{ runner.os }}-pip-chromium-wdm-
@@ -30,8 +29,14 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --no-cache-dir selenium webdriver-manager
-          sudo apt-get update -qq || true
-          sudo apt-get install -y chromium-browser chromium-chromedriver || true
+          # 檢查並安裝或複製 chromium 相關文件
+          mkdir -p ~/chromium-bin
+          if [ ! -f ~/chromium-bin/chromium-browser ] || [ ! -f ~/chromium-bin/chromedriver ]; then
+            sudo apt-get update -qq || true
+            sudo apt-get install -y chromium-browser chromium-chromedriver || true
+            cp /usr/bin/chromium-browser ~/chromium-bin/
+            cp /usr/bin/chromedriver ~/chromium-bin/
+          fi
 
       - name: Run Download Script
         env:
