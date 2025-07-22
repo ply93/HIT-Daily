@@ -1,3 +1,65 @@
+import os
+import time
+import subprocess
+import threading
+from datetime import datetime
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email.mime.text import MIMEText
+from email import encoders
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException
+from webdriver_manager.chrome import ChromeDriverManager
+
+# 全局變量
+download_dir = os.path.abspath("downloads")
+if not os.path.exists(download_dir):
+    os.makedirs(download_dir)
+    print(f"創建下載目錄: {download_dir}", flush=True)
+
+# 確保環境準備
+def setup_environment():
+    try:
+        result = subprocess.run(['which', 'chromium-browser'], capture_output=True, text=True)
+        if result.returncode != 0:
+            subprocess.run(['sudo', 'apt-get', 'update', '-qq'], check=True)
+            subprocess.run(['sudo', 'apt-get', 'install', '-y', 'chromium-browser', 'chromium-chromedriver'], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            print("Chromium 及 ChromeDriver 已安裝", flush=True)
+        else:
+            print("Chromium 及 ChromeDriver 已存在，跳過安裝", flush=True)
+
+        result = subprocess.run(['pip', 'show', 'selenium'], capture_output=True, text=True)
+        if "selenium" not in result.stdout or "webdriver-manager" not in subprocess.run(['pip', 'show', 'webdriver-manager'], capture_output=True, text=True).stdout:
+            subprocess.run(['pip', 'install', 'selenium', 'webdriver-manager'], check=True)
+            print("Selenium 及 WebDriver Manager 已安裝", flush=True)
+        else:
+            print("Selenium 及 WebDriver Manager 已存在，跳過安裝", flush=True)
+    except subprocess.CalledProcessError as e:
+        print(f"環境準備失敗: {e}", flush=True)
+        raise
+
+# 設置 Chrome 選項
+def get_chrome_options():
+    chrome_options = Options()
+    chrome_options.add_argument('--headless')
+    chrome_options.add_argument('--no-sandbox')
+    chrome_options.add_argument('--disable-dev-shm-usage')
+    chrome_options.add_argument('--disable-gpu')
+    chrome_options.add_argument('--ignore-certificate-errors')
+    chrome_options.add_argument('--disable-popup-blocking')
+    chrome_options.add_argument('--disable-extensions')
+    chrome_options.add_argument('--no-first-run')
+    chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36')
+    prefs = {"download.default_directory": download_dir, "download.prompt_for_download": False, "safebrowsing.enabled": False}
+    chrome_options.add_experimental_option("prefs", prefs)
+    chrome_options.binary_location = '/usr/bin/chromium-browser'
+    return chrome_options
+
 # CPLUS 操作
 def process_cplus():
     driver = None
