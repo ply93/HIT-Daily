@@ -1,65 +1,3 @@
-import os
-import time
-import subprocess
-import threading
-from datetime import datetime
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.base import MIMEBase
-from email.mime.text import MIMEText
-from email import encoders
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException
-from webdriver_manager.chrome import ChromeDriverManager
-
-# 全局變量
-download_dir = os.path.abspath("downloads")
-if not os.path.exists(download_dir):
-    os.makedirs(download_dir)
-    print(f"創建下載目錄: {download_dir}", flush=True)
-
-# 確保環境準備
-def setup_environment():
-    try:
-        result = subprocess.run(['which', 'chromium-browser'], capture_output=True, text=True)
-        if result.returncode != 0:
-            subprocess.run(['sudo', 'apt-get', 'update', '-qq'], check=True)
-            subprocess.run(['sudo', 'apt-get', 'install', '-y', 'chromium-browser', 'chromium-chromedriver'], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            print("Chromium 及 ChromeDriver 已安裝", flush=True)
-        else:
-            print("Chromium 及 ChromeDriver 已存在，跳過安裝", flush=True)
-
-        result = subprocess.run(['pip', 'show', 'selenium'], capture_output=True, text=True)
-        if "selenium" not in result.stdout or "webdriver-manager" not in subprocess.run(['pip', 'show', 'webdriver-manager'], capture_output=True, text=True).stdout:
-            subprocess.run(['pip', 'install', 'selenium', 'webdriver-manager'], check=True)
-            print("Selenium 及 WebDriver Manager 已安裝", flush=True)
-        else:
-            print("Selenium 及 WebDriver Manager 已存在，跳過安裝", flush=True)
-    except subprocess.CalledProcessError as e:
-        print(f"環境準備失敗: {e}", flush=True)
-        raise
-
-# 設置 Chrome 選項
-def get_chrome_options():
-    chrome_options = Options()
-    chrome_options.add_argument('--headless')
-    chrome_options.add_argument('--no-sandbox')
-    chrome_options.add_argument('--disable-dev-shm-usage')
-    chrome_options.add_argument('--disable-gpu')
-    chrome_options.add_argument('--ignore-certificate-errors')
-    chrome_options.add_argument('--disable-popup-blocking')
-    chrome_options.add_argument('--disable-extensions')
-    chrome_options.add_argument('--no-first-run')
-    chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36')
-    prefs = {"download.default_directory": download_dir, "download.prompt_for_download": False, "safebrowsing.enabled": False}
-    chrome_options.add_experimental_option("prefs", prefs)
-    chrome_options.binary_location = '/usr/bin/chromium-browser'
-    return chrome_options
-
 # CPLUS 操作
 def process_cplus():
     driver = None
@@ -114,14 +52,21 @@ def process_cplus():
         driver.get("https://cplus.hit.com.hk/app/#/enquiry/ContainerMovementLog")
         time.sleep(2)
         wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
+        # 額外等待確保頁面穩定
+        WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[2]")))
         print("CPLUS: Container Movement Log 頁面加載完成", flush=True)
-        time.sleep(2)
 
         # 點擊 Search (CPLUS)
         print("CPLUS: 點擊 Search...", flush=True)
-        search_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[1]/div/form/div[2]/div/div[4]/button/span[1]")))
-        search_button.click()
-        print("CPLUS: Search 按鈕點擊成功", flush=True)
+        try:
+            search_button = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[1]/div/form/div[2]/div/div[4]/button/span[1]")))
+            search_button.click()
+            print("CPLUS: Search 按鈕點擊成功", flush=True)
+        except TimeoutException:
+            print("CPLUS: Search 按鈕未找到，嘗試備用定位...", flush=True)
+            search_button = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Search')]")))
+            search_button.click()
+            print("CPLUS: 備用 Search 按鈕點擊成功", flush=True)
         time.sleep(5)
 
         # 點擊 Download (CPLUS)
@@ -161,9 +106,15 @@ def process_cplus():
 
         # 點擊 Search (CPLUS)
         print("CPLUS: 點擊 Search...", flush=True)
-        search_button_onhand = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div[1]/form/div[1]/div[24]/div[2]/button/span[1]")))
-        search_button_onhand.click()
-        print("CPLUS: Search 按鈕點擊成功", flush=True)
+        try:
+            search_button_onhand = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div[1]/form/div[1]/div[24]/div[2]/button/span[1]")))
+            search_button_onhand.click()
+            print("CPLUS: Search 按鈕點擊成功", flush=True)
+        except TimeoutException:
+            print("CPLUS: Search 按鈕未找到，嘗試備用定位...", flush=True)
+            search_button_onhand = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Search')]")))
+            search_button_onhand.click()
+            print("CPLUS: 備用 Search 按鈕點擊成功", flush=True)
         time.sleep(5)
 
         # 點擊 Export (CPLUS)
@@ -200,36 +151,29 @@ def process_cplus():
                 break
             time.sleep(2)
 
-        # 登出 CPLUS
-        print("CPLUS: 點擊登錄按鈕進行登出...", flush=True)
-        try:
-            logout_menu_button = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
-            driver.execute_script("arguments[0].scrollIntoView(true);", logout_menu_button)
-            time.sleep(1)
-            driver.execute_script("arguments[0].click();", logout_menu_button)
-            print("CPLUS: 登錄按鈕點擊成功", flush=True)
-        except TimeoutException:
-            print("CPLUS: 登錄按鈕未找到，嘗試備用定位...", flush=True)
-            raise
-
-        print("CPLUS: 點擊 Logout 選項...", flush=True)
-        try:
-            logout_option = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='menu-list-grow']/div[6]/li")))
-            driver.execute_script("arguments[0].scrollIntoView(true);", logout_option)
-            time.sleep(1)
-            driver.execute_script("arguments[0].click();", logout_option)
-            print("CPLUS: Logout 選項點擊成功", flush=True)
-        except TimeoutException:
-            print("CPLUS: Logout 選項未找到，嘗試備用定位...", flush=True)
-            raise
-
-        time.sleep(5)
-
     except Exception as e:
         print(f"CPLUS 錯誤: {str(e)}", flush=True)
-        raise
 
     finally:
+        # 確保登出
+        try:
+            if driver:
+                print("CPLUS: 嘗試登出...", flush=True)
+                logout_menu_button = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")), timeout=1)
+                driver.execute_script("arguments[0].scrollIntoView(true);", logout_menu_button)
+                time.sleep(1)
+                driver.execute_script("arguments[0].click();", logout_menu_button)
+                print("CPLUS: 登錄按鈕點擊成功", flush=True)
+
+                logout_option = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='menu-list-grow']/div[6]/li")))
+                driver.execute_script("arguments[0].scrollIntoView(true);", logout_option)
+                time.sleep(1)
+                driver.execute_script("arguments[0].click();", logout_option)
+                print("CPLUS: Logout 選項點擊成功", flush=True)
+                time.sleep(5)
+        except Exception as logout_error:
+            print(f"CPLUS: 登出失敗: {str(logout_error)}", flush=True)
+
         if driver:
             driver.quit()
             print("CPLUS WebDriver 關閉", flush=True)
@@ -358,7 +302,6 @@ def process_barge():
 
     except Exception as e:
         print(f"Barge 錯誤: {str(e)}", flush=True)
-        raise
 
     finally:
         if driver:
