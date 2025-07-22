@@ -1,7 +1,7 @@
 name: Download CPLUS Files
 
 on:
-  workflow_dispatch:  # 支援手動觸發
+  workflow_dispatch:
 
 jobs:
   download:
@@ -9,6 +9,17 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/pip
+            /usr/bin/chromium-browser
+            /usr/bin/chromedriver
+          key: ${{ runner.os }}-pip-chromium-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-chromium-
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -18,16 +29,13 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install selenium
-          sudo apt-get update -qq
-          sudo apt-get install -y chromium-browser chromium-chromedriver
-          
+          pip install selenium webdriver-manager
+          sudo apt-get update -qq || true
+          sudo apt-get install -y chromium-browser chromium-chromedriver || true
+
       - name: Run Download Script
         env:
           SITE_PASSWORD: ${{ secrets.SITE_PASSWORD }}
           ZOHO_EMAIL: ${{ secrets.ZOHO_EMAIL }}
           ZOHO_PASSWORD: ${{ secrets.ZOHO_PASSWORD }}
         run: python download_cplus.py
-
-      - name: Add debug step
-        run: echo "Workflow triggered at $(date -u)"
