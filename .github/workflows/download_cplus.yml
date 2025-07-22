@@ -17,7 +17,7 @@ jobs:
             ~/.cache/pip
             /usr/bin/chromium-browser
             /usr/bin/chromedriver
-            ~/.wdm  # 確保第 20 行縮進正確
+            ~/.wdm
           key: ${{ runner.os }}-pip-chromium-wdm-${{ hashFiles('**/requirements.txt') }}
           restore-keys: |
             ${{ runner.os }}-pip-chromium-wdm-
