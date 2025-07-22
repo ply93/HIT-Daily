@@ -17,9 +17,10 @@ jobs:
             ~/.cache/pip
             /usr/bin/chromium-browser
             /usr/bin/chromedriver
-          key: ${{ runner.os }}-pip-chromium-${{ hashFiles('**/requirements.txt') }}
+            ~/.wdm  # WebDriver Manager 緩存
+          key: ${{ runner.os }}-pip-chromium-wdm-${{ hashFiles('**/requirements.txt') }}
           restore-keys: |
-            ${{ runner.os }}-pip-chromium-
+            ${{ runner.os }}-pip-chromium-wdm-
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -28,8 +29,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install --upgrade pip
-          pip install selenium webdriver-manager
+          pip install --no-cache-dir selenium webdriver-manager  # 避免緩存問題
           sudo apt-get update -qq || true
           sudo apt-get install -y chromium-browser chromium-chromedriver || true
 
