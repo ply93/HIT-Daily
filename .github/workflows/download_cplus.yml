@@ -15,8 +15,8 @@ jobs:
         with:
           path: |
             ~/.cache/pip
-            ~/.wdm  # WebDriver Manager 緩存
-            ~/chromium-bin  # 自定義目錄儲存 chromium 相關文件
+            ~/.wdm
+            ~/chromium-bin
           key: ${{ runner.os }}-pip-chromium-wdm-${{ hashFiles('**/requirements.txt') }}
           restore-keys: |
             ${{ runner.os }}-pip-chromium-wdm-
@@ -28,8 +28,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install --no-cache-dir selenium webdriver-manager
-          # 檢查並安裝或複製 chromium 相關文件
+          pip install --no-cache-dir selenium webdriver-manager pytz
           mkdir -p ~/chromium-bin
           if [ ! -f ~/chromium-bin/chromium-browser ] || [ ! -f ~/chromium-bin/chromedriver ]; then
             sudo apt-get update -qq || true
@@ -37,6 +36,11 @@ jobs:
             cp /usr/bin/chromium-browser ~/chromium-bin/
             cp /usr/bin/chromedriver ~/chromium-bin/
           fi
+
+      - name: Set timezone to HKT
+        run: |
+          sudo ln -sf /usr/share/zoneinfo/Asia/Hong_Kong /etc/localtime
+          echo "Asia/Hong_Kong" > /etc/timezone
 
       - name: Run Download Script
         env:
