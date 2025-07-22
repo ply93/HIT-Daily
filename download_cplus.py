@@ -13,7 +13,6 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
-from webdriver_manager.chrome import ChromeDriverManager
 
 # 設置下載目錄
 download_dir = os.path.abspath("downloads")
@@ -38,8 +37,7 @@ def setup_environment():
         if "selenium" not in result.stdout:
             subprocess.run(['pip', 'install', '--upgrade', 'pip'], check=True)
             subprocess.run(['pip', 'install', 'selenium'], check=True)
-            subprocess.run(['pip', 'install', 'webdriver-manager'], check=True)
-            print("Selenium 及 WebDriver Manager 已安裝", flush=True)
+            print("Selenium 已安裝", flush=True)
         else:
             print("Selenium 已存在，跳過安裝", flush=True)
     except subprocess.CalledProcessError as e:
@@ -59,14 +57,13 @@ chrome_options.add_argument('--no-first-run')
 chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36')
 prefs = {"download.default_directory": download_dir, "download.prompt_for_download": False, "safebrowsing.enabled": False}
 chrome_options.add_experimental_option("prefs", prefs)
-
-from webdriver_manager.chrome import ChromeDriverManager
+chrome_options.binary_location = '/usr/bin/chromium-browser'  # 明確指定 Chromium 路徑
 
 # 初始化 WebDriver
 print("嘗試初始化 WebDriver...", flush=True)
 try:
     setup_environment()
-    driver = webdriver.Chrome(options=chrome_options)  # 直接使用 options，ChromeDriverManager 自動處理
+    driver = webdriver.Chrome(options=chrome_options)  # 僅使用 options
     print("WebDriver 初始化成功", flush=True)
 except Exception as e:
     print(f"WebDriver 初始化失敗: {str(e)}", flush=True)
@@ -148,7 +145,7 @@ try:
 
     # 檢查文件
     start_time = time.time()
-    while time.time() - start_time < 30:  # 縮短檢查時間
+    while time.time() - start_time < 30:
         downloaded_files = [f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx'))]
         if downloaded_files:
             print(f"Container Movement Log 下載完成，檔案位於: {download_dir}", flush=True)
@@ -209,6 +206,23 @@ try:
         time.sleep(2)
     else:
         print("OnHandContainerList 下載失敗，無文件找到", flush=True)
+
+    # 登出 CPLUS
+    print("點擊工具欄進行登出 (CPLUS)...", flush=True)
+    logout_toolbar = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='main-toolbar']/button[4]/span[1]")))
+    driver.execute_script("arguments[0].scrollIntoView(true);", logout_toolbar)
+    time.sleep(1)
+    driver.execute_script("arguments[0].click();", logout_toolbar)
+    print("工具欄點擊成功", flush=True)
+    time.sleep(2)
+
+    print("點擊 Logout (CPLUS)...", flush=True)
+    logout_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='mat-menu-panel-11']/div/button/span")))
+    driver.execute_script("arguments[0].scrollIntoView(true);", logout_button)
+    time.sleep(1)
+    driver.execute_script("arguments[0].click();", logout_button)
+    print("Logout 點擊成功", flush=True)
+    time.sleep(5)
 
     # 前往 barge.oneport.com 登入頁面
     print("嘗試打開網站 https://barge.oneport.com/bargeBooking...", flush=True)
@@ -301,21 +315,20 @@ try:
     else:
         print("Barge Container Detail 下載失敗，無文件找到", flush=True)
 
-    # 點擊工具欄進行登出
-    print("點擊工具欄進行登出...", flush=True)
-    logout_toolbar = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='main-toolbar']/button[4]/span[1]")))
-    driver.execute_script("arguments[0].scrollIntoView(true);", logout_toolbar)  # 滾動到元素
+    # 點擊工具欄進行登出 (Barge)
+    print("點擊工具欄進行登出 (Barge)...", flush=True)
+    logout_toolbar_barge = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='main-toolbar']/button[4]/span[1]")))
+    driver.execute_script("arguments[0].scrollIntoView(true);", logout_toolbar_barge)
     time.sleep(1)
-    driver.execute_script("arguments[0].click();", logout_toolbar)  # 使用 JavaScript 點擊
+    driver.execute_script("arguments[0].click();", logout_toolbar_barge)
     print("工具欄點擊成功", flush=True)
     time.sleep(2)
-    
-    # 點擊 Logout
-    print("點擊 Logout...", flush=True)
-    logout_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='mat-menu-panel-11']/div/button/span")))
-    driver.execute_script("arguments[0].scrollIntoView(true);", logout_button)
+
+    print("點擊 Logout (Barge)...", flush=True)
+    logout_button_barge = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='mat-menu-panel-11']/div/button/span")))
+    driver.execute_script("arguments[0].scrollIntoView(true);", logout_button_barge)
     time.sleep(1)
-    driver.execute_script("arguments[0].click();", logout_button)
+    driver.execute_script("arguments[0].click();", logout_button_barge)
     print("Logout 點擊成功", flush=True)
     time.sleep(5)
 
@@ -339,7 +352,7 @@ try:
             smtp_port = 587
             sender_email = os.environ.get('ZOHO_EMAIL', 'paklun_ckline@zohomail.com')
             sender_password = os.environ.get('ZOHO_PASSWORD', '@d6G.Pie5UkEPqm')
-            receiver_email = 'paklun@ckline.com.hk'
+            receiver_email = 'ckeqc@ckline.com.hk'
 
             # 創建郵件
             msg = MIMEMultipart()
@@ -373,5 +386,6 @@ try:
 except Exception as e:
     print(f"發生錯誤: {str(e)}", flush=True)
     raise
+
 finally:
     driver.quit()
