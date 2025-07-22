@@ -40,7 +40,10 @@ jobs:
       - name: Set timezone to HKT
         run: |
           sudo ln -sf /usr/share/zoneinfo/Asia/Hong_Kong /etc/localtime
-          echo "Asia/Hong_Kong" > /etc/timezone
+          sudo sh -c 'echo "Asia/Hong_Kong" > /etc/timezone'
+
+      - name: Verify timezone
+        run: date
 
       - name: Run Download Script
         env:
