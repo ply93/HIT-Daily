@@ -60,11 +60,13 @@ chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x
 prefs = {"download.default_directory": download_dir, "download.prompt_for_download": False, "safebrowsing.enabled": False}
 chrome_options.add_experimental_option("prefs", prefs)
 
+from webdriver_manager.chrome import ChromeDriverManager
+
 # 初始化 WebDriver
 print("嘗試初始化 WebDriver...", flush=True)
 try:
     setup_environment()
-    driver = webdriver.Chrome(ChromeDriverManager().install(), options=chrome_options)
+    driver = webdriver.Chrome(options=chrome_options)  # 直接使用 options，ChromeDriverManager 自動處理
     print("WebDriver 初始化成功", flush=True)
 except Exception as e:
     print(f"WebDriver 初始化失敗: {str(e)}", flush=True)
