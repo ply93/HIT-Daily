@@ -28,19 +28,24 @@ jobs:
 
     - name: Install dependencies
       run: |
-          pip install --no-cache-dir selenium webdriver-manager pytz
-          mkdir -p ~/chromium-bin
-          if [ ! -f ~/chromium-bin/chromium-browser ] || [ ! -f ~/chromium-bin/chromedriver ]; then
-            sudo apt-get update -qq || true
-            sudo apt-get install -y chromium-browser chromium-chromedriver || true
-            sudo cp /usr/bin/chromium-browser ~/chromium-bin/ || cp /usr/bin/chromium-browser ~/chromium-bin/
-            sudo cp /usr/bin/chromedriver ~/chromium-bin/ || cp /usr/bin/chromedriver ~/chromium-bin/
-          fi
+        pip install --no-cache-dir selenium webdriver-manager pytz
+        sudo apt-get update -qq
+        sudo apt-get install -y chromium-browser libnss3 libfontconfig1 libx11-6 libxcomposite1 libxcursor1 libxi6 libxtst6 libxrandr2
+        sudo snap install chromium
+        mkdir -p /home/runner/chromium-bin
+        python -m webdriver_manager.chrome --linkpath /home/runner/chromium-bin/chromedriver --verbose
+        sudo chmod +x /home/runner/chromium-bin/chromedriver
+        echo "Chromium version:"
+        /snap/bin/chromium --version || true
+        echo "Chromedriver version:"
+        /home/runner/chromium-bin/chromedriver --version || true
+        ls -l /home/runner/chromium-bin/
+        ls -l /snap/bin/chromium
 
     - name: Set timezone to HKT
       run: |
-          sudo ln -sf /usr/share/zoneinfo/Asia/Hong_Kong /etc/localtime
-          sudo sh -c 'echo "Asia/Hong_Kong" > /etc/timezone'
+        sudo ln -sf /usr/share/zoneinfo/Asia/Hong_Kong /etc/localtime
+        sudo sh -c 'echo "Asia/Hong_Kong" > /etc/timezone'
 
     - name: Verify timezone
       run: date
