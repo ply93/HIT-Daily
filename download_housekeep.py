@@ -1,192 +1,228 @@
 import os
 import time
-import subprocess
+from datetime import datetime
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, NoSuchElementException
-
-# 設置目錄（現時無需下載）
-download_dir = os.path.abspath("housekeep_downloads")
-if not os.path.exists(download_dir):
-    os.makedirs(download_dir)
-    print(f"創建目錄: {download_dir}", flush=True)
-
-# 確保環境準備
-def setup_environment():
-    try:
-        subprocess.run(['sudo', 'apt-get', 'update', '-qq'], check=True)
-        subprocess.run(['sudo', 'apt-get', 'install', '-y', 'chromium-browser', 'chromium-chromedriver'], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        subprocess.run(['pip', 'install', '--upgrade', 'pip'], check=True)
-        subprocess.run(['pip', 'install', 'selenium'], check=True)
-        print("環境準備完成", flush=True)
-    except subprocess.CalledProcessError as e:
-        print(f"環境準備失敗: {e}", flush=True)
-        raise
+from selenium.common.exceptions import TimeoutException
 
 # 設置 Chrome 選項
-chrome_options = Options()
-chrome_options.add_argument('--headless')
-chrome_options.add_argument('--no-sandbox')
-chrome_options.add_argument('--disable-dev-shm-usage')
-chrome_options.add_argument('--disable-gpu')
-chrome_options.add_argument('--ignore-certificate-errors')
-chrome_options.add_argument('--disable-popup-blocking')
-chrome_options.add_argument('--disable-blink-features=AutomationControlled')
-chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36')
-chrome_options.binary_location = '/usr/bin/chromium-browser'
+def get_chrome_options():
+    chrome_options = Options()
+    chrome_options.add_argument('--headless')
+    chrome_options.add_argument('--no-sandbox')
+    chrome_options.add_argument('--disable-dev-shm-usage')
+    chrome_options.add_argument('--disable-gpu')
+    chrome_options.add_argument('--ignore-certificate-errors')
+    chrome_options.add_argument('--disable-popup-blocking')
+    chrome_options.add_argument('--disable-extensions')
+    chrome_options.add_argument('--no-first-run')
+    chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36')
+    chrome_options.binary_location = '/usr/bin/chromium-browser'
+    return chrome_options
 
-# 初始化 WebDriver
-print("嘗試初始化 WebDriver...", flush=True)
-try:
-    setup_environment()
-    driver = webdriver.Chrome(options=chrome_options)
-    print("WebDriver 初始化成功", flush=True)
-except Exception as e:
-    print(f"WebDriver 初始化失敗: {str(e)}", flush=True)
-    raise
-
-try:
-    # 前往登入頁面 (CPLUS)
-    print("嘗試打開網站 https://cplus.hit.com.hk/frontpage/#/", flush=True)
-    driver.get("https://cplus.hit.com.hk/frontpage/#/")
-    print(f"網站已成功打開，當前 URL: {driver.current_url}", flush=True)
-    time.sleep(2)
-
-    # 點擊登錄前嘅按鈕 (CPLUS)
-    print("點擊登錄前按鈕...", flush=True)
-    wait = WebDriverWait(driver, 20)
-    login_button_pre = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
-    login_button_pre.click()
-    print("登錄前按鈕點擊成功", flush=True)
-    time.sleep(2)
-
-    # 輸入 COMPANY CODE (CPLUS)
-    print("輸入 COMPANY CODE...", flush=True)
-    company_code_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='companyCode']")))
-    company_code_field.send_keys("CKL")
-    print("COMPANY CODE 輸入完成", flush=True)
-    time.sleep(1)
-
-    # 輸入 USER ID (CPLUS)
-    print("輸入 USER ID...", flush=True)
-    user_id_field = driver.find_element(By.XPATH, "//*[@id='userId']")
-    user_id_field.send_keys("KEN")
-    print("USER ID 輸入完成", flush=True)
-    time.sleep(1)
-
-    # 輸入 PASSWORD (CPLUS)
-    print("輸入 PASSWORD...", flush=True)
-    password_field = driver.find_element(By.XPATH, "//*[@id='passwd']")
-    password_field.send_keys(os.environ.get('SITE_PASSWORD'))
-    print("PASSWORD 輸入完成", flush=True)
-    time.sleep(1)
-
-    # 點擊 LOGIN 按鈕 (CPLUS)
-    print("點擊 LOGIN 按鈕...", flush=True)
-    login_button = driver.find_element(By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/div[2]/div/div/form/button/span[1]")
-    login_button.click()
-    print("LOGIN 按鈕點擊成功", flush=True)
-    time.sleep(2)
-
-    # 前往 housekeepReport 頁面
-    print("前往 housekeepReport 頁面...", flush=True)
-    driver.get("https://cplus.hit.com.hk/app/#/report/housekeepReport")
-    WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))  # 延長等待
-    print("housekeepReport 頁面加載完成", flush=True)
-    time.sleep(5)
-
-    # 關閉可能嘅對話框
+# 主任務邏輯
+def process_new_task():
+    driver = None
     try:
-        close_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'MuiButton-containedPrimary') and contains(., 'Close')]")))
-        close_button.click()
-        WebDriverWait(driver, 10).until(EC.invisibility_of_element_located((By.XPATH, "//div[contains(@class, 'MuiDialog-root')]")))
-        print("關閉對話框成功", flush=True)
-    except TimeoutException:
-        print("無發現對話框，繼續執行", flush=True)
+        driver = webdriver.Chrome(options=get_chrome_options())
+        print("New Task WebDriver 初始化成功", flush=True)
 
-    # 等待報告表格加載
-    print("等待報告表格加載...", flush=True)
-    wait = WebDriverWait(driver, 20)  # 延長等待時間
-    table_body = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']//table[contains(@class, 'MuiTable-root')]//tbody")))  # 通用表格定位
-    print("報告表格加載成功", flush=True)
+        # 前往登錄頁面
+        print("New Task: 嘗試打開網站 https://cplus.hit.com.hk/app/#/", flush=True)
+        driver.get("https://cplus.hit.com.hk/app/#/")
+        print(f"New Task: 網站已成功打開，當前 URL: {driver.current_url}", flush=True)
+        time.sleep(2)
 
-    # 提取頁面 HTML 進行調試
-    print("提取 housekeepReport 頁面 HTML...", flush=True)
-    html_content = driver.page_source
-    with open("housekeep_report_html.txt", "w", encoding="utf-8") as f:
-        f.write(html_content)
-    print("頁面 HTML 已保存至 housekeep_report_html.txt", flush=True)
+        # 點擊登錄前按鈕
+        print("New Task: 點擊登錄前按鈕...", flush=True)
+        wait = WebDriverWait(driver, 20)
+        login_button_pre = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
+        login_button_pre.click()
+        print("New Task: 登錄前按鈕點擊成功", flush=True)
+        time.sleep(2)
 
-    # 選擇所有可見報告選項
-    print("選擇所有可見報告選項...", flush=True)
-    inputs = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//*[@id='root']//table[contains(@class, 'MuiTable-root')]//tbody//td[6]//input[@class='jss125' and @type='checkbox']")))
-    for i, input_element in enumerate(inputs, 1):
+        # 輸入 COMPANY CODE
+        print("New Task: 輸入 COMPANY CODE...", flush=True)
+        company_code_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='companyCode']")))
+        company_code_field.send_keys("CKL")
+        print("New Task: COMPANY CODE 輸入完成", flush=True)
+        time.sleep(1)
+
+        # 輸入 USER ID
+        print("New Task: 輸入 USER ID...", flush=True)
+        user_id_field = driver.find_element(By.XPATH, "//*[@id='userId']")
+        user_id_field.send_keys("KEN")
+        print("New Task: USER ID 輸入完成", flush=True)
+        time.sleep(1)
+
+        # 輸入 PASSWORD
+        print("New Task: 輸入 PASSWORD...", flush=True)
+        password_field = driver.find_element(By.XPATH, "//*[@id='passwd']")
+        password_field.send_keys(os.environ.get('SITE_PASSWORD'))
+        print("New Task: PASSWORD 輸入完成", flush=True)
+        time.sleep(1)
+
+        # 點擊 LOGIN 按鈕
+        print("New Task: 點擊 LOGIN 按鈕...", flush=True)
+        login_button = driver.find_element(By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/div[2]/div/div/form/button/span[1]")
+        login_button.click()
+        print("New Task: LOGIN 按鈕點擊成功", flush=True)
+        time.sleep(2)
+
+        # 前往 Housekeep Report 頁面
+        print("New Task: 前往 Housekeep Report 頁面...", flush=True)
+        driver.get("https://cplus.hit.com.hk/app/#/report/housekeepReport")
+        wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
+        print("New Task: Housekeep Report 頁面加載完成", flush=True)
+        time.sleep(2)
+
+        # 檢查並設置日期
+        today = datetime.now().strftime("%d/%m/%Y")  # 格式：23/07/2025
+        print(f"New Task: 檢查日期，今日為 {today}", flush=True)
+        
+        # 檢查 <input id="from">
+        from_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='from']")))
+        from_value = from_field.get_attribute("value")
+        if from_value != today:
+            print(f"New Task: From 日期 ({from_value}) 不為今日，設置為 {today}", flush=True)
+            from_field.clear()
+            from_field.send_keys(today)
+        else:
+            print("New Task: From 日期已正確", flush=True)
+        time.sleep(1)
+
+        # 檢查 <input id="to">
+        to_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='to']")))
+        to_value = to_field.get_attribute("value")
+        if to_value != today:
+            print(f"New Task: To 日期 ({to_value}) 不為今日，設置為 {today}", flush=True)
+            to_field.clear()
+            to_field.send_keys(today)
+        else:
+            print("New Task: To 日期已正確", flush=True)
+        time.sleep(1)
+
+        # 點擊 Search 按鈕
+        print("New Task: 嘗試點擊 Search 按鈕...", flush=True)
         try:
-            print(f"嘗試選擇 tr[{i}]...", flush=True)
-            if not input_element.is_selected():
-                input_element.click()
-                print(f"tr[{i}] 選擇成功", flush=True)
+            search_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//input[@placeholder='Search']/following-sibling::div//button")))
+            driver.execute_script("arguments[0].scrollIntoView(true);", search_button)
+            time.sleep(0.5)
+            driver.execute_script("arguments[0].click();", search_button)
+            print("New Task: Search 按鈕點擊成功", flush=True)
+            time.sleep(5)  # 等待報告加載
+        except TimeoutException:
+            print("New Task: Search 按鈕未找到，假設無需點擊", flush=True)
+
+        # 動態查找並點擊所有 Email Excel checkbox
+        print("New Task: 查找並點擊所有 Email Excel checkbox...", flush=True)
+        try:
+            checkboxes = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//tbody/tr/td[6]//input[@type='checkbox']")))
+            print(f"New Task: 找到 {len(checkboxes)} 個 Email Excel checkbox", flush=True)
+            
+            if len(checkboxes) < 3 or len(checkboxes) > 6:
+                print(f"New Task: Checkbox 數量 {len(checkboxes)} 不在預期範圍 (3-6)，請檢查", flush=True)
+
+            for index, checkbox in enumerate(checkboxes, 1):
+                try:
+                    if checkbox.is_enabled() and checkbox.is_displayed() and not checkbox.is_selected():
+                        driver.execute_script("arguments[0].scrollIntoView(true);", checkbox)
+                        time.sleep(0.5)
+                        driver.execute_script("arguments[0].click();", checkbox)
+                        print(f"New Task: Checkbox {index} 點擊成功", flush=True)
+                    else:
+                        print(f"New Task: Checkbox {index} 已選中或不可點擊，跳過", flush=True)
+                except Exception as e:
+                    print(f"New Task: Checkbox {index} 點擊失敗: {str(e)}", flush=True)
+            time.sleep(2)
+        except TimeoutException:
+            print("New Task: 未找到 Email Excel checkbox，嘗試備用定位...", flush=True)
+            checkboxes = driver.find_elements(By.CSS_SELECTOR, "input.jss140")
+            if checkboxes:
+                print(f"New Task: 備用定位找到 {len(checkboxes)} 個 checkbox", flush=True)
+                for index, checkbox in enumerate(checkboxes, 1):
+                    try:
+                        if checkbox.is_enabled() and checkbox.is_displayed() and not checkbox.is_selected():
+                            driver.execute_script("arguments[0].scrollIntoView(true);", checkbox)
+                            time.sleep(0.5)
+                            driver.execute_script("arguments[0].click();", checkbox)
+                            print(f"New Task: Checkbox {index} 點擊成功 (備用定位)", flush=True)
+                    except Exception as e:
+                        print(f"New Task: Checkbox {index} 點擊失敗 (備用定位): {str(e)}", flush=True)
             else:
-                print(f"tr[{i}] 已選擇，跳過", flush=True)
+                print("New Task: 備用定位也未找到 checkbox，任務中止", flush=True)
+                return
+
+        # 點擊 Email 按鈕
+        print("New Task: 點擊 Email 按鈕...", flush=True)
+        try:
+            email_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div/form/div[1]/div[8]/div/div/div[1]/div[1]/div[1]/button")))
+            driver.execute_script("arguments[0].scrollIntoView(true);", email_button)
+            time.sleep(0.5)
+            driver.execute_script("arguments[0].click();", email_button)
+            print("New Task: Email 按鈕點擊成功", flush=True)
+            time.sleep(2)
+
+            # 輸入 Email 地址
+            print("New Task: 輸入目標 Email 地址...", flush=True)
+            email_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='to']")))
+            email_field.send_keys("paklun@ckline.com.hk")
+            print("New Task: Email 地址輸入完成", flush=True)
             time.sleep(1)
-        except Exception as e:
-            print(f"tr[{i}] 選擇失敗: {str(e)}", flush=True)
-            continue
 
-    # 點擊 EMAIL 按鈕
-    print("點擊 EMAIL 按鈕...", flush=True)
-    try:
-        email_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div/form/div[1]/div[8]/div/div/div[1]/div[1]/div[1]/button[1]")), timeout=20)
-        email_button.click()
-        print("EMAIL 按鈕點擊成功", flush=True)
-    except TimeoutException:
-        print("主 EMAIL 按鈕未找到，嘗試備用定位...", flush=True)
-        email_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'MuiButton-contained') and contains(., 'Email')]")), timeout=20)
-        email_button.click()
-        print("備用 EMAIL 按鈕點擊成功", flush=True)
-    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//*[@id='to']")))
+            # 輸入內文（今日日期和時間，格式 MM:DD XX:XX）
+            current_time = datetime.now().strftime("%m:%d %H:%M")  # 例如 07:23 16:31
+            print(f"New Task: 輸入內文，格式為 {current_time}", flush=True)
+            body_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='body']")))
+            body_field.send_keys(current_time)
+            print("New Task: 內文輸入完成", flush=True)
+            time.sleep(1)
 
-    # 輸入 TO 字段
-    print("輸入收件人 paklun@ckline.com.hk...", flush=True)
-    to_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='to']")))
-    to_field.clear()
-    to_field.send_keys("paklun@ckline.com.hk")
-    print("收件人輸入完成", flush=True)
-    time.sleep(1)
+            # 點擊 Confirm 按鈕
+            print("New Task: 點擊 Confirm 按鈕...", flush=True)
+            confirm_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='EmailDialog']/div[3]/div/form/div[3]/button[1]")))
+            driver.execute_script("arguments[0].click();", confirm_button)
+            print("New Task: Confirm 按鈕點擊成功", flush=True)
+            time.sleep(2)
 
-    # 點擊 CONFIRM 按鈕
-    print("點擊 CONFIRM 按鈕...", flush=True)
-    confirm_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='EmailDialog']/div[3]/div/form/div[3]/button[1]/span[1]")))
-    confirm_button.click()
-    print("CONFIRM 按鈕點擊成功", flush=True)
-    WebDriverWait(driver, 15).until(EC.invisibility_of_element_located((By.XPATH, "//*[@id='EmailDialog']")))  # 等待對話框消失
+            # 檢查發送成功提示
+            try:
+                wait.until(EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'successfully')]")))
+                print("New Task: Email 發送成功", flush=True)
+            except TimeoutException:
+                print("New Task: 未找到發送成功提示，但繼續執行", flush=True)
+        except TimeoutException as e:
+            print(f"New Task: Email 處理失敗: {str(e)}", flush=True)
+            return
 
-    # 點擊工具欄進行登出
-    print("點擊工具欄進行登出...", flush=True)
-    logout_toolbar = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='main-toolbar']/button[4]/span[1]")))
-    driver.execute_script("arguments[0].scrollIntoView(true);", logout_toolbar)
-    time.sleep(1)
-    driver.execute_script("arguments[0].click();", logout_toolbar)
-    print("工具欄點擊成功", flush=True)
-    time.sleep(2)
+    except Exception as e:
+        print(f"New Task 錯誤: {str(e)}", flush=True)
 
-    # 點擊 Logout
-    print("點擊 Logout...", flush=True)
-    logout_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='mat-menu-panel-11']/div/button/span")))
-    driver.execute_script("arguments[0].scrollIntoView(true);", logout_button)
-    time.sleep(1)
-    driver.execute_script("arguments[0].click();", logout_button)
-    print("Logout 點擊成功", flush=True)
-    time.sleep(5)
+    finally:
+        if driver:
+            try:
+                # 嘗試登出
+                print("New Task: 嘗試登出...", flush=True)
+                logout_menu_button = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
+                driver.execute_script("arguments[0].scrollIntoView(true);", logout_menu_button)
+                time.sleep(0.5)
+                driver.execute_script("arguments[0].click();", logout_menu_button)
+                print("New Task: 登錄按鈕點擊成功", flush=True)
 
-    print("腳本完成", flush=True)
+                logout_option = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='menu-list-grow']/div[6]/li")))
+                driver.execute_script("arguments[0].scrollIntoView(true);", logout_option)
+                time.sleep(0.5)
+                driver.execute_script("arguments[0].click();", logout_option)
+                print("New Task: Logout 選項點擊成功", flush=True)
+                time.sleep(2)
+            except Exception as logout_error:
+                print(f"New Task: 登出失敗: {str(logout_error)}", flush=True)
+            driver.quit()
+            print("New Task WebDriver 關閉", flush=True)
 
-except Exception as e:
-    print(f"發生錯誤: {str(e)}", flush=True)
-    raise
-
-finally:
-    driver.quit()
+if __name__ == "__main__":
+    process_new_task()
+    print("New Task 腳本完成", flush=True)
