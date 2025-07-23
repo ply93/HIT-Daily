@@ -15,7 +15,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException
+from selenium.common.exceptions import TimeoutException, WebDriverException
 from webdriver_manager.chrome import ChromeDriverManager
 
 # 設定香港時區
@@ -30,22 +30,29 @@ if not os.path.exists(download_dir):
 # 確保環境準備
 def setup_environment():
     try:
+        print("檢查 Chromium 及 ChromeDriver...", flush=True)
         result = subprocess.run(['which', 'chromium-browser'], capture_output=True, text=True)
         if result.returncode != 0:
+            print("Chromium 未找到，嘗試安裝...", flush=True)
             subprocess.run(['sudo', 'apt-get', 'update', '-qq'], check=True)
             subprocess.run(['sudo', 'apt-get', 'install', '-y', 'chromium-browser', 'chromium-chromedriver'], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             print("Chromium 及 ChromeDriver 已安裝", flush=True)
         else:
             print("Chromium 及 ChromeDriver 已存在，跳過安裝", flush=True)
 
+        print("檢查 Python 依賴...", flush=True)
         result = subprocess.run(['pip', 'show', 'selenium'], capture_output=True, text=True)
         if "selenium" not in result.stdout or "webdriver-manager" not in subprocess.run(['pip', 'show', 'webdriver-manager'], capture_output=True, text=True).stdout or "pytz" not in subprocess.run(['pip', 'show', 'pytz'], capture_output=True, text=True).stdout:
+            print("安裝缺失嘅依賴...", flush=True)
             subprocess.run(['pip', 'install', 'selenium', 'webdriver-manager', 'pytz'], check=True)
             print("Selenium、WebDriver Manager 及 pytz 已安裝", flush=True)
         else:
             print("Selenium、WebDriver Manager 及 pytz 已存在，跳過安裝", flush=True)
     except subprocess.CalledProcessError as e:
         print(f"環境準備失敗: {e}", flush=True)
+        raise
+    except Exception as e:
+        print(f"環境準備異常: {e}", flush=True)
         raise
 
 # 設置 Chrome 選項
@@ -73,6 +80,7 @@ def get_chrome_options():
 def process_cplus():
     driver = None
     try:
+        print("初始化 CPLUS WebDriver...", flush=True)
         driver = webdriver.Chrome(options=get_chrome_options())
         print("CPLUS WebDriver 初始化成功", flush=True)
 
@@ -276,6 +284,7 @@ def process_cplus():
 def process_barge():
     driver = None
     try:
+        print("初始化 Barge WebDriver...", flush=True)
         driver = webdriver.Chrome(options=get_chrome_options())
         print("Barge WebDriver 初始化成功", flush=True)
 
@@ -419,3 +428,75 @@ def process_barge():
         if driver:
             driver.quit()
             print("Barge WebDriver 關閉", flush=True)
+
+# 主函數
+if __name__ == "__main__":
+    # 設定系統時區為 HKT
+    os.environ['TZ'] = 'Asia/Hong_Kong'
+    time.tzset()
+
+    # 執行環境準備
+    setup_environment()
+
+    # 啟動兩個線程
+    cplus_thread = threading.Thread(target=process_cplus)
+    barge_thread = threading.Thread(target=process_barge)
+
+    cplus_thread.start()
+    barge_thread.start()
+
+    # 等待兩個線程完成
+    cplus_thread.join()
+    barge_thread.join()
+
+    # 檢查所有下載文件
+    print("檢查所有下載文件...", flush=True)
+    start_time = time.time()
+    while time.time() - start_time < 120:
+        downloaded_files = [f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx'))]
+        if downloaded_files:
+            break
+        time.sleep(5)
+    if downloaded_files:
+        print(f"所有下載完成，檔案位於: {download_dir}", flush=True)
+        for file in downloaded_files:
+            print(f"找到檔案: {file}", flush=True)
+
+        # 發送 Zoho Mail (使用 HKT 時間)
+        hkt_time = datetime.now(hkt).strftime('%Y-%m-%d %H:%M:%S')
+        print(f"郵件發送時間 (HKT): {hkt_time}", flush=True)
+        try:
+            smtp_server = 'smtp.zoho.com'
+            smtp_port = 587
+            sender_email = os.environ.get('ZOHO_EMAIL', 'paklun_ckline@zohomail.com')
+            sender_password = os.environ.get('ZOHO_PASSWORD', '@d6G.Pie5UkEPqm')
+            receiver_email = 'paklun@ckline.com.hk'  # 改為新 email
+
+            # 創建郵件
+            msg = MIMEMultipart()
+            msg['From'] = sender_email
+            msg['To'] = receiver_email
+            msg['Subject'] = f"[TESTING]HIT DAILY {datetime.now(hkt).strftime('%Y-%m-%d')}"
+
+            # 添加附件
+            for file in downloaded_files:
+                file_path = os.path.join(download_dir, file)
+                attachment = MIMEBase('application', 'octet-stream')
+                attachment.set_payload(open(file_path, 'rb').read())
+                encoders.encode_base64(attachment)
+                attachment.add_header('Content-Disposition', f'attachment; filename={file}')
+                msg.attach(attachment)
+
+            # 連接 SMTP 伺服器並發送
+            server = smtplib.SMTP(smtp_server, smtp_port)
+            server.starttls()
+            server.login(sender_email, sender_password)
+            server.sendmail(sender_email, receiver_email, msg.as_string())
+            server.quit()
+            print("郵件發送成功!", flush=True)
+        except Exception as e:
+            print(f"郵件發送失敗: {str(e)}", flush=True)
+    else:
+        print("所有下載失敗，無文件可發送", flush=True)
+
+    print("腳本完成", flush=True)
