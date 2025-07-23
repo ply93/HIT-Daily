@@ -30,10 +30,17 @@ jobs:
       run: |
         pip install --no-cache-dir selenium webdriver-manager pytz
         sudo apt-get update -qq
-        sudo apt-get install -y chromium-browser libnss3 libfontconfig1 libx11-6 libxcomposite1 libxcursor1 libxi6 libxtst6 libxrandr2
+        sudo apt-get install -y chromium-browser libnss3 libfontconfig1 libx11-6 libxcomposite1 libxcursor1 libxi6 libxtst6 libxrandr2 unzip
         sudo snap install chromium
         mkdir -p /home/runner/chromium-bin
-        python -m webdriver_manager.chrome --linkpath /home/runner/chromium-bin/chromedriver --verbose
+        echo "Attempting to download chromedriver with webdriver-manager"
+        python -c "from webdriver_manager.chrome import ChromeDriverManager; ChromeDriverManager(path='/home/runner/chromium-bin').install()"
+        if [ ! -f /home/runner/chromium-bin/chromedriver ]; then
+          echo "webdriver-manager failed, downloading chromedriver manually"
+          curl -sS -o /tmp/chromedriver.zip https://chromedriver.storage.googleapis.com/126.0.6478.182/chromedriver_linux64.zip
+          unzip -o /tmp/chromedriver.zip -d /home/runner/chromium-bin/
+          mv /home/runner/chromium-bin/chromedriver-linux64 /home/runner/chromium-bin/chromedriver || true
+        fi
         sudo chmod +x /home/runner/chromium-bin/chromedriver
         echo "Chromium version:"
         /snap/bin/chromium --version || true
