@@ -28,15 +28,25 @@ jobs:
 
     - name: Install dependencies
       run: |
-        pip install --no-cache-dir selenium webdriver-manager pytz
+        pip install --no-cache-dir selenium webdriver-manager pytz requests
         sudo apt-get update -qq
         sudo apt-get install -y chromium-browser libnss3 libfontconfig1 libx11-6 libxcomposite1 libxcursor1 libxi6 libxtst6 libxrandr2
         sudo snap install chromium
-        ls -l /snap/bin/chromium
-        chromium-browser --version || true
-        python -m webdriver_manager.chrome --driver_path /home/runner/chromium-bin/chromedriver
+        mkdir -p /home/runner/chromium-bin
+        echo "Attempting to download chromedriver with webdriver-manager"
+        python -m webdriver_manager.chrome --driver_path /home/runner/chromium-bin/chromedriver || true
+        if [ ! -f /home/runner/chromium-bin/chromedriver ]; then
+          echo "webdriver-manager failed, downloading chromedriver manually"
+          wget -O /tmp/chromedriver.zip https://chromedriver.storage.googleapis.com/138.0.7204.157/chromedriver_linux64.zip
+          unzip /tmp/chromedriver.zip -d /home/runner/chromium-bin/
+          mv /home/runner/chromium-bin/chromedriver-linux64 /home/runner/chromium-bin/chromedriver
+        fi
         sudo chmod +x /home/runner/chromium-bin/chromedriver
         ls -l /home/runner/chromium-bin/
+        echo "Chromium version:"
+        /snap/bin/chromium --version || true
+        echo "Chromedriver version:"
+        /home/runner/chromium-bin/chromedriver --version || true
 
     - name: Set timezone to HKT
       run: |
