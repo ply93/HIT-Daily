@@ -1,16 +1,25 @@
 name: Download Housekeep Reports
 
 on:
-  schedule:
-    - cron: '15 0 * * *'  # UTC 00:15 = HKT 08:15
-  workflow_dispatch:  # 支援手動觸發
+  workflow_dispatch:
 
 jobs:
-  download:
+  new-task:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.wdm
+            ~/chromium-bin
+          key: ${{ runner.os }}-pip-chromium-wdm-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-chromium-wdm-
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -19,21 +28,24 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install --upgrade pip
-          pip install selenium
-          sudo apt-get update -qq
-          sudo apt-get install -y chromium-browser chromium-chromedriver
+          pip install --no-cache-dir selenium webdriver-manager pytz
+          mkdir -p ~/chromium-bin
+          if [ ! -f ~/chromium-bin/chromium-browser ] || [ ! -f ~/chromium-bin/chromedriver ]; then
+            sudo apt-get update -qq || true
+            sudo apt-get install -y chromium-browser chromium-chromedriver || true
+            sudo cp /usr/bin/chromium-browser ~/chromium-bin/ || cp /usr/bin/chromium-browser ~/chromium-bin/
+            sudo cp /usr/bin/chromedriver ~/chromium-bin/ || cp /usr/bin/chromedriver ~/chromium-bin/
+          fi
 
-      - name: Run Download Script
+      - name: Set timezone to HKT
+        run: |
+          sudo ln -sf /usr/share/zoneinfo/Asia/Hong_Kong /etc/localtime
+          sudo sh -c 'echo "Asia/Hong_Kong" > /etc/timezone'
+
+      - name: Verify timezone
+        run: date
+
+      - name: Run New Task Script
         env:
           SITE_PASSWORD: ${{ secrets.SITE_PASSWORD }}
-          ZOHO_EMAIL: ${{ secrets.ZOHO_EMAIL }}
-          ZOHO_PASSWORD: ${{ secrets.ZOHO_PASSWORD }}
-        run: python download_housekeep.py
-
-      - name: Upload HTML artifact
-        uses: actions/upload-artifact@v4  # 更新至 v4
-        if: always()
-        with:
-          name: housekeep-report-html
-          path: housekeep_report_html.txt
+        run: download_housekeep.py
