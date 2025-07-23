@@ -2,9 +2,7 @@ import os
 import time
 import subprocess
 import threading
-import traceback  # 添加 traceback 模組
 from datetime import datetime
-import pytz
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
@@ -17,9 +15,6 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
 from webdriver_manager.chrome import ChromeDriverManager
-
-# 設定香港時區
-hkt = pytz.timezone('Asia/Hong_Kong')
 
 # 全局變量
 download_dir = os.path.abspath("downloads")
@@ -39,11 +34,11 @@ def setup_environment():
             print("Chromium 及 ChromeDriver 已存在，跳過安裝", flush=True)
 
         result = subprocess.run(['pip', 'show', 'selenium'], capture_output=True, text=True)
-        if "selenium" not in result.stdout or "webdriver-manager" not in subprocess.run(['pip', 'show', 'webdriver-manager'], capture_output=True, text=True).stdout or "pytz" not in subprocess.run(['pip', 'show', 'pytz'], capture_output=True, text=True).stdout:
-            subprocess.run(['pip', 'install', 'selenium', 'webdriver-manager', 'pytz'], check=True)
-            print("Selenium、WebDriver Manager 及 pytz 已安裝", flush=True)
+        if "selenium" not in result.stdout or "webdriver-manager" not in subprocess.run(['pip', 'show', 'webdriver-manager'], capture_output=True, text=True).stdout:
+            subprocess.run(['pip', 'install', 'selenium', 'webdriver-manager'], check=True)
+            print("Selenium 及 WebDriver Manager 已安裝", flush=True)
         else:
-            print("Selenium、WebDriver Manager 及 pytz 已存在，跳過安裝", flush=True)
+            print("Selenium 及 WebDriver Manager 已存在，跳過安裝", flush=True)
     except subprocess.CalledProcessError as e:
         print(f"環境準備失敗: {e}", flush=True)
         raise
@@ -62,11 +57,7 @@ def get_chrome_options():
     chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36')
     prefs = {"download.default_directory": download_dir, "download.prompt_for_download": False, "safebrowsing.enabled": False}
     chrome_options.add_experimental_option("prefs", prefs)
-    binary_path = os.path.expanduser('~/chromium-bin/chromium-browser')
-    if os.path.exists(binary_path):
-        chrome_options.binary_location = binary_path
-    else:
-        print(f"警告: Chrome 二進制文件 {binary_path} 不存在，使用系統預設", flush=True)
+    chrome_options.binary_location = '/usr/bin/chromium-browser'
     return chrome_options
 
 # CPLUS 操作
@@ -154,7 +145,7 @@ def process_cplus():
 
         # 等待下載完成 (假設有成功提示或按鈕禁用)
         try:
-            WebDriverWait(driver, 60).until(
+            WebDriverWait(driver, 90).until(
                 EC.invisibility_of_element_located((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[2]/div/div[2]/div/div[1]/div[1]/button"))
                 or EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'Download Complete')]"))
             )
@@ -209,7 +200,7 @@ def process_cplus():
 
         # 等待下載完成 (假設有成功提示或按鈕禁用)
         try:
-            WebDriverWait(driver, 60).until(
+            WebDriverWait(driver, 90).until(
                 EC.invisibility_of_element_located((By.XPATH, "//li[contains(@class, 'MuiMenuItem-root') and text()='Export as CSV']"))
                 or EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'Export Complete')]"))
             )
@@ -306,15 +297,9 @@ def process_barge():
 
         # 點擊 Report
         print("Barge: 點擊 Report...", flush=True)
-        try:
-            report_button = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='mat-menu-panel-4']/div/button[4]/span")))
-            report_button.click()
-            print("Barge: Report 點擊成功", flush=True)
-        except TimeoutException:
-            print("Barge: Report 按鈕未找到，嘗試備用定位...", flush=True)
-            report_button = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Report')]")))
-            report_button.click()
-            print("Barge: 備用 Report 按鈕點擊成功", flush=True)
+        report_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='mat-menu-panel-4']/div/button[4]/span")))
+        report_button.click()
+        print("Barge: Report 點擊成功", flush=True)
         time.sleep(2)
 
         # 選擇 Report Type
@@ -339,7 +324,7 @@ def process_barge():
 
         # 等待下載完成 (假設有成功提示或按鈕禁用)
         try:
-            WebDriverWait(driver, 60).until(
+            WebDriverWait(driver, 90).until(
                 EC.invisibility_of_element_located((By.XPATH, "//*[@id='content-mount']/app-download-report/div[2]/div/form/div[2]/button"))
                 or EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'Download Complete')]"))
             )
@@ -384,7 +369,7 @@ def process_barge():
         time.sleep(5)
 
     except Exception as e:
-        print(f"Barge 錯誤: {str(e)} - 堆棧跟踪: {traceback.format_exc()}", flush=True)
+        print(f"Barge 錯誤: {str(e)}", flush=True)
 
     finally:
         if driver:
@@ -393,10 +378,6 @@ def process_barge():
 
 # 主函數
 if __name__ == "__main__":
-    # 設定系統時區為 HKT
-    os.environ['TZ'] = 'Asia/Hong_Kong'
-    time.tzset()
-
     # 啟動兩個線程
     cplus_thread = threading.Thread(target=process_cplus)
     barge_thread = threading.Thread(target=process_barge)
@@ -421,21 +402,20 @@ if __name__ == "__main__":
         for file in downloaded_files:
             print(f"找到檔案: {file}", flush=True)
 
-        # 發送 Zoho Mail (使用 HKT 時間)
-        hkt_time = datetime.now(hkt).strftime('%Y-%m-%d %H:%M:%S')
-        print(f"郵件發送時間 (HKT): {hkt_time}", flush=True)
+        # 發送 Zoho Mail
+        print("開始發送郵件...", flush=True)
         try:
             smtp_server = 'smtp.zoho.com'
             smtp_port = 587
             sender_email = os.environ.get('ZOHO_EMAIL', 'paklun_ckline@zohomail.com')
             sender_password = os.environ.get('ZOHO_PASSWORD', '@d6G.Pie5UkEPqm')
-            receiver_email = 'paklun@ckline.com.hk'
+            receiver_email = 'ckeqc@ckline.com.hk'
 
             # 創建郵件
             msg = MIMEMultipart()
             msg['From'] = sender_email
             msg['To'] = receiver_email
-            msg['Subject'] = f"[TESTING]HIT DAILY {datetime.now(hkt).strftime('%Y-%m-%d')}"
+            msg['Subject'] = f"[TESTING]HIT DAILY {datetime.now().strftime('%Y-%m-%d')}"
 
             # 添加附件
             for file in downloaded_files:
