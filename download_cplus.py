@@ -302,18 +302,20 @@ def process_barge():
         toolbar_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='main-toolbar']/button[1]/span[1]/mat-icon")))
         toolbar_button.click()
         print("Barge: 主工具欄點擊成功", flush=True)
-        time.sleep(2)  # 增加等待時間
+        time.sleep(3)  # 增加等待時間至 3 秒
+        # 等待菜單出現
+        WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//*[contains(@class, 'mat-menu-panel')]")))
 
         # 點擊 Report
         print("Barge: 點擊 Report...", flush=True)
         try:
-            report_button = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//button[./span[text()='Reports']]")))
+            report_button = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//button[descendant::span[text()='Reports']]")))
             report_button.click()
             print("Barge: Report 點擊成功", flush=True)
         except TimeoutException:
             print("Barge: Report 按鈕未找到，嘗試備用定位...", flush=True)
             try:
-                report_button = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'mat-menu-item') and .//span[text()='Reports']]")))
+                report_button = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//button[./span[contains(text(), 'Reports')]]")))
                 report_button.click()
                 print("Barge: 備用 Report 按鈕點擊成功", flush=True)
             except TimeoutException:
