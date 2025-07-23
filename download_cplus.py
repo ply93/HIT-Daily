@@ -161,19 +161,19 @@ def process_cplus():
         # 點擊 Download (CPLUS)
         print("CPLUS: 點擊 Download...", flush=True)
         try:
-            download_button = WebDriverWait(driver, 40).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[2]/div/div[2]/div/div[1]/div[1]/button")))
+            download_button = WebDriverWait(driver, 50).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[2]/div/div[2]/div/div[1]/div[1]/button")))
             download_button.click()
             print("CPLUS: Download 按鈕點擊成功", flush=True)
         except TimeoutException:
             print("CPLUS: 主 Download 按鈕未找到，嘗試備用定位...", flush=True)
             try:
-                download_button = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'MuiButtonBase-root') and .//span[contains(text(), 'Download')]]")))
+                download_button = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//button[descendant::span[contains(text(), 'Download')]]")))
                 download_button.click()
                 print("CPLUS: 備用 Download 按鈕點擊成功", flush=True)
             except TimeoutException:
                 print("CPLUS: 備用 Download 按鈕失敗，跳過...", flush=True)
                 raise
-        time.sleep(6)  # 增加等待時間至 6 秒
+        time.sleep(10)  # 增加等待時間至 10 秒
 
         # 等待下載完成 (假設有成功提示或按鈕禁用)
         try:
@@ -324,16 +324,17 @@ def process_barge():
         print("Barge: 點擊主工具欄...", flush=True)
         toolbar_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='main-toolbar']/button[1]/span[1]/mat-icon")))
         driver.execute_script("arguments[0].scrollIntoView(true);", toolbar_button)  # 滾動至可見
-        for _ in range(4):  # 增加至四次嘗試點擊
+        for _ in range(5):  # 增加至五次嘗試點擊
             try:
                 toolbar_button.click()
                 break
             except Exception:
-                time.sleep(4)
+                time.sleep(5)
         print("Barge: 主工具欄點擊成功", flush=True)
-        time.sleep(20)  # 增加等待時間至 20 秒
-        # 等待菜單可見性
-        WebDriverWait(driver, 50).until(EC.visibility_of_element_located((By.XPATH, "//div[contains(@class, 'mat-menu-panel')]")))
+        time.sleep(25)  # 增加等待時間至 25 秒
+        # 等待菜單可見性同 Report 按鈕
+        WebDriverWait(driver, 60).until(EC.visibility_of_element_located((By.XPATH, "//div[contains(@class, 'mat-menu-panel')]")))
+        WebDriverWait(driver, 60).until(EC.presence_of_element_located((By.XPATH, "//button[descendant::span[text()='Reports']]")))
 
         # 點擊 Report
         print("Barge: 點擊 Report...", flush=True)
