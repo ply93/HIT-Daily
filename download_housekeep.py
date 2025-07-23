@@ -5,7 +5,6 @@ import pytz
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -23,16 +22,18 @@ def get_chrome_options():
     chrome_options.add_argument('--disable-extensions')
     chrome_options.add_argument('--no-first-run')
     chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36')
-    chrome_options.binary_location = os.path.expanduser('~/chromium-bin/chromium-browser')  # 明確解析家目錄
+    chrome_options.binary_location = os.path.expanduser('~/chromium-bin/chromium-browser')
     return chrome_options
 
 # 主任務邏輯
 def process_download_housekeep():
     driver = None
     try:
-        # 使用 webdriver-manager 配置 chromedriver
+        # 配置 chromedriver
         chromedriver_path = os.path.expanduser('~/chromium-bin/chromedriver')
         print(f"Download Housekeep: 使用 chromedriver 路徑: {chromedriver_path}", flush=True)
+        if not os.path.exists(chromedriver_path):
+            raise FileNotFoundError(f"chromedriver 未找到: {chromedriver_path}")
         service = Service(chromedriver_path)
         driver = webdriver.Chrome(service=service, options=get_chrome_options())
         print("Download Housekeep WebDriver 初始化成功", flush=True)
@@ -197,7 +198,7 @@ def process_download_housekeep():
             time.sleep(1)
 
             # 輸入內文（HKT 時間，格式 MM:DD XX:XX）
-            current_time = datetime.now(hkt).strftime("%m:%d %H:%M")  # 例如 07:23 16:55
+            current_time = datetime.now(hkt).strftime("%m:%d %H:%M")  # 例如 07:23 16:58
             print(f"Download Housekeep: 輸入內文，格式為 {current_time} (HKT)", flush=True)
             body_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='body']")))
             body_field.clear()
