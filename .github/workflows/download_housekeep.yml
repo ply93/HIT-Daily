@@ -1,4 +1,4 @@
-name: Run Download Housekeep
+name: Download Housekeep
 
 on:
   workflow_dispatch:
