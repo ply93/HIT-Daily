@@ -198,7 +198,7 @@ def process_download_housekeep():
             time.sleep(1)
 
             # 輸入內文（HKT 時間，格式 MM:DD XX:XX）
-            current_time = datetime.now(hkt).strftime("%m:%d %H:%M")  # 例如 07:23 17:06
+            current_time = datetime.now(hkt).strftime("%m:%d %H:%M")  # 例如 07:23 17:11
             print(f"Download Housekeep: 輸入內文，格式為 {current_time} (HKT)", flush=True)
             body_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='body']")))
             body_field.clear()
