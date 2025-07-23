@@ -177,8 +177,7 @@ def process_cplus():
 
         # 等待下載完成 (假設有成功提示或按鈕禁用)
         try:
-            WebDriverWait(driver, 90).until(EC.invisibility_of_element_located((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[2]/div/div[2]/div/div[1]/div[1]/button")))  # 統一改為 90 秒
-            or EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'Download Complete')]")))
+            WebDriverWait(driver, 90).until(lambda x: EC.invisibility_of_element_located((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[2]/div/div[2]/div/div[1]/div[1]/button"))(x) or EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'Download Complete')]"))(x))  # 修正語法，統一改為 90 秒
             print("CPLUS: Container Movement Log 下載完成", flush=True)
         except TimeoutException:
             print("CPLUS: 下載完成提示未找到，繼續檢查文件...", flush=True)
@@ -230,8 +229,7 @@ def process_cplus():
 
         # 等待下載完成 (假設有成功提示或按鈕禁用)
         try:
-            WebDriverWait(driver, 90).until(EC.invisibility_of_element_located((By.XPATH, "//li[contains(@class, 'MuiMenuItem-root') and text()='Export as CSV']")))  # 統一改為 90 秒
-            or EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'Export Complete')]")))
+            WebDriverWait(driver, 90).until(lambda x: EC.invisibility_of_element_located((By.XPATH, "//li[contains(@class, 'MuiMenuItem-root') and text()='Export as CSV']"))(x) or EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'Export Complete')]"))(x))  # 修正語法，統一改為 90 秒
             print("CPLUS: OnHandContainerList 下載完成", flush=True)
         except TimeoutException:
             print("CPLUS: 下載完成提示未找到，繼續檢查文件...", flush=True)
@@ -373,8 +371,7 @@ def process_barge():
 
         # 等待下載完成 (假設有成功提示或按鈕禁用)
         try:
-            WebDriverWait(driver, 90).until(EC.invisibility_of_element_located((By.XPATH, "//*[@id='content-mount']/app-download-report/div[2]/div/form/div[2]/button")))  # 統一改為 90 秒
-            or EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'Download Complete')]")))
+            WebDriverWait(driver, 90).until(lambda x: EC.invisibility_of_element_located((By.XPATH, "//*[@id='content-mount']/app-download-report/div[2]/div/form/div[2]/button"))(x) or EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'Download Complete')]"))(x))  # 修正語法，統一改為 90 秒
             print("Barge: Container Detail 下載完成", flush=True)
         except TimeoutException:
             print("Barge: 下載完成提示未找到，繼續檢查文件...", flush=True)
@@ -422,72 +419,3 @@ def process_barge():
         if driver:
             driver.quit()
             print("Barge WebDriver 關閉", flush=True)
-
-# 主函數
-if __name__ == "__main__":
-    # 設定系統時區為 HKT
-    os.environ['TZ'] = 'Asia/Hong_Kong'
-    time.tzset()
-
-    # 啟動兩個線程
-    cplus_thread = threading.Thread(target=process_cplus)
-    barge_thread = threading.Thread(target=process_barge)
-
-    cplus_thread.start()
-    barge_thread.start()
-
-    # 等待兩個線程完成
-    cplus_thread.join()
-    barge_thread.join()
-
-    # 檢查所有下載文件
-    print("檢查所有下載文件...", flush=True)
-    start_time = time.time()
-    while time.time() - start_time < 120:
-        downloaded_files = [f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx'))]
-        if downloaded_files:
-            break
-        time.sleep(5)
-    if downloaded_files:
-        print(f"所有下載完成，檔案位於: {download_dir}", flush=True)
-        for file in downloaded_files:
-            print(f"找到檔案: {file}", flush=True)
-
-        # 發送 Zoho Mail (使用 HKT 時間)
-        hkt_time = datetime.now(hkt).strftime('%Y-%m-%d %H:%M:%S')
-        print(f"郵件發送時間 (HKT): {hkt_time}", flush=True)
-        try:
-            smtp_server = 'smtp.zoho.com'
-            smtp_port = 587
-            sender_email = os.environ.get('ZOHO_EMAIL', 'paklun_ckline@zohomail.com')
-            sender_password = os.environ.get('ZOHO_PASSWORD', '@d6G.Pie5UkEPqm')
-            receiver_email = 'paklun@ckline.com.hk'  # 改為新 email
-
-            # 創建郵件
-            msg = MIMEMultipart()
-            msg['From'] = sender_email
-            msg['To'] = receiver_email
-            msg['Subject'] = f"[TESTING]HIT DAILY {datetime.now(hkt).strftime('%Y-%m-%d')}"
-
-            # 添加附件
-            for file in downloaded_files:
-                file_path = os.path.join(download_dir, file)
-                attachment = MIMEBase('application', 'octet-stream')
-                attachment.set_payload(open(file_path, 'rb').read())
-                encoders.encode_base64(attachment)
-                attachment.add_header('Content-Disposition', f'attachment; filename={file}')
-                msg.attach(attachment)
-
-            # 連接 SMTP 伺服器並發送
-            server = smtplib.SMTP(smtp_server, smtp_port)
-            server.starttls()
-            server.login(sender_email, sender_password)
-            server.sendmail(sender_email, receiver_email, msg.as_string())
-            server.quit()
-            print("郵件發送成功!", flush=True)
-        except Exception as e:
-            print(f"郵件發送失敗: {str(e)}", flush=True)
-    else:
-        print("所有下載失敗，無文件可發送", flush=True)
-
-    print("腳本完成", flush=True)
