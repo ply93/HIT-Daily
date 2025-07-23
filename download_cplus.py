@@ -120,14 +120,18 @@ def process_cplus():
 
         # 前往 Container Movement Log 頁面 (CPLUS)
         print("CPLUS: 直接前往 Container Movement Log...", flush=True)
-        driver.get("https://cplus.hit.com.hk/app/#/enquiry/ContainerMovementLog")
-        time.sleep(3)  # 增加等待時間至 3 秒
+        driver.set_page_load_timeout(180)  # 設置頁面加載超時為 180 秒
         try:
+            driver.get("https://cplus.hit.com.hk/app/#/enquiry/ContainerMovementLog")
+            time.sleep(5)  # 增加等待時間至 5 秒
             wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
-            WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[2]//form")))
+            WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[2]//form")))
             print("CPLUS: Container Movement Log 頁面加載完成", flush=True)
         except TimeoutException as e:
             print(f"CPLUS: 頁面加載失敗: {str(e)}", flush=True)
+            raise
+        except Exception as e:
+            print(f"CPLUS: 網絡錯誤: {str(e)}", flush=True)
             raise
 
         # 點擊 Search (CPLUS)
@@ -304,11 +308,16 @@ def process_barge():
         print("Barge: 點擊主工具欄...", flush=True)
         toolbar_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='main-toolbar']/button[1]/span[1]/mat-icon")))
         driver.execute_script("arguments[0].scrollIntoView(true);", toolbar_button)  # 滾動至可見
-        toolbar_button.click()
+        for _ in range(2):  # 多次嘗試點擊
+            try:
+                toolbar_button.click()
+                break
+            except Exception:
+                time.sleep(2)
         print("Barge: 主工具欄點擊成功", flush=True)
-        time.sleep(10)  # 增加等待時間至 10 秒
+        time.sleep(12)  # 增加等待時間至 12 秒
         # 等待 Report 按鈕出現
-        WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.XPATH, "//button[descendant::span[text()='Reports']]")))
+        WebDriverWait(driver, 35).until(EC.presence_of_element_located((By.XPATH, "//button[descendant::span[text()='Reports']]")))
 
         # 點擊 Report
         print("Barge: 點擊 Report...", flush=True)
