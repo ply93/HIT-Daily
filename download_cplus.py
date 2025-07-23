@@ -120,16 +120,21 @@ def process_cplus():
 
         # 前往 Container Movement Log 頁面 (CPLUS)
         print("CPLUS: 直接前往 Container Movement Log...", flush=True)
-        driver.set_page_load_timeout(180)  # 設置頁面加載超時為 180 秒
+        driver.set_page_load_timeout(240)  # 增加頁面加載超時至 240 秒
         try:
             driver.get("https://cplus.hit.com.hk/app/#/enquiry/ContainerMovementLog")
-            time.sleep(5)  # 增加等待時間至 5 秒
+            time.sleep(8)  # 增加等待時間至 8 秒
             wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
-            WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[2]//form")))
+            WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[2]//form")))
             print("CPLUS: Container Movement Log 頁面加載完成", flush=True)
         except TimeoutException as e:
             print(f"CPLUS: 頁面加載失敗: {str(e)}", flush=True)
-            raise
+            try:
+                WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.XPATH, "//h1[contains(text(), 'Container Movement Log')]")))
+                print("CPLUS: 使用備用條件加載完成", flush=True)
+            except TimeoutException:
+                print("CPLUS: 備用條件加載失敗，跳過...", flush=True)
+                raise
         except Exception as e:
             print(f"CPLUS: 網絡錯誤: {str(e)}", flush=True)
             raise
@@ -319,28 +324,28 @@ def process_barge():
         print("Barge: 點擊主工具欄...", flush=True)
         toolbar_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='main-toolbar']/button[1]/span[1]/mat-icon")))
         driver.execute_script("arguments[0].scrollIntoView(true);", toolbar_button)  # 滾動至可見
-        for _ in range(3):  # 增加至三次嘗試點擊
+        for _ in range(4):  # 增加至四次嘗試點擊
             try:
                 toolbar_button.click()
                 break
             except Exception:
-                time.sleep(3)
+                time.sleep(4)
         print("Barge: 主工具欄點擊成功", flush=True)
-        time.sleep(15)  # 增加等待時間至 15 秒
-        # 等待 Report 按鈕出現
-        WebDriverWait(driver, 40).until(EC.presence_of_element_located((By.XPATH, "//button[descendant::span[text()='Reports']]")))
+        time.sleep(20)  # 增加等待時間至 20 秒
+        # 等待菜單可見性
+        WebDriverWait(driver, 50).until(EC.visibility_of_element_located((By.XPATH, "//div[contains(@class, 'mat-menu-panel')]")))
 
         # 點擊 Report
         print("Barge: 點擊 Report...", flush=True)
         try:
-            report_button = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//button[descendant::span[text()='Reports']]")))
+            report_button = WebDriverWait(driver, 50).until(EC.element_to_be_clickable((By.XPATH, "//button[descendant::span[text()='Reports']]")))
             driver.execute_script("arguments[0].scrollIntoView(true);", report_button)  # 滾動至可見
             report_button.click()
             print("Barge: Report 點擊成功", flush=True)
         except TimeoutException:
             print("Barge: Report 按鈕未找到，嘗試備用定位...", flush=True)
             try:
-                report_button = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//button[./span[contains(text(), 'Reports')]]")))
+                report_button = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//button[./span[contains(text(), 'Reports')]]")))
                 driver.execute_script("arguments[0].scrollIntoView(true);", report_button)  # 滾動至可見
                 report_button.click()
                 print("Barge: 備用 Report 按鈕點擊成功", flush=True)
