@@ -1,8 +1,11 @@
 import os
 import time
 from datetime import datetime
+import pytz
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -20,14 +23,16 @@ def get_chrome_options():
     chrome_options.add_argument('--disable-extensions')
     chrome_options.add_argument('--no-first-run')
     chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36')
-    chrome_options.binary_location = '/usr/bin/chromium-browser'
+    chrome_options.binary_location = '~/chromium-bin/chromium-browser'  # 與 download_cplus.yml 一致
     return chrome_options
 
 # 主任務邏輯
 def process_download_housekeep():
     driver = None
     try:
-        driver = webdriver.Chrome(options=get_chrome_options())
+        # 使用 webdriver-manager 配置 chromedriver
+        service = Service('~/chromium-bin/chromedriver')
+        driver = webdriver.Chrome(service=service, options=get_chrome_options())
         print("Download Housekeep WebDriver 初始化成功", flush=True)
 
         # 前往登錄頁面
@@ -79,10 +84,12 @@ def process_download_housekeep():
         print("Download Housekeep: Housekeep Report 頁面加載完成", flush=True)
         time.sleep(2)
 
-        # 檢查並設置日期
-        today = datetime.now().strftime("%d/%m/%Y")  # 格式：23/07/2025
-        print(f"Download Housekeep: 檢查日期，今日為 {today}", flush=True)
-        
+        # 設置 HKT 時區（Python 層面備用）
+        hkt = pytz.timezone('Asia/Hong_Kong')
+        today = datetime.now(hkt).strftime("%d/%m/%Y")  # 格式：23/07/2025
+        print(f"Download Housekeep: 檢查日期，今日為 {today} (HKT)", flush=True)
+        need_search = False  # 標記是否需要點擊 Search
+
         # 檢查 <input id="from">
         try:
             from_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='from']")))
@@ -91,10 +98,12 @@ def process_download_housekeep():
                 print(f"Download Housekeep: From 日期 ({from_value}) 不為今日，設置為 {today}", flush=True)
                 from_field.clear()
                 from_field.send_keys(today)
+                need_search = True
             else:
                 print("Download Housekeep: From 日期已正確", flush=True)
         except TimeoutException:
-            print("Download Housekeep: 未找到 From 輸入框，跳過日期檢查", flush=True)
+            print("Download Housekeep: 未找到 From 輸入框，假設需要 Search", flush=True)
+            need_search = True
         time.sleep(1)
 
         # 檢查 <input id="to">
@@ -105,23 +114,28 @@ def process_download_housekeep():
                 print(f"Download Housekeep: To 日期 ({to_value}) 不為今日，設置為 {today}", flush=True)
                 to_field.clear()
                 to_field.send_keys(today)
+                need_search = True
             else:
                 print("Download Housekeep: To 日期已正確", flush=True)
         except TimeoutException:
-            print("Download Housekeep: 未找到 To 輸入框，跳過日期檢查", flush=True)
+            print("Download Housekeep: 未找到 To 輸入框，假設需要 Search", flush=True)
+            need_search = True
         time.sleep(1)
 
-        # 點擊 Search 按鈕
-        print("Download Housekeep: 嘗試點擊 Search 按鈕...", flush=True)
-        try:
-            search_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//input[@placeholder='Search']/following-sibling::div//button")))
-            driver.execute_script("arguments[0].scrollIntoView(true);", search_button)
-            time.sleep(0.5)
-            driver.execute_script("arguments[0].click();", search_button)
-            print("Download Housekeep: Search 按鈕點擊成功", flush=True)
-            time.sleep(5)  # 等待報告加載
-        except TimeoutException:
-            print("Download Housekeep: Search 按鈕未找到，假設無需點擊", flush=True)
+        # 點擊 Search 按鈕（僅當日期不正確時）
+        if need_search:
+            print("Download Housekeep: 日期不正確，嘗試點擊 Search 按鈕...", flush=True)
+            try:
+                search_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//input[@placeholder='Search']/following-sibling::div//button")))
+                driver.execute_script("arguments[0].scrollIntoView(true);", search_button)
+                time.sleep(0.5)
+                driver.execute_script("arguments[0].click();", search_button)
+                print("Download Housekeep: Search 按鈕點擊成功", flush=True)
+                time.sleep(5)  # 等待報告加載
+            except TimeoutException:
+                print("Download Housekeep: Search 按鈕未找到，繼續執行", flush=True)
+        else:
+            print("Download Housekeep: 日期正確，無需點擊 Search 按鈕", flush=True)
 
         # 動態查找並點擊所有 Email Excel checkbox
         print("Download Housekeep: 查找並點擊所有 Email Excel checkbox...", flush=True)
@@ -175,16 +189,16 @@ def process_download_housekeep():
             # 輸入 Email 地址
             print("Download Housekeep: 輸入目標 Email 地址...", flush=True)
             email_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='to']")))
-            email_field.clear()  # 清空現有內容
+            email_field.clear()
             email_field.send_keys("paklun@ckline.com.hk")
             print("Download Housekeep: Email 地址輸入完成", flush=True)
             time.sleep(1)
 
-            # 輸入內文（今日日期和時間，格式 MM:DD XX:XX）
-            current_time = datetime.now().strftime("%m:%d %H:%M")  # 例如 07:23 16:39
-            print(f"Download Housekeep: 輸入內文，格式為 {current_time}", flush=True)
+            # 輸入內文（HKT 時間，格式 MM:DD XX:XX）
+            current_time = datetime.now(hkt).strftime("%m:%d %H:%M")  # 例如 07:23 16:48
+            print(f"Download Housekeep: 輸入內文，格式為 {current_time} (HKT)", flush=True)
             body_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='body']")))
-            body_field.clear()  # 清空現有內容
+            body_field.clear()
             body_field.send_keys(current_time)
             print("Download Housekeep: 內文輸入完成", flush=True)
             time.sleep(1)
