@@ -303,23 +303,25 @@ def process_barge():
         # 點擊主工具欄
         print("Barge: 點擊主工具欄...", flush=True)
         toolbar_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='main-toolbar']/button[1]/span[1]/mat-icon")))
+        driver.execute_script("arguments[0].scrollIntoView(true);", toolbar_button)  # 滾動至可見
         toolbar_button.click()
         print("Barge: 主工具欄點擊成功", flush=True)
-        time.sleep(8)  # 增加等待時間至 8 秒
-        # 等待菜單出現並包含 Report 按鈕
-        WebDriverWait(driver, 25).until(EC.presence_of_element_located((By.XPATH, "//div[@role='menu']//button")))
-        WebDriverWait(driver, 25).until(EC.presence_of_element_located((By.XPATH, "//button[descendant::span[text()='Reports']]")))
+        time.sleep(10)  # 增加等待時間至 10 秒
+        # 等待 Report 按鈕出現
+        WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.XPATH, "//button[descendant::span[text()='Reports']]")))
 
         # 點擊 Report
         print("Barge: 點擊 Report...", flush=True)
         try:
             report_button = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//button[descendant::span[text()='Reports']]")))
+            driver.execute_script("arguments[0].scrollIntoView(true);", report_button)  # 滾動至可見
             report_button.click()
             print("Barge: Report 點擊成功", flush=True)
         except TimeoutException:
             print("Barge: Report 按鈕未找到，嘗試備用定位...", flush=True)
             try:
                 report_button = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//button[./span[contains(text(), 'Reports')]]")))
+                driver.execute_script("arguments[0].scrollIntoView(true);", report_button)  # 滾動至可見
                 report_button.click()
                 print("Barge: 備用 Report 按鈕點擊成功", flush=True)
             except TimeoutException:
@@ -439,7 +441,7 @@ if __name__ == "__main__":
             smtp_port = 587
             sender_email = os.environ.get('ZOHO_EMAIL', 'paklun_ckline@zohomail.com')
             sender_password = os.environ.get('ZOHO_PASSWORD', '@d6G.Pie5UkEPqm')
-            receiver_email = 'paklun@ckline.com.hk'  # 修復為正確的郵件地址
+            receiver_email = 'paklun@ckline.com.hk'
 
             # 創建郵件
             msg = MIMEMultipart()
