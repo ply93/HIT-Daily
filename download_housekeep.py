@@ -22,7 +22,7 @@ def get_chrome_options():
     chrome_options.add_argument('--disable-extensions')
     chrome_options.add_argument('--no-first-run')
     chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36')
-    chrome_options.binary_location = '/snap/bin/chromium'  # 使用 snap 安裝的 chromium
+    chrome_options.binary_location = '/snap/bin/chromium'
     return chrome_options
 
 # 主任務邏輯
@@ -198,7 +198,7 @@ def process_download_housekeep():
             time.sleep(1)
 
             # 輸入內文（HKT 時間，格式 MM:DD XX:XX）
-            current_time = datetime.now(hkt).strftime("%m:%d %H:%M")  # 例如 07:23 17:01
+            current_time = datetime.now(hkt).strftime("%m:%d %H:%M")  # 例如 07:23 17:06
             print(f"Download Housekeep: 輸入內文，格式為 {current_time} (HKT)", flush=True)
             body_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='body']")))
             body_field.clear()
