@@ -34,7 +34,7 @@ jobs:
         if [ ! -f ~/chromium-bin/chromium-browser ]; then
           sudo apt-get update -qq || true
           sudo apt-get install -y chromium-browser || true
-          sudo cp /usr/bin/chromium-browser ~/chromium-bin/ || cp /usr/bin/chromium-browser ~/chromium-bin/
+          sudo cp /usr/bin/chromium-browser ~/chromium-bin/ || true
         fi
         if [ ! -f ~/chromium-bin/chromedriver ]; then
           python -m webdriver_manager.chrome --driver_path ~/chromium-bin/chromedriver
