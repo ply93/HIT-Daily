@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  download-housekeep:
+  download:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -26,38 +26,38 @@ jobs:
         with:
           python-version: '3.9'
 
-    - name: Install dependencies
-      run: |
-        pip install --no-cache-dir selenium webdriver-manager pytz
-        sudo apt-get update -qq
-        sudo apt-get install -y chromium-browser libnss3 libfontconfig1 libx11-6 libxcomposite1 libxcursor1 libxi6 libxtst6 libxrandr2 unzip
-        sudo snap install chromium
-        mkdir -p /home/runner/chromium-bin
-        echo "Attempting to download chromedriver with webdriver-manager"
-        python -c "from webdriver_manager.chrome import ChromeDriverManager; ChromeDriverManager(path='/home/runner/chromium-bin').install()"
-        if [ ! -f /home/runner/chromium-bin/chromedriver ]; then
-          echo "webdriver-manager failed, downloading chromedriver manually"
-          curl -sS -o /tmp/chromedriver.zip https://chromedriver.storage.googleapis.com/126.0.6478.182/chromedriver_linux64.zip
-          unzip -o /tmp/chromedriver.zip -d /home/runner/chromium-bin/
-          mv /home/runner/chromium-bin/chromedriver-linux64 /home/runner/chromium-bin/chromedriver || true
-        fi
-        sudo chmod +x /home/runner/chromium-bin/chromedriver
-        echo "Chromium version:"
-        /snap/bin/chromium --version || true
-        echo "Chromedriver version:"
-        /home/runner/chromium-bin/chromedriver --version || true
-        ls -l /home/runner/chromium-bin/
-        ls -l /snap/bin/chromium
-
-    - name: Set timezone to HKT
-      run: |
-        sudo ln -sf /usr/share/zoneinfo/Asia/Hong_Kong /etc/localtime
-        sudo sh -c 'echo "Asia/Hong_Kong" > /etc/timezone'
-
-    - name: Verify timezone
-      run: date
-
-    - name: Run download_housekeep.py
-      env:
-        SITE_PASSWORD: ${{ secrets.SITE_PASSWORD }}
-      run: python download_housekeep.py
+      - name: Install dependencies
+        run: |
+          pip install --no-cache-dir selenium webdriver-manager pytz
+          sudo apt-get update -qq
+          sudo apt-get install -y chromium-browser libnss3 libfontconfig1 libx11-6 libxcomposite1 libxcursor1 libxi6 libxtst6 libxrandr2 unzip
+          sudo snap install chromium
+          mkdir -p /home/runner/chromium-bin
+          echo "Attempting to download chromedriver with webdriver-manager"
+          python -c "from webdriver_manager.chrome import ChromeDriverManager; ChromeDriverManager(path='/home/runner/chromium-bin').install()"
+          if [ ! -f /home/runner/chromium-bin/chromedriver ]; then
+            echo "webdriver-manager failed, downloading chromedriver manually"
+            curl -sS -o /tmp/chromedriver.zip https://chromedriver.storage.googleapis.com/126.0.6478.182/chromedriver_linux64.zip
+            unzip -o /tmp/chromedriver.zip -d /home/runner/chromium-bin/
+            mv /home/runner/chromium-bin/chromedriver-linux64 /home/runner/chromium-bin/chromedriver || true
+          fi
+          sudo chmod +x /home/runner/chromium-bin/chromedriver
+          echo "Chromium version:"
+          /snap/bin/chromium --version || true
+          echo "Chromedriver version:"
+          /home/runner/chromium-bin/chromedriver --version || true
+          ls -l /home/runner/chromium-bin/
+          ls -l /snap/bin/chromium
+  
+      - name: Set timezone to HKT
+        run: |
+          sudo ln -sf /usr/share/zoneinfo/Asia/Hong_Kong /etc/localtime
+          sudo sh -c 'echo "Asia/Hong_Kong" > /etc/timezone'
+  
+      - name: Verify timezone
+        run: date
+  
+      - name: Run download_housekeep.py
+        env:
+          SITE_PASSWORD: ${{ secrets.SITE_PASSWORD }}
+        run: python download_housekeep.py
