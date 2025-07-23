@@ -2,7 +2,7 @@ import os
 import time
 import subprocess
 import threading
-import traceback  # 添加 traceback 模組
+import traceback
 from datetime import datetime
 import pytz
 import smtplib
@@ -302,19 +302,23 @@ def process_barge():
         toolbar_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='main-toolbar']/button[1]/span[1]/mat-icon")))
         toolbar_button.click()
         print("Barge: 主工具欄點擊成功", flush=True)
-        time.sleep(2)
+        time.sleep(2)  # 增加等待時間
 
         # 點擊 Report
         print("Barge: 點擊 Report...", flush=True)
         try:
-            report_button = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='mat-menu-panel-4']/div/button[4]/span")))
+            report_button = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//button[./span[text()='Reports']]")))
             report_button.click()
             print("Barge: Report 點擊成功", flush=True)
         except TimeoutException:
             print("Barge: Report 按鈕未找到，嘗試備用定位...", flush=True)
-            report_button = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Report')]")))
-            report_button.click()
-            print("Barge: 備用 Report 按鈕點擊成功", flush=True)
+            try:
+                report_button = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'mat-menu-item') and .//span[text()='Reports']]")))
+                report_button.click()
+                print("Barge: 備用 Report 按鈕點擊成功", flush=True)
+            except TimeoutException:
+                print("Barge: 備用 Report 按鈕失敗，跳過...", flush=True)
+                raise
         time.sleep(2)
 
         # 選擇 Report Type
@@ -429,7 +433,7 @@ if __name__ == "__main__":
             smtp_port = 587
             sender_email = os.environ.get('ZOHO_EMAIL', 'paklun_ckline@zohomail.com')
             sender_password = os.environ.get('ZOHO_PASSWORD', '@d6G.Pie5UkEPqm')
-            receiver_email = 'ckeqc@ckline.com.hk'
+            receiver_email = 'paklun@ckline.com.hk'
 
             # 創建郵件
             msg = MIMEMultipart()
