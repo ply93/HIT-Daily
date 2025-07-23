@@ -2,7 +2,7 @@ import os
 import time
 import subprocess
 import threading
-import traceback
+import traceback  # 添加 traceback 模組
 from datetime import datetime
 import pytz
 import smtplib
@@ -15,7 +15,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, WebDriverException
+from selenium.common.exceptions import TimeoutException
 from webdriver_manager.chrome import ChromeDriverManager
 
 # 設定香港時區
@@ -30,29 +30,22 @@ if not os.path.exists(download_dir):
 # 確保環境準備
 def setup_environment():
     try:
-        print("檢查 Chromium 及 ChromeDriver...", flush=True)
         result = subprocess.run(['which', 'chromium-browser'], capture_output=True, text=True)
         if result.returncode != 0:
-            print("Chromium 未找到，嘗試安裝...", flush=True)
             subprocess.run(['sudo', 'apt-get', 'update', '-qq'], check=True)
             subprocess.run(['sudo', 'apt-get', 'install', '-y', 'chromium-browser', 'chromium-chromedriver'], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             print("Chromium 及 ChromeDriver 已安裝", flush=True)
         else:
             print("Chromium 及 ChromeDriver 已存在，跳過安裝", flush=True)
 
-        print("檢查 Python 依賴...", flush=True)
         result = subprocess.run(['pip', 'show', 'selenium'], capture_output=True, text=True)
         if "selenium" not in result.stdout or "webdriver-manager" not in subprocess.run(['pip', 'show', 'webdriver-manager'], capture_output=True, text=True).stdout or "pytz" not in subprocess.run(['pip', 'show', 'pytz'], capture_output=True, text=True).stdout:
-            print("安裝缺失嘅依賴...", flush=True)
             subprocess.run(['pip', 'install', 'selenium', 'webdriver-manager', 'pytz'], check=True)
             print("Selenium、WebDriver Manager 及 pytz 已安裝", flush=True)
         else:
             print("Selenium、WebDriver Manager 及 pytz 已存在，跳過安裝", flush=True)
     except subprocess.CalledProcessError as e:
         print(f"環境準備失敗: {e}", flush=True)
-        raise
-    except Exception as e:
-        print(f"環境準備異常: {e}", flush=True)
         raise
 
 # 設置 Chrome 選項
@@ -80,7 +73,6 @@ def get_chrome_options():
 def process_cplus():
     driver = None
     try:
-        print("初始化 CPLUS WebDriver...", flush=True)
         driver = webdriver.Chrome(options=get_chrome_options())
         print("CPLUS WebDriver 初始化成功", flush=True)
 
@@ -92,7 +84,7 @@ def process_cplus():
 
         # 點擊登錄前嘅按鈕 (CPLUS)
         print("CPLUS: 點擊登錄前按鈕...", flush=True)
-        wait = WebDriverWait(driver, 90)  # 統一改為 90 秒
+        wait = WebDriverWait(driver, 20)
         login_button_pre = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
         login_button_pre.click()
         print("CPLUS: 登錄前按鈕點擊成功", flush=True)
@@ -128,64 +120,44 @@ def process_cplus():
 
         # 前往 Container Movement Log 頁面 (CPLUS)
         print("CPLUS: 直接前往 Container Movement Log...", flush=True)
-        driver.set_page_load_timeout(240)  # 增加頁面加載超時至 240 秒
-        try:
-            driver.get("https://cplus.hit.com.hk/app/#/enquiry/ContainerMovementLog")
-            time.sleep(8)  # 增加等待時間至 8 秒
-            wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
-            WebDriverWait(driver, 90).until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[2]//form")))  # 統一改為 90 秒
-            print("CPLUS: Container Movement Log 頁面加載完成", flush=True)
-        except TimeoutException as e:
-            print(f"CPLUS: 頁面加載失敗: {str(e)}", flush=True)
-            try:
-                WebDriverWait(driver, 90).until(EC.presence_of_element_located((By.XPATH, "//h1[contains(text(), 'Container Movement Log')]")))  # 統一改為 90 秒
-                print("CPLUS: 使用備用條件加載完成", flush=True)
-            except TimeoutException:
-                print("CPLUS: 備用條件加載失敗，跳過...", flush=True)
-                raise
-        except Exception as e:
-            print(f"CPLUS: 網絡錯誤: {str(e)}", flush=True)
-            raise
+        driver.get("https://cplus.hit.com.hk/app/#/enquiry/ContainerMovementLog")
+        time.sleep(2)
+        wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
+        # 額外等待確保頁面穩定
+        WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[2]//form")))
+        print("CPLUS: Container Movement Log 頁面加載完成", flush=True)
 
         # 點擊 Search (CPLUS)
         print("CPLUS: 點擊 Search...", flush=True)
         try:
-            search_button = WebDriverWait(driver, 90).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[1]/div/form/div[2]/div/div[4]/button")))  # 統一改為 90 秒
+            search_button = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[1]/div/form/div[2]/div/div[4]/button")))
             search_button.click()
             print("CPLUS: Search 按鈕點擊成功", flush=True)
         except TimeoutException:
             print("CPLUS: Search 按鈕未找到，嘗試備用定位 1...", flush=True)
             try:
-                search_button = WebDriverWait(driver, 90).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'MuiButtonBase-root') and .//span[contains(text(), 'Search')]]")))  # 統一改為 90 秒
+                search_button = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'MuiButtonBase-root') and .//span[contains(text(), 'Search')]]")))
                 search_button.click()
                 print("CPLUS: 備用 Search 按鈕 1 點擊成功", flush=True)
             except TimeoutException:
                 print("CPLUS: 備用 Search 按鈕 1 失敗，嘗試備用定位 2...", flush=True)
-                search_button = WebDriverWait(driver, 90).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Search')]")))  # 統一改為 90 秒
+                search_button = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Search')]")))
                 search_button.click()
                 print("CPLUS: 備用 Search 按鈕 2 點擊成功", flush=True)
         time.sleep(5)
 
         # 點擊 Download (CPLUS)
         print("CPLUS: 點擊 Download...", flush=True)
-        try:
-            download_button = WebDriverWait(driver, 90).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[2]/div/div[2]/div/div[1]/div[1]/button")))  # 統一改為 90 秒
-            download_button.click()
-            print("CPLUS: Download 按鈕點擊成功", flush=True)
-        except TimeoutException:
-            print("CPLUS: 主 Download 按鈕未找到，嘗試備用定位...", flush=True)
-            try:
-                download_button = WebDriverWait(driver, 90).until(EC.element_to_be_clickable((By.XPATH, "//button[./span[1]/svg/svg/path[@fill='#036e11']]")))  # 統一改為 90 秒
-                download_button.click()
-                print("CPLUS: 備用 Download 按鈕點擊成功", flush=True)
-            except TimeoutException:
-                print("CPLUS: 備用 Download 按鈕失敗，跳過...", flush=True)
-                raise
-        time.sleep(12)  # 增加等待時間至 12 秒
+        download_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[2]/div/div[2]/div/div[1]/div[1]/button")))
+        download_button.click()
+        print("CPLUS: Download 按鈕點擊成功", flush=True)
 
         # 等待下載完成 (假設有成功提示或按鈕禁用)
         try:
-            WebDriverWait(driver, 90).until(lambda x: EC.invisibility_of_element_located((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[2]/div/div[2]/div/div[1]/div[1]/button"))(x) or EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'Download Complete')]"))(x))  # 修正語法，統一改為 90 秒
+            WebDriverWait(driver, 60).until(
+                EC.invisibility_of_element_located((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[2]/div/div[2]/div/div[1]/div[1]/button"))
+                or EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'Download Complete')]"))
+            )
             print("CPLUS: Container Movement Log 下載完成", flush=True)
         except TimeoutException:
             print("CPLUS: 下載完成提示未找到，繼續檢查文件...", flush=True)
@@ -212,12 +184,12 @@ def process_cplus():
         # 點擊 Search (CPLUS)
         print("CPLUS: 點擊 Search...", flush=True)
         try:
-            search_button_onhand = WebDriverWait(driver, 90).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div[1]/form/div[1]/div[24]/div[2]/button/span[1]")))  # 統一改為 90 秒
+            search_button_onhand = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div[1]/form/div[1]/div[24]/div[2]/button/span[1]")))
             search_button_onhand.click()
             print("CPLUS: Search 按鈕點擊成功", flush=True)
         except TimeoutException:
             print("CPLUS: Search 按鈕未找到，嘗試備用定位...", flush=True)
-            search_button_onhand = WebDriverWait(driver, 90).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Search')]")))  # 統一改為 90 秒
+            search_button_onhand = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Search')]")))
             search_button_onhand.click()
             print("CPLUS: 備用 Search 按鈕點擊成功", flush=True)
         time.sleep(5)
@@ -237,7 +209,10 @@ def process_cplus():
 
         # 等待下載完成 (假設有成功提示或按鈕禁用)
         try:
-            WebDriverWait(driver, 90).until(lambda x: EC.invisibility_of_element_located((By.XPATH, "//li[contains(@class, 'MuiMenuItem-root') and text()='Export as CSV']"))(x) or EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'Export Complete')]"))(x))  # 修正語法，統一改為 90 秒
+            WebDriverWait(driver, 60).until(
+                EC.invisibility_of_element_located((By.XPATH, "//li[contains(@class, 'MuiMenuItem-root') and text()='Export as CSV']"))
+                or EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'Export Complete')]"))
+            )
             print("CPLUS: OnHandContainerList 下載完成", flush=True)
         except TimeoutException:
             print("CPLUS: 下載完成提示未找到，繼續檢查文件...", flush=True)
@@ -254,27 +229,27 @@ def process_cplus():
             time.sleep(2)
 
     except Exception as e:
-        print(f"CPLUS 錯誤: {str(e)} - 堆棧跟踪: {traceback.format_exc()}", flush=True)
+        print(f"CPLUS 錯誤: {str(e)}", flush=True)
 
     finally:
         # 確保登出
         try:
             if driver:
                 print("CPLUS: 嘗試登出...", flush=True)
-                logout_menu_button = WebDriverWait(driver, 90).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))  # 統一改為 90 秒
+                logout_menu_button = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
                 driver.execute_script("arguments[0].scrollIntoView(true);", logout_menu_button)
                 time.sleep(1)
                 driver.execute_script("arguments[0].click();", logout_menu_button)
                 print("CPLUS: 登錄按鈕點擊成功", flush=True)
 
-                logout_option = WebDriverWait(driver, 90).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='menu-list-grow']/div[6]/li")))  # 統一改為 90 秒
+                logout_option = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='menu-list-grow']/div[6]/li")))
                 driver.execute_script("arguments[0].scrollIntoView(true);", logout_option)
                 time.sleep(1)
                 driver.execute_script("arguments[0].click();", logout_option)
                 print("CPLUS: Logout 選項點擊成功", flush=True)
                 time.sleep(5)
         except Exception as logout_error:
-            print(f"CPLUS: 登出失敗: {str(logout_error)} - 堆棧跟踪: {traceback.format_exc()}", flush=True)
+            print(f"CPLUS: 登出失敗: {str(logout_error)}", flush=True)
 
         if driver:
             driver.quit()
@@ -284,7 +259,6 @@ def process_cplus():
 def process_barge():
     driver = None
     try:
-        print("初始化 Barge WebDriver...", flush=True)
         driver = webdriver.Chrome(options=get_chrome_options())
         print("Barge WebDriver 初始化成功", flush=True)
 
@@ -296,7 +270,7 @@ def process_barge():
 
         # 輸入 COMPANY ID
         print("Barge: 輸入 COMPANY ID...", flush=True)
-        wait = WebDriverWait(driver, 90)  # 統一改為 90 秒
+        wait = WebDriverWait(driver, 20)
         company_id_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='mat-input-0']")))
         company_id_field.send_keys("CKL")
         print("Barge: COMPANY ID 輸入完成", flush=True)
@@ -326,36 +300,21 @@ def process_barge():
         # 點擊主工具欄
         print("Barge: 點擊主工具欄...", flush=True)
         toolbar_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='main-toolbar']/button[1]/span[1]/mat-icon")))
-        driver.execute_script("arguments[0].scrollIntoView(true);", toolbar_button)  # 滾動至可見
-        for _ in range(6):  # 增加至六次嘗試點擊
-            try:
-                toolbar_button.click()
-                break
-            except Exception:
-                time.sleep(6)
+        toolbar_button.click()
         print("Barge: 主工具欄點擊成功", flush=True)
-        time.sleep(30)  # 增加等待時間至 30 秒
-        # 等待菜單可見性同 Report 按鈕
-        WebDriverWait(driver, 90).until(EC.visibility_of_element_located((By.XPATH, "//div[contains(@class, 'mat-menu-panel')]")))  # 統一改為 90 秒
-        WebDriverWait(driver, 90).until(EC.presence_of_element_located((By.XPATH, "//button[descendant::span[text()='Reports']]")))  # 統一改為 90 秒
+        time.sleep(2)
 
         # 點擊 Report
         print("Barge: 點擊 Report...", flush=True)
         try:
-            report_button = WebDriverWait(driver, 90).until(EC.element_to_be_clickable((By.XPATH, "//button[descendant::span[text()='Reports']]")))  # 統一改為 90 秒
-            driver.execute_script("arguments[0].scrollIntoView(true);", report_button)  # 滾動至可見
+            report_button = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='mat-menu-panel-4']/div/button[4]/span")))
             report_button.click()
             print("Barge: Report 點擊成功", flush=True)
         except TimeoutException:
             print("Barge: Report 按鈕未找到，嘗試備用定位...", flush=True)
-            try:
-                report_button = WebDriverWait(driver, 90).until(EC.element_to_be_clickable((By.XPATH, "//button[./span[contains(text(), 'Reports')]]")))  # 統一改為 90 秒
-                driver.execute_script("arguments[0].scrollIntoView(true);", report_button)  # 滾動至可見
-                report_button.click()
-                print("Barge: 備用 Report 按鈕點擊成功", flush=True)
-            except TimeoutException:
-                print("Barge: 備用 Report 按鈕失敗，跳過...", flush=True)
-                raise
+            report_button = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Report')]")))
+            report_button.click()
+            print("Barge: 備用 Report 按鈕點擊成功", flush=True)
         time.sleep(2)
 
         # 選擇 Report Type
@@ -380,7 +339,10 @@ def process_barge():
 
         # 等待下載完成 (假設有成功提示或按鈕禁用)
         try:
-            WebDriverWait(driver, 90).until(lambda x: EC.invisibility_of_element_located((By.XPATH, "//*[@id='content-mount']/app-download-report/div[2]/div/form/div[2]/button"))(x) or EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'Download Complete')]"))(x))  # 修正語法，統一改為 90 秒
+            WebDriverWait(driver, 60).until(
+                EC.invisibility_of_element_located((By.XPATH, "//*[@id='content-mount']/app-download-report/div[2]/div/form/div[2]/button"))
+                or EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'Download Complete')]"))
+            )
             print("Barge: Container Detail 下載完成", flush=True)
         except TimeoutException:
             print("Barge: 下載完成提示未找到，繼續檢查文件...", flush=True)
@@ -399,7 +361,7 @@ def process_barge():
         # 登出 Barge
         print("Barge: 點擊工具欄進行登出...", flush=True)
         try:
-            logout_toolbar_barge = WebDriverWait(driver, 90).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='main-toolbar']/button[4]/span[1]")))  # 統一改為 90 秒
+            logout_toolbar_barge = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='main-toolbar']/button[4]/span[1]")))
             driver.execute_script("arguments[0].scrollIntoView(true);", logout_toolbar_barge)
             time.sleep(1)
             driver.execute_script("arguments[0].click();", logout_toolbar_barge)
@@ -410,7 +372,7 @@ def process_barge():
 
         print("Barge: 點擊 Logout 選項...", flush=True)
         try:
-            logout_button_barge = WebDriverWait(driver, 90).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='mat-menu-panel-11']/div/button/span")))  # 統一改為 90 秒
+            logout_button_barge = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='mat-menu-panel-11']/div/button/span")))
             driver.execute_script("arguments[0].scrollIntoView(true);", logout_button_barge)
             time.sleep(1)
             driver.execute_script("arguments[0].click();", logout_button_barge)
@@ -434,9 +396,6 @@ if __name__ == "__main__":
     # 設定系統時區為 HKT
     os.environ['TZ'] = 'Asia/Hong_Kong'
     time.tzset()
-
-    # 執行環境準備
-    setup_environment()
 
     # 啟動兩個線程
     cplus_thread = threading.Thread(target=process_cplus)
@@ -470,7 +429,7 @@ if __name__ == "__main__":
             smtp_port = 587
             sender_email = os.environ.get('ZOHO_EMAIL', 'paklun_ckline@zohomail.com')
             sender_password = os.environ.get('ZOHO_PASSWORD', '@d6G.Pie5UkEPqm')
-            receiver_email = 'paklun@ckline.com.hk'  # 改為新 email
+            receiver_email = 'paklun@ckline.com.hk'
 
             # 創建郵件
             msg = MIMEMultipart()
