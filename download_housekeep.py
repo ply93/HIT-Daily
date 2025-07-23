@@ -1,5 +1,6 @@
 import os
 import time
+import subprocess
 from datetime import datetime
 import pytz
 from selenium import webdriver
@@ -9,6 +10,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
+from webdriver_manager.chrome import ChromeDriverManager
 
 # 設置 Chrome 選項
 def get_chrome_options():
@@ -25,10 +27,36 @@ def get_chrome_options():
     chrome_options.binary_location = '/snap/bin/chromium'
     return chrome_options
 
+# 確保環境準備
+def setup_environment():
+    try:
+        result = subprocess.run(['which', 'chromium-browser'], capture_output=True, text=True)
+        if result.returncode != 0:
+            print("Download Housekeep: 安裝 chromium-browser...", flush=True)
+            subprocess.run(['sudo', 'apt-get', 'update', '-qq'], check=True)
+            subprocess.run(['sudo', 'apt-get', 'install', '-y', 'chromium-browser'], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            print("Download Housekeep: Chromium 已安裝", flush=True)
+        else:
+            print("Download Housekeep: Chromium 已存在，跳過安裝", flush=True)
+
+        chromedriver_path = '/home/runner/chromium-bin/chromedriver'
+        if not os.path.exists(chromedriver_path):
+            print(f"Download Housekeep: 下載 chromedriver 到 {chromedriver_path}...", flush=True)
+            ChromeDriverManager(path='/home/runner/chromium-bin').install()
+            print("Download Housekeep: ChromeDriver 已下載", flush=True)
+        else:
+            print("Download Housekeep: ChromeDriver 已存在，跳過下載", flush=True)
+    except subprocess.CalledProcessError as e:
+        print(f"Download Housekeep: 環境準備失敗: {e}", flush=True)
+        raise
+
 # 主任務邏輯
 def process_download_housekeep():
     driver = None
     try:
+        # 設置環境
+        setup_environment()
+
         # 配置 chromedriver
         chromedriver_path = '/home/runner/chromium-bin/chromedriver'
         print(f"Download Housekeep: 使用 chromedriver 路徑: {chromedriver_path}", flush=True)
@@ -198,7 +226,7 @@ def process_download_housekeep():
             time.sleep(1)
 
             # 輸入內文（HKT 時間，格式 MM:DD XX:XX）
-            current_time = datetime.now(hkt).strftime("%m:%d %H:%M")  # 例如 07:23 17:11
+            current_time = datetime.now(hkt).strftime("%m:%d %H:%M")  # 例如 07:23 17:26
             print(f"Download Housekeep: 輸入內文，格式為 {current_time} (HKT)", flush=True)
             body_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='body']")))
             body_field.clear()
