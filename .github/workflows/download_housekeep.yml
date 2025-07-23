@@ -16,26 +16,27 @@ jobs:
       with:
         path: |
           ~/.cache/pip
-          ~/chromium-bin
-        key: ${{ runner.os }}-pip-chromium-${{ hashFiles('**/requirements.txt') }}
+          ~/.wdm
+        key: ${{ runner.os }}-pip-wdm-${{ hashFiles('**/requirements.txt') }}
         restore-keys: |
-          ${{ runner.os }}-pip-chromium-
+          ${{ runner.os }}-pip-wdm-
 
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: '3.9'  # 與 download_cplus.yml 一致
+        python-version: '3.9'
 
     - name: Install dependencies
       run: |
-        pip install --no-cache-dir selenium pytz
+        pip install --no-cache-dir selenium webdriver-manager pytz
         sudo apt-get update -qq
-        sudo apt-get install -y chromium-browser chromium-chromedriver libglib2.0-0 libnss3 libgconf-2-4 libfontconfig1
-        mkdir -p ~/chromium-bin
-        sudo cp /usr/bin/chromium-browser ~/chromium-bin/ || true
-        sudo cp /usr/lib/chromium-browser/chromedriver ~/chromium-bin/ || true
-        sudo chmod +x ~/chromium-bin/chromium-browser ~/chromium-bin/chromedriver
-        ls -l ~/chromium-bin/
+        sudo apt-get install -y chromium-browser libnss3 libfontconfig1 libx11-6 libxcomposite1 libxcursor1 libxi6 libxtst6 libxrandr2
+        sudo snap install chromium
+        ls -l /snap/bin/chromium
+        chromium-browser --version || true
+        python -m webdriver_manager.chrome --driver_path /home/runner/chromium-bin/chromedriver
+        sudo chmod +x /home/runner/chromium-bin/chromedriver
+        ls -l /home/runner/chromium-bin/
 
     - name: Set timezone to HKT
       run: |
