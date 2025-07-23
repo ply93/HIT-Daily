@@ -302,9 +302,9 @@ def process_barge():
         toolbar_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='main-toolbar']/button[1]/span[1]/mat-icon")))
         toolbar_button.click()
         print("Barge: 主工具欄點擊成功", flush=True)
-        time.sleep(5)  # 增加等待時間至 5 秒
-        # 等待菜單出現
-        WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.XPATH, "//div[contains(@class, 'mat-menu-panel')]//button")))
+        time.sleep(6)  # 增加等待時間至 6 秒
+        # 等待菜單出現並包含 Report 按鈕
+        WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.XPATH, "//div[@role='menu']//button[descendant::span[text()='Reports']]")))
 
         # 點擊 Report
         print("Barge: 點擊 Report...", flush=True)
