@@ -94,19 +94,19 @@ def login_cplus(driver, company_code, user_id, password):
         # 等待頁面加載完成
         try:
             wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
-            time.sleep(3)
+            time.sleep(5)  # 等待頁面跳轉
         except TimeoutException:
             print("CPLUS: 頁面加載超時，嘗試刷新頁面...", flush=True)
             driver.refresh()
             wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
-            time.sleep(3)
+            time.sleep(5)
 
         final_url = driver.current_url
         print(f"CPLUS: 登錄後 URL: {final_url}", flush=True)
         
-        # 檢查是否有錯誤提示
+        # 檢查錯誤提示
         try:
-            error_message = driver.find_element(By.XPATH, "//*[contains(text(), 'error') or contains(text(), '失敗') or contains(text(), 'failed') or contains(text(), 'invalid')]")
+            error_message = driver.find_element(By.XPATH, "//*[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'error') or contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'failed') or contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'invalid')]")
             print(f"CPLUS: 檢測到錯誤提示: {error_message.text}", flush=True)
             with open("page_source.html", "w", encoding="utf-8") as f:
                 f.write(driver.page_source)
@@ -114,25 +114,16 @@ def login_cplus(driver, company_code, user_id, password):
         except:
             print("CPLUS: 未檢測到錯誤提示", flush=True)
 
-        # 檢查是否需要兩步驗證
+        # 檢查是否已登錄（通過檢查登出按鈕）
         try:
-            two_factor_input = driver.find_element(By.XPATH, "//input[@type='text' or @type='password' or contains(@id, 'otp') or contains(@id, '2fa')]")
-            print("CPLUS: 檢測到可能的兩步驗證輸入框，需手動處理", flush=True)
+            WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
+            print("CPLUS: 檢測到登出按鈕，假設登錄成功", flush=True)
+        except TimeoutException:
+            print("CPLUS: 未檢測到登出按鈕，登錄可能失敗", flush=True)
             with open("page_source.html", "w", encoding="utf-8") as f:
                 f.write(driver.page_source)
-            raise Exception("檢測到兩步驗證，請手動輸入驗證碼")
-        except:
-            print("CPLUS: 未檢測到兩步驗證輸入框", flush=True)
-
-        if "app" not in final_url.lower():
             raise Exception(f"登錄失敗，當前 URL: {final_url}")
-    except TimeoutException as e:
-        print(f"CPLUS: 登錄失敗: {str(e)}", flush=True)
-        print(f"當前 URL: {driver.current_url}", flush=True)
-        print(f"頁面 HTML (前500字符): {driver.page_source[:500]}", flush=True)
-        with open("page_source.html", "w", encoding="utf-8") as f:
-            f.write(driver.page_source)
-        raise
+
     except Exception as e:
         print(f"CPLUS: 登錄失敗: {str(e)}", flush=True)
         print(f"當前 URL: {driver.current_url}", flush=True)
@@ -422,7 +413,7 @@ def main():
                     print("Download Housekeep: Logout 選項點擊成功", flush=True)
 
                     try:
-                        confirm_button = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='logout']//button[contains(text(), 'Close')]")))
+                        confirm_button = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='logout']//button[contains(text(), 'Close') or contains(text(), 'Confirm')]")))
                         driver.execute_script("arguments[0].click();", confirm_button)
                         print("Download Housekeep: 登出確認框關閉成功", flush=True)
                     except TimeoutException:
@@ -431,8 +422,8 @@ def main():
                     time.sleep(3)
                     final_url = driver.current_url
                     print(f"Download Housekeep: 登出後 URL: {final_url}", flush=True)
-                    if "login" not in final_url.lower() and "frontpage" not in final_url.lower():
-                        print("Download Housekeep: 登出可能未成功，當前 URL 未跳轉到登錄頁面", flush=True)
+                    if "login" not in final_url.lower() and "frontpage" not in final_url.lower() and "app" not in final_url.lower():
+                        print("Download Housekeep: 登出可能未成功，當前 URL 未跳轉到預期頁面", flush=True)
                 except TimeoutException:
                     print("Download Housekeep: 登出選項未找到，跳過登出", flush=True)
             except Exception as logout_error:
