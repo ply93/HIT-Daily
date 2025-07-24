@@ -68,48 +68,41 @@ def get_chrome_options():
 def login_cplus(driver, company_code, user_id, password):
     wait = WebDriverWait(driver, 20)
     try:
-        # 前往登入頁面 (CPLUS)
         print("CPLUS: 嘗試打開網站 https://cplus.hit.com.hk/frontpage/#/", flush=True)
         driver.get("https://cplus.hit.com.hk/frontpage/#/")
         print(f"CPLUS: 網站已成功打開，當前 URL: {driver.current_url}", flush=True)
         time.sleep(2)
 
-        # 點擊登錄前嘅按鈕 (CPLUS)
         print("CPLUS: 點擊登錄前按鈕...", flush=True)
         login_button_pre = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
         login_button_pre.click()
         print("CPLUS: 登錄前按鈕點擊成功", flush=True)
         time.sleep(2)
 
-        # 輸入 COMPANY CODE (CPLUS)
         print("CPLUS: 輸入 COMPANY CODE...", flush=True)
         company_code_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='companyCode']")))
         company_code_field.send_keys("CKL")
         print("CPLUS: COMPANY CODE 輸入完成", flush=True)
         time.sleep(1)
 
-        # 輸入 USER ID (CPLUS)
         print("CPLUS: 輸入 USER ID...", flush=True)
         user_id_field = driver.find_element(By.XPATH, "//*[@id='userId']")
         user_id_field.send_keys("KEN")
         print("CPLUS: USER ID 輸入完成", flush=True)
         time.sleep(1)
 
-        # 輸入 PASSWORD (CPLUS)
         print("CPLUS: 輸入 PASSWORD...", flush=True)
         password_field = driver.find_element(By.XPATH, "//*[@id='passwd']")
         password_field.send_keys(os.environ.get('SITE_PASSWORD'))
         print("CPLUS: PASSWORD 輸入完成", flush=True)
         time.sleep(1)
 
-        # 點擊 LOGIN 按鈕 (CPLUS)
         print("CPLUS: 點擊 LOGIN 按鈕...", flush=True)
         login_button = driver.find_element(By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/div[2]/div/div/form/button/span[1]")
         login_button.click()
         print("CPLUS: LOGIN 按鈕點擊成功", flush=True)
         time.sleep(5)
 
-        # 等待頁面加載完成
         try:
             wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
             print("CPLUS: 檢測到 root 元素，頁面加載完成", flush=True)
@@ -122,7 +115,6 @@ def login_cplus(driver, company_code, user_id, password):
         final_url = driver.current_url
         print(f"CPLUS: 登錄後 URL: {final_url}", flush=True)
         
-        # 檢查錯誤提示
         try:
             error_message = driver.find_element(By.XPATH, "//*[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'error') or contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'failed') or contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'invalid')]")
             print(f"CPLUS: 檢測到錯誤提示: {error_message.text}", flush=True)
@@ -132,7 +124,6 @@ def login_cplus(driver, company_code, user_id, password):
         except:
             print("CPLUS: 未檢測到錯誤提示", flush=True)
 
-        # 檢查是否已登錄
         try:
             WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
             print("CPLUS: 檢測到登出按鈕，假設登錄成功", flush=True)
@@ -175,7 +166,7 @@ def navigate_to_housekeep_report(driver):
         raise
 
 def download_housekeep_report(driver):
-    wait = WebDriverWait(driver, 60)
+    wait = WebDriverWait(driver, 90)  # 增加等待時間
     try:
         navigate_to_housekeep_report(driver)
 
@@ -217,12 +208,22 @@ def download_housekeep_report(driver):
             with open("page_source.html", "w", encoding="utf-8") as f:
                 f.write(driver.page_source)
 
+        # 嘗試點擊 Search 按鈕（如果存在）
+        try:
+            search_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[@title='Search'] | //*[contains(@class, 'MuiIconButton-root')][@title='Search']")))
+            driver.execute_script("arguments[0].click();", search_button)
+            print("Download Housekeep: Search 按鈕點擊成功", flush=True)
+            time.sleep(3)  # 等待表格刷新
+        except TimeoutException:
+            print("Download Housekeep: 未找到 Search 按鈕，跳過", flush=True)
+
         print("Download Housekeep: 查找並點擊所有 Email Excel checkbox...", flush=True)
         try:
             wait.until(EC.presence_of_all_elements_located((By.XPATH, "//tbody/tr")))
             driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            time.sleep(2)  # 等待表格穩定
             any_checked = False
-            for index in range(1, 7):  # 假設最多 6 個 checkbox
+            for index in range(1, 7):
                 try:
                     checkboxes = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//tbody/tr/td[6]//input[@type='checkbox']")))
                     if index > len(checkboxes):
@@ -289,6 +290,7 @@ def download_housekeep_report(driver):
                 print("Download Housekeep: 無任何 Checkbox 被選中，可能影響 Email 按鈕", flush=True)
                 with open("page_source.html", "w", encoding="utf-8") as f:
                     f.write(driver.page_source)
+                return
                 
         except TimeoutException:
             print("Download Housekeep: 未找到 Email Excel checkbox，嘗試備用定位...", flush=True)
@@ -346,10 +348,25 @@ def download_housekeep_report(driver):
             is_disabled = email_button.get_attribute("disabled")
             print(f"Download Housekeep: Email 按鈕狀態 - 禁用: {is_disabled}", flush=True)
             if is_disabled:
-                print("Download Housekeep: Email 按鈕被禁用，可能需要額外條件", flush=True)
-                with open("page_source.html", "w", encoding="utf-8") as f:
-                    f.write(driver.page_source)
-                return
+                print("Download Housekeep: Email 按鈕被禁用，嘗試點擊 Search 按鈕...", flush=True)
+                try:
+                    search_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[@title='Search'] | //*[contains(@class, 'MuiIconButton-root')][@title='Search']")))
+                    driver.execute_script("arguments[0].click();", search_button)
+                    print("Download Housekeep: Search 按鈕點擊成功", flush=True)
+                    time.sleep(3)
+                    email_button = wait.until(EC.presence_of_element_located((By.XPATH, "//button[@title='Email'] | //*[contains(@class, 'MuiIconButton-root')][@title='Email']")))
+                    is_disabled = email_button.get_attribute("disabled")
+                    print(f"Download Housekeep: Email 按鈕狀態 (再次檢查) - 禁用: {is_disabled}", flush=True)
+                    if is_disabled:
+                        print("Download Housekeep: Email 按鈕仍被禁用，任務中止", flush=True)
+                        with open("page_source.html", "w", encoding="utf-8") as f:
+                            f.write(driver.page_source)
+                        return
+                except TimeoutException:
+                    print("Download Housekeep: 未找到 Search 按鈕，無法啟用 Email 按鈕", flush=True)
+                    with open("page_source.html", "w", encoding="utf-8") as f:
+                        f.write(driver.page_source)
+                    return
             wait.until(EC.element_to_be_clickable((By.XPATH, "//button[@title='Email'] | //*[contains(@class, 'MuiIconButton-root')][@title='Email']")))
             driver.execute_script("arguments[0].scrollIntoView(true);", email_button)
             email_button.click()
