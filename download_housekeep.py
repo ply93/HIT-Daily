@@ -10,10 +10,31 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
 
+# 確保環境準備
+def setup_environment():
+    try:
+        result = subprocess.run(['which', 'chromium-browser'], capture_output=True, text=True)
+        if result.returncode != 0:
+            subprocess.run(['sudo', 'apt-get', 'update', '-qq'], check=True)
+            subprocess.run(['sudo', 'apt-get', 'install', '-y', 'chromium-browser', 'chromium-chromedriver'], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            print("Chromium 及 ChromeDriver 已安裝", flush=True)
+        else:
+            print("Chromium 及 ChromeDriver 已存在，跳過安裝", flush=True)
+
+        result = subprocess.run(['pip', 'show', 'selenium'], capture_output=True, text=True)
+        if "selenium" not in result.stdout or "webdriver-manager" not in subprocess.run(['pip', 'show', 'webdriver-manager'], capture_output=True, text=True).stdout:
+            subprocess.run(['pip', 'install', 'selenium', 'webdriver-manager'], check=True)
+            print("Selenium 及 WebDriver Manager 已安裝", flush=True)
+        else:
+            print("Selenium 及 WebDriver Manager 已存在，跳過安裝", flush=True)
+    except subprocess.CalledProcessError as e:
+        print(f"環境準備失敗: {e}", flush=True)
+        raise
+
 # 設置 Chrome 選項
 def get_chrome_options():
     chrome_options = Options()
-    chrome_options.add_argument('--headless')  # 使用舊版 Headless 模式，對齊 download_cplus.py
+    chrome_options.add_argument('--headless')
     chrome_options.add_argument('--no-sandbox')
     chrome_options.add_argument('--disable-dev-shm-usage')
     chrome_options.add_argument('--disable-gpu')
@@ -21,12 +42,10 @@ def get_chrome_options():
     chrome_options.add_argument('--disable-popup-blocking')
     chrome_options.add_argument('--disable-extensions')
     chrome_options.add_argument('--no-first-run')
-    chrome_options.add_argument('--window-size=1920,1080')  # 設置窗口大小
-    chrome_options.add_argument('--disable-gpu-sandbox')  # 禁用 GPU 沙盒
-    chrome_options.add_argument('--disable-background-networking')  # 禁用後台網絡
-    chrome_options.add_argument('--disable-renderer-backgrounding')  # 禁用渲染器後台
-    chrome_options.add_argument('--disable-blink-features=AutomationControlled')  # 繞過自動化檢測
-    chrome_options.binary_location = '/snap/bin/chromium'
+    chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36')
+    prefs = {"download.default_directory": download_dir, "download.prompt_for_download": False, "safebrowsing.enabled": False}
+    chrome_options.add_experimental_option("prefs", prefs)
+    chrome_options.binary_location = '/usr/bin/chromium-browser'
     return chrome_options
 
 # 主任務邏輯
