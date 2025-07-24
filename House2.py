@@ -184,13 +184,21 @@ def download_housekeep_report(driver):
                     
                     if is_enabled and not is_selected:
                         driver.execute_script("arguments[0].scrollIntoView(true);", checkbox)
-                        driver.execute_script("arguments[0].checked = true;", checkbox)
+                        driver.execute_script("arguments[0].click();", checkbox)  # 模擬用戶點擊
+                        time.sleep(1)  # 等待頁面處理
                         is_selected_after = driver.execute_script("return arguments[0].checked;", checkbox)
                         if is_selected_after:
-                            print(f"Download Housekeep: Checkbox {index} 設置成功", flush=True)
+                            print(f"Download Housekeep: Checkbox {index} 點擊成功", flush=True)
                             any_checked = True
                         else:
-                            print(f"Download Housekeep: Checkbox {index} 設置失敗，未選中", flush=True)
+                            print(f"Download Housekeep: Checkbox {index} 點擊失敗，未選中，嘗試設置 checked 屬性", flush=True)
+                            driver.execute_script("arguments[0].checked = true;", checkbox)
+                            is_selected_after = driver.execute_script("return arguments[0].checked;", checkbox)
+                            if is_selected_after:
+                                print(f"Download Housekeep: Checkbox {index} 設置成功", flush=True)
+                                any_checked = True
+                            else:
+                                print(f"Download Housekeep: Checkbox {index} 設置失敗，未選中", flush=True)
                     else:
                         print(f"Download Housekeep: Checkbox {index} 已選中或不可點擊，跳過", flush=True)
                         if is_selected:
@@ -207,13 +215,21 @@ def download_housekeep_report(driver):
                     
                     if is_enabled and not is_selected:
                         driver.execute_script("arguments[0].scrollIntoView(true);", checkbox)
-                        driver.execute_script("arguments[0].checked = true;", checkbox)
+                        driver.execute_script("arguments[0].click();", checkbox)
+                        time.sleep(1)
                         is_selected_after = driver.execute_script("return arguments[0].checked;", checkbox)
                         if is_selected_after:
-                            print(f"Download Housekeep: Checkbox {index} 設置成功 (重新查找)", flush=True)
+                            print(f"Download Housekeep: Checkbox {index} 點擊成功 (重新查找)", flush=True)
                             any_checked = True
                         else:
-                            print(f"Download Housekeep: Checkbox {index} 設置失敗 (重新查找)，未選中", flush=True)
+                            print(f"Download Housekeep: Checkbox {index} 點擊失敗 (重新查找)，嘗試設置 checked 屬性", flush=True)
+                            driver.execute_script("arguments[0].checked = true;", checkbox)
+                            is_selected_after = driver.execute_script("return arguments[0].checked;", checkbox)
+                            if is_selected_after:
+                                print(f"Download Housekeep: Checkbox {index} 設置成功 (重新查找)", flush=True)
+                                any_checked = True
+                            else:
+                                print(f"Download Housekeep: Checkbox {index} 設置失敗 (重新查找)，未選中", flush=True)
                     else:
                         print(f"Download Housekeep: Checkbox {index} 已選中或不可點擊 (重新查找)，跳過", flush=True)
                         if is_selected:
@@ -238,13 +254,21 @@ def download_housekeep_report(driver):
                         
                         if is_enabled and not is_selected:
                             driver.execute_script("arguments[0].scrollIntoView(true);", checkbox)
-                            driver.execute_script("arguments[0].checked = true;", checkbox)
+                            driver.execute_script("arguments[0].click();", checkbox)
+                            time.sleep(1)
                             is_selected_after = driver.execute_script("return arguments[0].checked;", checkbox)
                             if is_selected_after:
-                                print(f"Download Housekeep: Checkbox {index} 設置成功 (備用定位)", flush=True)
+                                print(f"Download Housekeep: Checkbox {index} 點擊成功 (備用定位)", flush=True)
                                 any_checked = True
                             else:
-                                print(f"Download Housekeep: Checkbox {index} 設置失敗 (備用定位)，未選中", flush=True)
+                                print(f"Download Housekeep: Checkbox {index} 點擊失敗 (備用定位)，嘗試設置 checked 屬性", flush=True)
+                                driver.execute_script("arguments[0].checked = true;", checkbox)
+                                is_selected_after = driver.execute_script("return arguments[0].checked;", checkbox)
+                                if is_selected_after:
+                                    print(f"Download Housekeep: Checkbox {index} 設置成功 (備用定位)", flush=True)
+                                    any_checked = True
+                                else:
+                                    print(f"Download Housekeep: Checkbox {index} 設置失敗 (備用定位)，未選中", flush=True)
                         else:
                             print(f"Download Housekeep: Checkbox {index} 已選中或不可點擊 (備用定位)，跳過", flush=True)
                             if is_selected:
@@ -269,8 +293,10 @@ def download_housekeep_report(driver):
         print("Download Housekeep: 點擊 Email 按鈕...", flush=True)
         try:
             email_button = wait.until(EC.presence_of_element_located((By.XPATH, "//button[@title='Email'] | //*[contains(@class, 'MuiIconButton-root')][@title='Email']")))
-            if email_button.get_attribute("disabled"):
-                print("Download Housekeep: Email 按鈕被禁用，可能需要選擇 checkbox 或其他條件", flush=True)
+            is_disabled = email_button.get_attribute("disabled")
+            print(f"Download Housekeep: Email 按鈕狀態 - 禁用: {is_disabled}", flush=True)
+            if is_disabled:
+                print("Download Housekeep: Email 按鈕被禁用，可能需要額外條件", flush=True)
                 with open("page_source.html", "w", encoding="utf-8") as f:
                     f.write(driver.page_source)
                 return
@@ -341,9 +367,24 @@ def main():
                 print("Download Housekeep: 登錄按鈕點擊成功", flush=True)
 
                 try:
-                    logout_option = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Logout')] | //a[contains(text(), 'Logout')] | //li[contains(text(), 'Logout')]")))
+                    logout_option = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='menu-list-grow']/div[6]/li")))
                     driver.execute_script("arguments[0].click();", logout_option)
                     print("Download Housekeep: Logout 選項點擊成功", flush=True)
+
+                    # 檢查是否出現登出確認框
+                    try:
+                        confirm_button = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='logout']//button[contains(text(), 'Close')]")))
+                        driver.execute_script("arguments[0].click();", confirm_button)
+                        print("Download Housekeep: 登出確認框關閉成功", flush=True)
+                    except TimeoutException:
+                        print("Download Housekeep: 未找到登出確認框，假設登出已完成", flush=True)
+
+                    # 驗證登出後的 URL
+                    time.sleep(2)  # 等待頁面跳轉
+                    final_url = driver.current_url
+                    print(f"Download Housekeep: 登出後 URL: {final_url}", flush=True)
+                    if "login" not in final_url.lower() and "frontpage" not in final_url.lower():
+                        print("Download Housekeep: 登出可能未成功，當前 URL 未跳轉到登錄頁面", flush=True)
                 except TimeoutException:
                     print("Download Housekeep: 登出選項未找到，跳過登出", flush=True)
             except Exception as logout_error:
