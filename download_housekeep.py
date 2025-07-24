@@ -23,6 +23,8 @@ def get_chrome_options():
     chrome_options.add_argument('--no-first-run')
     chrome_options.add_argument('--window-size=1920,1080')  # 設置窗口大小
     chrome_options.add_argument('--disable-setuid-sandbox')  # 禁用 setuid 沙盒
+    chrome_options.add_argument('--no-zygote')  # 禁用 zygote 進程
+    chrome_options.add_argument('--disable-features=NetworkService,IsolateOrigins')  # 禁用網絡服務和隔離
     chrome_options.add_argument('--disable-blink-features=AutomationControlled')  # 繞過自動化檢測
     chrome_options.binary_location = '/snap/bin/chromium'
     return chrome_options
@@ -200,7 +202,7 @@ def process_download_housekeep():
             time.sleep(1)
 
             # 輸入內文（HKT 時間，格式 MM:DD XX:XX）
-            current_time = datetime.now(hkt).strftime("%m:%d %H:%M")  # 例如 07:24 09:51
+            current_time = datetime.now(hkt).strftime("%m:%d %H:%M")  # 例如 07:24 10:00
             print(f"Download Housekeep: 輸入內文，格式為 {current_time} (HKT)", flush=True)
             body_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='body']")))
             body_field.clear()
@@ -215,12 +217,6 @@ def process_download_housekeep():
             print("Download Housekeep: Confirm 按鈕點擊成功", flush=True)
             time.sleep(2)
 
-            # 檢查發送成功提示
-            try:
-                wait.until(EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'successfully')]")))
-                print("Download Housekeep: Email 發送成功", flush=True)
-            except TimeoutException:
-                print("Download Housekeep: 未找到發送成功提示，但繼續執行", flush=True)
         except TimeoutException as e:
             print(f"Download Housekeep: Email 處理失敗: {str(e)}", flush=True)
             return
