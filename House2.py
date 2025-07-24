@@ -125,7 +125,7 @@ def navigate_to_housekeep_report(driver):
         raise
 
 def download_housekeep_report(driver):
-    wait = WebDriverWait(driver, 30)
+    wait = WebDriverWait(driver, 60)  # 增加等待時間
     try:
         navigate_to_housekeep_report(driver)
 
@@ -169,19 +169,21 @@ def download_housekeep_report(driver):
 
         print("Download Housekeep: 查找並點擊所有 Email Excel checkbox...", flush=True)
         try:
-            wait.until(EC.presence_of_element_located((By.XPATH, "//tbody/tr")))
+            # 確保表格完全加載
+            wait.until(EC.presence_of_all_elements_located((By.XPATH, "//tbody/tr")))
+            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
             checkboxes = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//tbody/tr/td[6]//input[@type='checkbox']")))
             print(f"Download Housekeep: 找到 {len(checkboxes)} 個 Email Excel checkbox", flush=True)
 
             any_checked = False
             for index, checkbox in enumerate(checkboxes, 1):
                 is_enabled = checkbox.is_enabled()
-                is_displayed = checkbox.is_displayed()
                 is_selected = checkbox.is_selected()
-                print(f"Download Housekeep: Checkbox {index} 狀態 - 啟用: {is_enabled}, 可見: {is_displayed}, 已選中: {is_selected}", flush=True)
+                print(f"Download Housekeep: Checkbox {index} 狀態 - 啟用: {is_enabled}, 已選中: {is_selected}", flush=True)
                 
-                if is_enabled and is_displayed and not is_selected:
+                if is_enabled and not is_selected:
                     try:
+                        driver.execute_script("arguments[0].scrollIntoView(true);", checkbox)
                         checkbox.click()
                         print(f"Download Housekeep: Checkbox {index} 點擊成功", flush=True)
                         any_checked = True
@@ -197,20 +199,23 @@ def download_housekeep_report(driver):
 
             if not any_checked:
                 print("Download Housekeep: 無任何 Checkbox 被選中，可能影響 Email 按鈕", flush=True)
+                with open("page_source.html", "w", encoding="utf-8") as f:
+                    f.write(driver.page_source)
                 
         except TimeoutException:
             print("Download Housekeep: 未找到 Email Excel checkbox，嘗試備用定位...", flush=True)
+            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
             checkboxes = driver.find_elements(By.CSS_SELECTOR, "td:nth-child(6) input[type='checkbox']")
             if checkboxes:
                 any_checked = False
                 for index, checkbox in enumerate(checkboxes, 1):
                     is_enabled = checkbox.is_enabled()
-                    is_displayed = checkbox.is_displayed()
                     is_selected = checkbox.is_selected()
-                    print(f"Download Housekeep: Checkbox {index} 狀態 (備用定位) - 啟用: {is_enabled}, 可見: {is_displayed}, 已選中: {is_selected}", flush=True)
+                    print(f"Download Housekeep: Checkbox {index} 狀態 (備用定位) - 啟用: {is_enabled}, 已選中: {is_selected}", flush=True)
                     
-                    if is_enabled and is_displayed and not is_selected:
+                    if is_enabled and not is_selected:
                         try:
+                            driver.execute_script("arguments[0].scrollIntoView(true);", checkbox)
                             checkbox.click()
                             print(f"Download Housekeep: Checkbox {index} 點擊成功 (備用定位)", flush=True)
                             any_checked = True
@@ -226,6 +231,8 @@ def download_housekeep_report(driver):
                             
                 if not any_checked:
                     print("Download Housekeep: 無任何 Checkbox 被選中 (備用定位)，可能影響 Email 按鈕", flush=True)
+                    with open("page_source.html", "w", encoding="utf-8") as f:
+                        f.write(driver.page_source)
             else:
                 print("Download Housekeep: 備用定位也未找到 checkbox，任務中止", flush=True)
                 print(f"當前 URL: {driver.current_url}", flush=True)
