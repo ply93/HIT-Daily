@@ -229,9 +229,9 @@ def download_housekeep_report(driver, screenshot_dir):
         try:
             wait.until(EC.presence_of_all_elements_located((By.XPATH, "//tbody/tr")))
             driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-            time.sleep(60)  # 等待表格穩定
+            time.sleep(90)  # 等待表格穩定
             any_checked = False
-            max_retries = 3
+            max_retries = 5
             for index in range(1, 7):
                 for attempt in range(max_retries):
                     try:
@@ -240,8 +240,7 @@ def download_housekeep_report(driver, screenshot_dir):
                             break
                         checkbox = checkboxes[index - 1]
                         is_enabled = checkbox.is_enabled()
-                        is_selected = driver.execute_script("return arguments[0].checked;", checkbox)
-                        print(f"Download Housekeep: Checkbox {index} 狀態 (嘗試 {attempt + 1}) - 啟用: {is_enabled}, 已選中: {is_selected}", flush=True)
+                        print(f"Download Housekeep: Checkbox {index} 狀態 (嘗試 {attempt + 1}) - 啟用: {is_enabled}", flush=True)
                         
                         if is_enabled:
                             driver.execute_script("arguments[0].scrollIntoView(true);", checkbox)
@@ -268,12 +267,17 @@ def download_housekeep_report(driver, screenshot_dir):
                     except StaleElementReferenceException:
                         print(f"Download Housekeep: Checkbox {index} 遇到 StaleElementReferenceException (嘗試 {attempt + 1})，重新查找...", flush=True)
                         if attempt == max_retries - 1:
-                            print(f"Download Housekeep: Checkbox {index} 重試 {max_retries} 次後仍失敗，任務中止", flush=True)
-                            with open("page_source.html", "w", encoding="utf-8") as f:
-                                f.write(driver.page_source)
-                            save_screenshot(driver, screenshot_dir)
-                            return
-                        time.sleep(2)
+                            print(f"Download Housekeep: Checkbox {index} 重試 {max_retries} 次後仍失敗，嘗試刷新頁面...", flush=True)
+                            driver.refresh()
+                            wait.until(EC.presence_of_all_elements_located((By.XPATH, "//tbody/tr")))
+                            time.sleep(5)
+                            if index == max_retries - 1:
+                                print(f"Download Housekeep: Checkbox {index} 刷新後仍失敗，任務中止", flush=True)
+                                with open("page_source.html", "w", encoding="utf-8") as f:
+                                    f.write(driver.page_source)
+                                save_screenshot(driver, screenshot_dir)
+                                return
+                        time.sleep(1)
 
             if not any_checked:
                 print("Download Housekeep: 無任何 Checkbox 被選中，可能影響 Email 按鈕", flush=True)
@@ -292,8 +296,7 @@ def download_housekeep_report(driver, screenshot_dir):
                     for attempt in range(max_retries):
                         try:
                             is_enabled = checkbox.is_enabled()
-                            is_selected = driver.execute_script("return arguments[0].checked;", checkbox)
-                            print(f"Download Housekeep: Checkbox {index} 狀態 (備用定位，嘗試 {attempt + 1}) - 啟用: {is_enabled}, 已選中: {is_selected}", flush=True)
+                            print(f"Download Housekeep: Checkbox {index} 狀態 (備用定位，嘗試 {attempt + 1}) - 啟用: {is_enabled}", flush=True)
                             
                             if is_enabled:
                                 driver.execute_script("arguments[0].scrollIntoView(true);", checkbox)
@@ -320,12 +323,17 @@ def download_housekeep_report(driver, screenshot_dir):
                         except StaleElementReferenceException:
                             print(f"Download Housekeep: Checkbox {index} 遇到 StaleElementReferenceException (備用定位，嘗試 {attempt + 1})，重新查找...", flush=True)
                             if attempt == max_retries - 1:
-                                print(f"Download Housekeep: Checkbox {index} 重試 {max_retries} 次後仍失敗 (備用定位)，任務中止", flush=True)
-                                with open("page_source.html", "w", encoding="utf-8") as f:
-                                    f.write(driver.page_source)
-                                save_screenshot(driver, screenshot_dir)
-                                return
-                            time.sleep(2)
+                                print(f"Download Housekeep: Checkbox {index} 重試 {max_retries} 次後仍失敗 (備用定位)，嘗試刷新頁面...", flush=True)
+                                driver.refresh()
+                                wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "td:nth-child(6) input[type='checkbox']")))
+                                time.sleep(5)
+                                if index == max_retries - 1:
+                                    print(f"Download Housekeep: Checkbox {index} 刷新後仍失敗 (備用定位)，任務中止", flush=True)
+                                    with open("page_source.html", "w", encoding="utf-8") as f:
+                                        f.write(driver.page_source)
+                                    save_screenshot(driver, screenshot_dir)
+                                    return
+                            time.sleep(1)
                 if not any_checked:
                     print("Download Housekeep: 無任何 Checkbox 被選中 (備用定位)，可能影響 Email 按鈕", flush=True)
                     with open("page_source.html", "w", encoding="utf-8") as f:
@@ -477,7 +485,7 @@ def main():
                     driver.execute_script("arguments[0].click();", logout_option)
                     print("Download Housekeep: Logout 選項點擊成功", flush=True)
 
-                    time.sleep(60)
+                    time.sleep(90)
                     final_url = driver.current_url
                     print(f"Download Housekeep: 登出後 URL: {final_url}", flush=True)
                 except TimeoutException:
