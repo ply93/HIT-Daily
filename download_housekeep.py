@@ -22,9 +22,8 @@ def get_chrome_options():
     chrome_options.add_argument('--disable-extensions')
     chrome_options.add_argument('--no-first-run')
     chrome_options.add_argument('--window-size=1920,1080')  # 設置窗口大小
-    chrome_options.add_argument('--disable-gpu-sandbox')  # 禁用 GPU 沙盒
-    chrome_options.add_argument('--disable-background-networking')  # 禁用後台網絡
-    chrome_options.add_argument('--disable-renderer-backgrounding')  # 禁用渲染器後台
+    chrome_options.add_argument('--no-zygote')  # 禁用 zygote 進程
+    chrome_options.add_argument('--disable-setuid-sandbox')  # 禁用 setuid 沙盒
     chrome_options.add_argument('--disable-blink-features=AutomationControlled')  # 繞過自動化檢測
     chrome_options.binary_location = '/snap/bin/chromium'
     return chrome_options
@@ -202,7 +201,7 @@ def process_download_housekeep():
             time.sleep(1)
 
             # 輸入內文（HKT 時間，格式 MM:DD XX:XX）
-            current_time = datetime.now(hkt).strftime("%m:%d %H:%M")  # 例如 07:24 10:56
+            current_time = datetime.now(hkt).strftime("%m:%d %H:%M")  # 例如 07:24 11:05
             print(f"Download Housekeep: 輸入內文，格式為 {current_time} (HKT)", flush=True)
             body_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='body']")))
             body_field.clear()
@@ -236,19 +235,4 @@ def process_download_housekeep():
                 driver.execute_script("arguments[0].scrollIntoView(true);", logout_menu_button)
                 time.sleep(0.5)
                 driver.execute_script("arguments[0].click();", logout_menu_button)
-                print("Download Housekeep: 登錄按鈕點擊成功", flush=True)
-
-                logout_option = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='menu-list-grow']/div[6]/li")))
-                driver.execute_script("arguments[0].scrollIntoView(true);", logout_option)
-                time.sleep(0.5)
-                driver.execute_script("arguments[0].click();", logout_option)
-                print("Download Housekeep: Logout 選項點擊成功", flush=True)
-                time.sleep(2)
-            except Exception as logout_error:
-                print(f"Download Housekeep: 登出失敗: {str(logout_error)}", flush=True)
-            driver.quit()
-            print("Download Housekeep WebDriver 關閉", flush=True)
-
-if __name__ == "__main__":
-    process_download_housekeep()
-    print("Download Housekeep 腳本完成", flush=True)
+                print
