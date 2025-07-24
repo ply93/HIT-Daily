@@ -1,4 +1,4 @@
-name: Download HouseKeep2
+name: Download Housekeep
 
 on:
   workflow_dispatch:
@@ -6,56 +6,68 @@ on:
 jobs:
   download:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+    - name: Checkout repository
+      uses: actions/checkout@v4
 
-      - name: Cache dependencies
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cache/pip
-            ~/.wdm
-            ~/chromium-bin
-          key: ${{ runner.os }}-pip-chromium-wdm-${{ hashFiles('**/requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-chromium-wdm-
+    - name: Cache dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cache/pip
+          ~/.wdm
+        key: ${{ runner.os }}-pip-chromium-wdm-v8-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-chromium-wdm-v8-
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.9'
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.9'
 
-      - name: Install dependencies
-        run: |
-          pip install --no-cache-dir selenium webdriver-manager pytz
-          mkdir -p ~/chromium-bin
-          if [ ! -f ~/chromium-bin/chromium-browser ] || [ ! -f ~/chromium-bin/chromedriver ]; then
-            sudo apt-get update -qq || true
-            sudo apt-get install -y chromium-browser chromium-chromedriver || true
-            sudo cp /usr/bin/chromium-browser ~/chromium-bin/ || cp /usr/bin/chromium-browser ~/chromium-bin/
-            sudo cp /usr/bin/chromedriver ~/chromium-bin/ || cp /usr/bin/chromedriver ~/chromium-bin/
-          fi
+    - name: Install dependencies
+      run: |
+        pip install --no-cache-dir selenium webdriver-manager==4.0.2 pytz
+        sudo apt-get update -qq
+        sudo apt-get install -y chromium-browser libnss3 libfontconfig1 libx11-6 libxcomposite1 libxcursor1 libxi6 libxtst6 libxrandr2 libgcc-s1 libstdc++6 unzip
+        sudo snap install chromium
+        mkdir -p /home/runner/chromium-bin
+        echo "Downloading chromedriver with webdriver-manager"
+        python -c "from webdriver_manager.chrome import ChromeDriverManager; print('Chromedriver path:', ChromeDriverManager().install())"
+        mv $(python -c "from webdriver_manager.chrome import ChromeDriverManager; print(ChromeDriverManager().install())") /home/runner/chromium-bin/chromedriver || true
+        if [ ! -f /home/runner/chromium-bin/chromedriver ]; then
+          echo "webdriver-manager failed, downloading chromedriver manually"
+          curl -sS -o /tmp/chromedriver.zip https://chromedriver.storage.googleapis.com/126.0.6478.182/chromedriver_linux64.zip
+          unzip -o /tmp/chromedriver.zip -d /home/runner/chromium-bin/
+          mv /home/runner/chromium-bin/chromedriver-linux64 /home/runner/chromium-bin/chromedriver || true
+        fi
+        sudo chmod +x /home/runner/chromium-bin/chromedriver
+        echo "Chromium version:"
+        /snap/bin/chromium --version || true
+        echo "Chromedriver version:"
+        /home/runner/chromium-bin/chromedriver --version || true
+        ls -l /home/runner/chromium-bin/
+        ls -l /snap/bin/chromium
 
-      - name: Set timezone to HKT
-        run: |
-          sudo ln -sf /usr/share/zoneinfo/Asia/Hong_Kong /etc/localtime
-          sudo sh -c 'echo "Asia/Hong_Kong" > /etc/timezone'
+    - name: Set timezone to HKT
+      run: |
+        sudo ln -sf /usr/share/zoneinfo/Asia/Hong_Kong /etc/localtime
+        sudo sh -c 'echo "Asia/Hong_Kong" > /etc/timezone'
 
-      - name: Verify timezone
-        run: date
+    - name: Verify timezone
+      run: date
 
-      - name: Run Download Script
-        env:
-          SITE_PASSWORD: ${{ secrets.SITE_PASSWORD }}
-          COMPANY_CODE: CKL
-          USER_ID: KEN
-          TARGET_EMAIL: paklun@ckline.com.hk
-        run: python House2.py
+    - name: Run download_housekeep.py
+      env:
+        SITE_PASSWORD: ${{ secrets.SITE_PASSWORD }}
+        LIBGL_ALWAYS_SOFTWARE: 1
+        XDG_RUNTIME_DIR: /tmp
+      run: python download_housekeep.py
 
-      - name: Upload screenshots as artifact
-        if: always()  # 確保即使腳本失敗也上傳 artifact
-        uses: actions/upload-artifact@v3
-        with:
-          name: screenshots
-          path: screenshots_*.zip
+    - name: Upload screenshots as artifact
+      if: always()  # 確保即使腳本失敗也上傳 artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: screenshots
+        path: screenshots_*.zip
