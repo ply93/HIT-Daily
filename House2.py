@@ -1,3 +1,4 @@
+```python
 import os
 import time
 import subprocess
@@ -66,7 +67,7 @@ def get_chrome_options():
     return chrome_options
 
 def login_cplus(driver, company_code, user_id, password):
-    wait = WebDriverWait(driver, 30)  # 增加超時時間
+    wait = WebDriverWait(driver, 30)
     try:
         driver.get("https://cplus.hit.com.hk/frontpage/#/")
         print(f"CPLUS: 網站已成功打開，當前 URL: {driver.current_url}", flush=True)
@@ -90,75 +91,97 @@ def login_cplus(driver, company_code, user_id, password):
         login_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/div[2]/div/div/form/button/span[1]")))
         login_button.click()
         print("CPLUS: LOGIN 按鈕點擊成功", flush=True)
+
+        # 檢查登錄是否成功
+        wait.until(EC.url_changes("https://cplus.hit.com.hk/frontpage/#/"))
+        if "login" in driver.current_url.lower() or "404" in driver.current_url:
+            raise Exception(f"登錄失敗，當前 URL: {driver.current_url}")
     except TimeoutException as e:
         print(f"CPLUS: 登錄失敗: {str(e)}", flush=True)
         print(f"當前 URL: {driver.current_url}", flush=True)
         print(f"頁面 HTML (前500字符): {driver.page_source[:500]}", flush=True)
         raise
 
-def download_housekeep_report(driver):
-    wait = WebDriverWait(driver, 30)  # 增加超時時間
+def navigate_to_housekeep_report(driver):
+    wait = WebDriverWait(driver, 30)
     try:
-        print("Download Housekeep: 前往 Housekeep Report 頁面...", flush=True)
+        print("Download Housekeep: 嘗試導航到 Housekeep Report 頁面...", flush=True)
+        # 嘗試直接訪問 URL
         driver.get("https://cplus.hit.com.hk/app/#/report/housekeepReport")
         wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
+        
+        # 檢查是否跳轉到 404
+        if "404.html" in driver.current_url:
+            print(f"Download Housekeep: 訪問失敗，跳轉到 404，當前 URL: {driver.current_url}", flush=True)
+            print(f"頁面 HTML (前500字符): {driver.page_source[:500]}", flush=True)
+            # 嘗試通過導航點擊進入
+            print("Download Housekeep: 嘗試通過導航點擊進入報告頁面...", flush=True)
+            report_menu = wait.until(EC.element_to_be_clickable((By.XPATH, "//a[contains(text(), 'Report')] | //li[contains(text(), 'Report')]")))
+            driver.execute_script("arguments[0].click();", report_menu)
+            housekeep_report = wait.until(EC.element_to_be_clickable((By.XPATH, "//a[contains(text(), 'Housekeep Report')] | //li[contains(text(), 'Housekeep Report')]")))
+            driver.execute_script("arguments[0].click();", housekeep_report)
+            wait.until(EC.url_contains("housekeepReport"))
+        
         print("Download Housekeep: Housekeep Report 頁面加載完成", flush=True)
+        print(f"當前 URL: {driver.current_url}", flush=True)
+    except TimeoutException as e:
+        print(f"Download Housekeep: 導航到報告頁面失敗: {str(e)}", flush=True)
+        print(f"當前 URL: {driver.current_url}", flush=True)
+        print(f"頁面 HTML (前500字符): {driver.page_source[:500]}", flush=True)
+        with open("page_source.html", "w", encoding="utf-8") as f:
+            f.write(driver.page_source)
+        raise
+
+def download_housekeep_report(driver):
+    wait = WebDriverWait(driver, 30)
+    try:
+        navigate_to_housekeep_report(driver)
+
+        # 等待表單容器加載
+        wait.until(EC.presence_of_element_located((By.XPATH, "//form")))
+        print("Download Housekeep: 表單容器加載完成", flush=True)
 
         today = datetime.now().strftime("%d/%m/%Y")  # 格式：24/07/2025
         print(f"Download Housekeep: 檢查日期，今日為 {today}", flush=True)
-        need_search = False
 
+        # 檢查 From 輸入框
         try:
-            from_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='from']")))
+            from_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='from'] | //input[@id='from']")))
             from_value = from_field.get_attribute("value")
             if from_value != today:
                 print(f"Download Housekeep: From 日期 ({from_value}) 不為今日，設置為 {today}", flush=True)
                 from_field.clear()
                 from_field.send_keys(today)
-                need_search = True
             else:
                 print("Download Housekeep: From 日期已正確", flush=True)
         except TimeoutException:
-            print("Download Housekeep: 未找到 From 輸入框，假設需要 Search", flush=True)
+            print("Download Housekeep: 未找到 From 輸入框", flush=True)
             print(f"當前 URL: {driver.current_url}", flush=True)
             print(f"頁面 HTML (前500字符): {driver.page_source[:500]}", flush=True)
-            need_search = True
+            with open("page_source.html", "w", encoding="utf-8") as f:
+                f.write(driver.page_source)
 
+        # 檢查 To 輸入框
         try:
-            to_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='to']")))
+            to_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='to'] | //input[@id='to']")))
             to_value = to_field.get_attribute("value")
             if to_value != today:
                 print(f"Download Housekeep: To 日期 ({to_value}) 不為今日，設置為 {today}", flush=True)
                 to_field.clear()
                 to_field.send_keys(today)
-                need_search = True
             else:
                 print("Download Housekeep: To 日期已正確", flush=True)
         except TimeoutException:
-            print("Download Housekeep: 未找到 To 輸入框，假設需要 Search", flush=True)
+            print("Download Housekeep: 未找到 To 輸入框", flush=True)
             print(f"當前 URL: {driver.current_url}", flush=True)
             print(f"頁面 HTML (前500字符): {driver.page_source[:500]}", flush=True)
-            need_search = True
-
-        if need_search:
-            print("Download Housekeep: 日期不正確，嘗試點擊 Search 按鈕...", flush=True)
-            try:
-                # 嘗試更穩定的選擇器
-                search_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Search')] | //input[@placeholder='Search']/following-sibling::div//button")))
-                driver.execute_script("arguments[0].scrollIntoView(true);", search_button)
-                driver.execute_script("arguments[0].click();", search_button)
-                print("Download Housekeep: Search 按鈕點擊成功", flush=True)
-                wait.until(EC.presence_of_element_located((By.XPATH, "//tbody/tr")))
-            except TimeoutException:
-                print("Download Housekeep: Search 按鈕未找到，繼續執行", flush=True)
-                print(f"當前 URL: {driver.current_url}", flush=True)
-                print(f"頁面 HTML (前500字符): {driver.page_source[:500]}", flush=True)
+            with open("page_source.html", "w", encoding="utf-8") as f:
+                f.write(driver.page_source)
 
         print("Download Housekeep: 查找並點擊所有 Email Excel checkbox...", flush=True)
         try:
-            # 等待表格數據加載
             wait.until(EC.presence_of_element_located((By.XPATH, "//tbody/tr")))
-            checkboxes = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//tbody/tr//input[@type='checkbox']")))
+            checkboxes = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//tbody//input[@type='checkbox']")))
             print(f"Download Housekeep: 找到 {len(checkboxes)} 個 Email Excel checkbox", flush=True)
 
             if len(checkboxes) < 3 or len(checkboxes) > 6:
@@ -182,6 +205,8 @@ def download_housekeep_report(driver):
                 print("Download Housekeep: 備用定位也未找到 checkbox，任務中止", flush=True)
                 print(f"當前 URL: {driver.current_url}", flush=True)
                 print(f"頁面 HTML (前500字符): {driver.page_source[:500]}", flush=True)
+                with open("page_source.html", "w", encoding="utf-8") as f:
+                    f.write(driver.page_source)
                 return
 
         print("Download Housekeep: 點擊 Email 按鈕...", flush=True)
@@ -213,11 +238,15 @@ def download_housekeep_report(driver):
             print(f"Download Housekeep: Email 處理失敗: {str(e)}", flush=True)
             print(f"當前 URL: {driver.current_url}", flush=True)
             print(f"頁面 HTML (前500字符): {driver.page_source[:500]}", flush=True)
+            with open("page_source.html", "w", encoding="utf-8") as f:
+                f.write(driver.page_source)
             return
     except Exception as e:
         print(f"Download Housekeep: 錯誤: {str(e)}", flush=True)
         print(f"當前 URL: {driver.current_url}", flush=True)
         print(f"頁面 HTML (前500字符): {driver.page_source[:500]}", flush=True)
+        with open("page_source.html", "w", encoding="utf-8") as f:
+            f.write(driver.page_source)
         return
 
 def main():
@@ -249,7 +278,7 @@ def main():
                 print("Download Housekeep: 登錄按鈕點擊成功", flush=True)
 
                 try:
-                    logout_option = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='menu-list-grow']//li[contains(text(), 'Logout')]")))
+                    logout_option = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Logout')] | //a[contains(text(), 'Logout')] | //li[contains(text(), 'Logout')]")))
                     driver.execute_script("arguments[0].click();", logout_option)
                     print("Download Housekeep: Logout 選項點擊成功", flush=True)
                 except TimeoutException:
