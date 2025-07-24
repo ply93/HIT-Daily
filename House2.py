@@ -66,7 +66,7 @@ def get_chrome_options():
     return chrome_options
 
 def login_cplus(driver, company_code, user_id, password):
-    wait = WebDriverWait(driver, 10)
+    wait = WebDriverWait(driver, 20)
     try:
         print("CPLUS: 嘗試打開網站 https://cplus.hit.com.hk/frontpage/#/", flush=True)
         driver.get("https://cplus.hit.com.hk/frontpage/#/")
@@ -142,7 +142,7 @@ def login_cplus(driver, company_code, user_id, password):
         raise
 
 def navigate_to_housekeep_report(driver):
-    wait = WebDriverWait(driver, 30)
+    wait = WebDriverWait(driver, 60)
     try:
         print("Download Housekeep: 嘗試導航到 Housekeep Report 頁面...", flush=True)
         driver.get("https://cplus.hit.com.hk/app/#/report/housekeepReport")
@@ -166,7 +166,7 @@ def navigate_to_housekeep_report(driver):
         raise
 
 def download_housekeep_report(driver):
-    wait = WebDriverWait(driver, 30)
+    wait = WebDriverWait(driver, 90)
     try:
         navigate_to_housekeep_report(driver)
 
@@ -212,7 +212,7 @@ def download_housekeep_report(driver):
         try:
             wait.until(EC.presence_of_all_elements_located((By.XPATH, "//tbody/tr")))
             driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-            time.sleep(5)  # 等待表格穩定
+            time.sleep(15)  # 等待表格穩定
             any_checked = False
             for index in range(1, 7):
                 try:
@@ -320,17 +320,26 @@ def download_housekeep_report(driver):
                         print(f"Download Housekeep: Checkbox {index} 遇到 StaleElementReferenceException (備用定位)，任務中止", flush=True)
                         with open("page_source.html", "w", encoding="utf-8") as f:
                             f.write(driver.page_source)
+                        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                        driver.save_screenshot(f"screenshot_{timestamp}.png")
+                        print(f"Download Housekeep: 已保存截圖: screenshot_{timestamp}.png", flush=True)
                         return
                 if not any_checked:
                     print("Download Housekeep: 無任何 Checkbox 被選中 (備用定位)，可能影響 Email 按鈕", flush=True)
                     with open("page_source.html", "w", encoding="utf-8") as f:
                         f.write(driver.page_source)
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    driver.save_screenshot(f"screenshot_{timestamp}.png")
+                    print(f"Download Housekeep: 已保存截圖: screenshot_{timestamp}.png", flush=True)
             else:
                 print("Download Housekeep: 備用定位也未找到 checkbox，任務中止", flush=True)
                 print(f"當前 URL: {driver.current_url}", flush=True)
                 print(f"頁面 HTML (前500字符): {driver.page_source[:500]}", flush=True)
                 with open("page_source.html", "w", encoding="utf-8") as f:
                     f.write(driver.page_source)
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                driver.save_screenshot(f"screenshot_{timestamp}.png")
+                print(f"Download Housekeep: 已保存截圖: screenshot_{timestamp}.png", flush=True)
                 return
 
         print("Download Housekeep: 點擊 Email 按鈕...", flush=True)
@@ -339,25 +348,49 @@ def download_housekeep_report(driver):
             is_disabled = email_button.get_attribute("disabled")
             print(f"Download Housekeep: Email 按鈕狀態 - 禁用: {is_disabled}", flush=True)
             if is_disabled:
-                print("Download Housekeep: Email 按鈕被禁用，嘗試點擊表格標頭...", flush=True)
+                print("Download Housekeep: Email 按鈕被禁用，嘗試選擇 Owner 或 Report Type...", flush=True)
                 try:
-                    header_cell = wait.until(EC.element_to_be_clickable((By.XPATH, "//th[contains(text(), 'Email Excel')]")))
-                    driver.execute_script("arguments[0].click();", header_cell)
-                    print("Download Housekeep: 表格標頭點擊成功", flush=True)
+                    # 嘗試選擇 Owner
+                    owner_select = wait.until(EC.presence_of_element_located((By.XPATH, "//select[@id='owner'] | //select[contains(@name, 'owner')]")))
+                    owner_select.click()
+                    driver.execute_script("arguments[0].value = arguments[0].options[1].value;", owner_select)
+                    print("Download Housekeep: Owner 選擇完成", flush=True)
                     time.sleep(5)
-                    email_button = wait.until(EC.presence_of_element_located((By.XPATH, "//button[@title='Email'] | //*[contains(@class, 'MuiIconButton-root')][@title='Email'] | //button[descendant::path[@fill='#0080ff']]")))
-                    is_disabled = email_button.get_attribute("disabled")
-                    print(f"Download Housekeep: Email 按鈕狀態 (再次檢查) - 禁用: {is_disabled}", flush=True)
-                    if is_disabled:
-                        print("Download Housekeep: Email 按鈕仍被禁用，任務中止", flush=True)
-                        with open("page_source.html", "w", encoding="utf-8") as f:
-                            f.write(driver.page_source)
-                        return
                 except TimeoutException:
-                    print("Download Housekeep: 未找到表格標頭，無法啟用 Email 按鈕", flush=True)
+                    print("Download Housekeep: 未找到 Owner 下拉選單，跳過", flush=True)
+
+                try:
+                    # 嘗試選擇 Report Type
+                    report_type_select = wait.until(EC.presence_of_element_located((By.XPATH, "//select[@id='reportType'] | //select[contains(@name, 'reportType')]")))
+                    report_type_select.click()
+                    driver.execute_script("arguments[0].value = arguments[0].options[1].value;", report_type_select)
+                    print("Download Housekeep: Report Type 選擇完成", flush=True)
+                    time.sleep(5)
+                except TimeoutException:
+                    print("Download Housekeep: 未找到 Report Type 下拉選單，跳過", flush=True)
+
+                # 嘗試點擊 Refresh 按鈕
+                try:
+                    refresh_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Refresh')] | //button[@aria-label='Refresh']")))
+                    driver.execute_script("arguments[0].click();", refresh_button)
+                    print("Download Housekeep: Refresh 按鈕點擊成功", flush=True)
+                    time.sleep(5)
+                except TimeoutException:
+                    print("Download Housekeep: 未找到 Refresh 按鈕，跳過", flush=True)
+
+                # 再次檢查 Email 按鈕
+                email_button = wait.until(EC.presence_of_element_located((By.XPATH, "//button[@title='Email'] | //*[contains(@class, 'MuiIconButton-root')][@title='Email'] | //button[descendant::path[@fill='#0080ff']]")))
+                is_disabled = email_button.get_attribute("disabled")
+                print(f"Download Housekeep: Email 按鈕狀態 (再次檢查) - 禁用: {is_disabled}", flush=True)
+                if is_disabled:
+                    print("Download Housekeep: Email 按鈕仍被禁用，任務中止", flush=True)
                     with open("page_source.html", "w", encoding="utf-8") as f:
                         f.write(driver.page_source)
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    driver.save_screenshot(f"screenshot_{timestamp}.png")
+                    print(f"Download Housekeep: 已保存截圖: screenshot_{timestamp}.png", flush=True)
                     return
+
             wait.until(EC.element_to_be_clickable((By.XPATH, "//button[@title='Email'] | //*[contains(@class, 'MuiIconButton-root')][@title='Email'] | //button[descendant::path[@fill='#0080ff']]")))
             driver.execute_script("arguments[0].scrollIntoView(true);", email_button)
             email_button.click()
@@ -387,6 +420,9 @@ def download_housekeep_report(driver):
             print(f"頁面 HTML (前500字符): {driver.page_source[:500]}", flush=True)
             with open("page_source.html", "w", encoding="utf-8") as f:
                 f.write(driver.page_source)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            driver.save_screenshot(f"screenshot_{timestamp}.png")
+            print(f"Download Housekeep: 已保存截圖: screenshot_{timestamp}.png", flush=True)
             return
     except Exception as e:
         print(f"Download Housekeep: 錯誤: {str(e)}", flush=True)
@@ -394,6 +430,9 @@ def download_housekeep_report(driver):
         print(f"頁面 HTML (前500字符): {driver.page_source[:500]}", flush=True)
         with open("page_source.html", "w", encoding="utf-8") as f:
             f.write(driver.page_source)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        driver.save_screenshot(f"screenshot_{timestamp}.png")
+        print(f"Download Housekeep: 已保存截圖: screenshot_{timestamp}.png", flush=True)
         return
 
 def main():
@@ -438,7 +477,7 @@ def main():
                     driver.execute_script("arguments[0].click();", logout_option)
                     print("Download Housekeep: Logout 選項點擊成功", flush=True)
 
-                    time.sleep(5)
+                    time.sleep(15)
                     final_url = driver.current_url
                     print(f"Download Housekeep: 登出後 URL: {final_url}", flush=True)
                 except TimeoutException:
