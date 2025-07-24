@@ -1,0 +1,51 @@
+name: Download HouseKeep
+
+on:
+  workflow_dispatch:
+
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.wdm
+            ~/chromium-bin
+          key: ${{ runner.os }}-pip-chromium-wdm-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-chromium-wdm-
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          pip install --no-cache-dir selenium webdriver-manager pytz
+          mkdir -p ~/chromium-bin
+          if [ ! -f ~/chromium-bin/chromium-browser ] || [ ! -f ~/chromium-bin/chromedriver ]; then
+            sudo apt-get update -qq || true
+            sudo apt-get install -y chromium-browser chromium-chromedriver || true
+            sudo cp /usr/bin/chromium-browser ~/chromium-bin/ || cp /usr/bin/chromium-browser ~/chromium-bin/
+            sudo cp /usr/bin/chromedriver ~/chromium-bin/ || cp /usr/bin/chromedriver ~/chromium-bin/
+          fi
+
+      - name: Set timezone to HKT
+        run: |
+          sudo ln -sf /usr/share/zoneinfo/Asia/Hong_Kong /etc/localtime
+          sudo sh -c 'echo "Asia/Hong_Kong" > /etc/timezone'
+
+      - name: Verify timezone
+        run: date
+
+      - name: Run Download Script
+        env:
+          SITE_PASSWORD: ${{ secrets.SITE_PASSWORD }}
+        run: python download_cplus.py
