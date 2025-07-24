@@ -22,6 +22,9 @@ def get_chrome_options():
     chrome_options.add_argument('--disable-extensions')
     chrome_options.add_argument('--no-first-run')
     chrome_options.add_argument('--window-size=1920,1080')  # 設置窗口大小
+    chrome_options.add_argument('--disable-gpu-sandbox')  # 禁用 GPU 沙盒
+    chrome_options.add_argument('--disable-background-networking')  # 禁用後台網絡
+    chrome_options.add_argument('--disable-renderer-backgrounding')  # 禁用渲染器後台
     chrome_options.add_argument('--disable-blink-features=AutomationControlled')  # 繞過自動化檢測
     chrome_options.binary_location = '/snap/bin/chromium'
     return chrome_options
@@ -199,7 +202,7 @@ def process_download_housekeep():
             time.sleep(1)
 
             # 輸入內文（HKT 時間，格式 MM:DD XX:XX）
-            current_time = datetime.now(hkt).strftime("%m:%d %H:%M")  # 例如 07:24 10:49
+            current_time = datetime.now(hkt).strftime("%m:%d %H:%M")  # 例如 07:24 10:53
             print(f"Download Housekeep: 輸入內文，格式為 {current_time} (HKT)", flush=True)
             body_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='body']")))
             body_field.clear()
