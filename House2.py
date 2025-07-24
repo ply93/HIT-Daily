@@ -1,3 +1,4 @@
+```python
 import os
 import time
 import subprocess
@@ -91,7 +92,6 @@ def login_cplus(driver, company_code, user_id, password):
         login_button.click()
         print("CPLUS: LOGIN 按鈕點擊成功", flush=True)
 
-        # 檢查登錄是否成功
         wait.until(EC.url_changes("https://cplus.hit.com.hk/frontpage/#/"))
         if "login" in driver.current_url.lower() or "404" in driver.current_url:
             raise Exception(f"登錄失敗，當前 URL: {driver.current_url}")
@@ -105,21 +105,15 @@ def navigate_to_housekeep_report(driver):
     wait = WebDriverWait(driver, 30)
     try:
         print("Download Housekeep: 嘗試導航到 Housekeep Report 頁面...", flush=True)
-        # 嘗試直接訪問 URL
         driver.get("https://cplus.hit.com.hk/app/#/report/housekeepReport")
         wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
         
-        # 檢查是否跳轉到 404
         if "404.html" in driver.current_url:
             print(f"Download Housekeep: 訪問失敗，跳轉到 404，當前 URL: {driver.current_url}", flush=True)
             print(f"頁面 HTML (前500字符): {driver.page_source[:500]}", flush=True)
-            # 嘗試通過導航點擊進入
-            print("Download Housekeep: 嘗試通過導航點擊進入報告頁面...", flush=True)
-            report_menu = wait.until(EC.element_to_be_clickable((By.XPATH, "//a[contains(text(), 'Report')] | //li[contains(text(), 'Report')]")))
-            driver.execute_script("arguments[0].click();", report_menu)
-            housekeep_report = wait.until(EC.element_to_be_clickable((By.XPATH, "//a[contains(text(), 'Housekeep Report')] | //li[contains(text(), 'Housekeep Report')]")))
-            driver.execute_script("arguments[0].click();", housekeep_report)
-            wait.until(EC.url_contains("housekeepReport"))
+            with open("page_source.html", "w", encoding="utf-8") as f:
+                f.write(driver.page_source)
+            raise Exception("訪問 Housekeep Report 頁面失敗，跳轉到 404")
         
         print("Download Housekeep: Housekeep Report 頁面加載完成", flush=True)
         print(f"當前 URL: {driver.current_url}", flush=True)
@@ -136,14 +130,12 @@ def download_housekeep_report(driver):
     try:
         navigate_to_housekeep_report(driver)
 
-        # 等待表單容器加載
         wait.until(EC.presence_of_element_located((By.XPATH, "//form")))
         print("Download Housekeep: 表單容器加載完成", flush=True)
 
-        today = datetime.now().strftime("%d/%m/%Y")  # 格式：24/07/2025
+        today = datetime.now().strftime("%d/%m/%Y")
         print(f"Download Housekeep: 檢查日期，今日為 {today}", flush=True)
 
-        # 檢查 From 輸入框
         try:
             from_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='from'] | //input[@id='from']")))
             from_value = from_field.get_attribute("value")
@@ -160,7 +152,6 @@ def download_housekeep_report(driver):
             with open("page_source.html", "w", encoding="utf-8") as f:
                 f.write(driver.page_source)
 
-        # 檢查 To 輸入框
         try:
             to_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='to'] | //input[@id='to']")))
             to_value = to_field.get_attribute("value")
@@ -180,11 +171,8 @@ def download_housekeep_report(driver):
         print("Download Housekeep: 查找並點擊所有 Email Excel checkbox...", flush=True)
         try:
             wait.until(EC.presence_of_element_located((By.XPATH, "//tbody/tr")))
-            checkboxes = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//tbody//input[@type='checkbox']")))
+            checkboxes = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//tbody/tr/td[6]//input[@type='checkbox']")))
             print(f"Download Housekeep: 找到 {len(checkboxes)} 個 Email Excel checkbox", flush=True)
-
-            if len(checkboxes) < 3 or len(checkboxes) > 6:
-                print(f"Download Housekeep: Checkbox 數量 {len(checkboxes)} 不在預期範圍 (3-6)，請檢查", flush=True)
 
             for index, checkbox in enumerate(checkboxes, 1):
                 if checkbox.is_enabled() and checkbox.is_displayed() and not checkbox.is_selected():
@@ -193,7 +181,7 @@ def download_housekeep_report(driver):
                     print(f"Download Housekeep: Checkbox {index} 點擊成功", flush=True)
         except TimeoutException:
             print("Download Housekeep: 未找到 Email Excel checkbox，嘗試備用定位...", flush=True)
-            checkboxes = driver.find_elements(By.CSS_SELECTOR, "input[type='checkbox']")
+            checkboxes = driver.find_elements(By.CSS_SELECTOR, "td:nth-child(6) input[type='checkbox']")
             if checkboxes:
                 for index, checkbox in enumerate(checkboxes, 1):
                     if checkbox.is_enabled() and checkbox.is_displayed() and not checkbox.is_selected():
@@ -210,27 +198,32 @@ def download_housekeep_report(driver):
 
         print("Download Housekeep: 點擊 Email 按鈕...", flush=True)
         try:
-            email_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div/form/div[1]/div[8]/div/div/div[1]/div[1]/div[1]/button")))
+            email_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[@title='Email'] | //*[contains(@class, 'MuiIconButton-root')][@title='Email']")))
+            if email_button.get_attribute("disabled"):
+                print("Download Housekeep: Email 按鈕被禁用，檢查是否需要選擇 checkbox", flush=True)
+                with open("page_source.html", "w", encoding="utf-8") as f:
+                    f.write(driver.page_source)
+                return
             driver.execute_script("arguments[0].scrollIntoView(true);", email_button)
             driver.execute_script("arguments[0].click();", email_button)
             print("Download Housekeep: Email 按鈕點擊成功", flush=True)
 
             target_email = os.environ.get('TARGET_EMAIL', 'paklun@ckline.com.hk')
             print("Download Housekeep: 輸入目標 Email 地址...", flush=True)
-            email_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='to']")))
+            email_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='to'] | //input[@id='to']")))
             email_field.clear()
             email_field.send_keys(target_email)
             print("Download Housekeep: Email 地址輸入完成", flush=True)
 
             current_time = datetime.now().strftime("%m:%d %H:%M")
             print(f"Download Housekeep: 輸入內文，格式為 {current_time}", flush=True)
-            body_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='body']")))
+            body_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='body'] | //textarea[@id='body']")))
             body_field.clear()
             body_field.send_keys(current_time)
             print("Download Housekeep: 內文輸入完成", flush=True)
 
             print("Download Housekeep: 點擊 Confirm 按鈕...", flush=True)
-            confirm_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='EmailDialog']/div[3]/div/form/div[3]/button[1]")))
+            confirm_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='EmailDialog']//button[contains(text(), 'Confirm')] | //*[@id='EmailDialog']//button[@type='submit']")))
             driver.execute_script("arguments[0].click();", confirm_button)
             print("Download Housekeep: Confirm 按鈕點擊成功", flush=True)
         except TimeoutException as e:
