@@ -260,6 +260,4 @@ def get_chrome_options():
             driver.quit()
             print("Download Housekeep WebDriver 關閉", flush=True)
 
-if __name__ == "__main__":
-    process_House2()
     print("Download House2 腳本完成", flush=True)
