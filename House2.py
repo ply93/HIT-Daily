@@ -66,35 +66,53 @@ def get_chrome_options():
     return chrome_options
 
 def login_cplus(driver, company_code, user_id, password):
-    wait = WebDriverWait(driver, 60)
+    wait = WebDriverWait(driver, 20)
     try:
+        # 前往登入頁面 (CPLUS)
+        print("CPLUS: 嘗試打開網站 https://cplus.hit.com.hk/frontpage/#/", flush=True)
         driver.get("https://cplus.hit.com.hk/frontpage/#/")
         print(f"CPLUS: 網站已成功打開，當前 URL: {driver.current_url}", flush=True)
+        time.sleep(2)
 
+        # 點擊登錄前嘅按鈕 (CPLUS)
+        print("CPLUS: 點擊登錄前按鈕...", flush=True)
         login_button_pre = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
         login_button_pre.click()
         print("CPLUS: 登錄前按鈕點擊成功", flush=True)
+        time.sleep(2)
 
+        # 輸入 COMPANY CODE (CPLUS)
+        print("CPLUS: 輸入 COMPANY CODE...", flush=True)
         company_code_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='companyCode']")))
-        company_code_field.send_keys(company_code)
+        company_code_field.send_keys("CKL")
         print("CPLUS: COMPANY CODE 輸入完成", flush=True)
+        time.sleep(1)
 
-        user_id_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='userId']")))
-        user_id_field.send_keys(user_id)
+        # 輸入 USER ID (CPLUS)
+        print("CPLUS: 輸入 USER ID...", flush=True)
+        user_id_field = driver.find_element(By.XPATH, "//*[@id='userId']")
+        user_id_field.send_keys("KEN")
         print("CPLUS: USER ID 輸入完成", flush=True)
+        time.sleep(1)
 
-        password_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='passwd']")))
-        password_field.send_keys(password)
+        # 輸入 PASSWORD (CPLUS)
+        print("CPLUS: 輸入 PASSWORD...", flush=True)
+        password_field = driver.find_element(By.XPATH, "//*[@id='passwd']")
+        password_field.send_keys(os.environ.get('SITE_PASSWORD'))
         print("CPLUS: PASSWORD 輸入完成", flush=True)
+        time.sleep(1)
 
-        login_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/div[2]/div/div/form/button/span[1]")))
+        # 點擊 LOGIN 按鈕 (CPLUS)
+        print("CPLUS: 點擊 LOGIN 按鈕...", flush=True)
+        login_button = driver.find_element(By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/div[2]/div/div/form/button/span[1]")
         login_button.click()
         print("CPLUS: LOGIN 按鈕點擊成功", flush=True)
+        time.sleep(5)
 
         # 等待頁面加載完成
         try:
             wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
-            time.sleep(5)  # 等待頁面跳轉
+            print("CPLUS: 檢測到 root 元素，頁面加載完成", flush=True)
         except TimeoutException:
             print("CPLUS: 頁面加載超時，嘗試刷新頁面...", flush=True)
             driver.refresh()
@@ -114,9 +132,9 @@ def login_cplus(driver, company_code, user_id, password):
         except:
             print("CPLUS: 未檢測到錯誤提示", flush=True)
 
-        # 檢查是否已登錄（通過檢查登出按鈕）
+        # 檢查是否已登錄
         try:
-            WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
+            WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
             print("CPLUS: 檢測到登出按鈕，假設登錄成功", flush=True)
         except TimeoutException:
             print("CPLUS: 未檢測到登出按鈕，登錄可能失敗", flush=True)
@@ -412,18 +430,9 @@ def main():
                     driver.execute_script("arguments[0].click();", logout_option)
                     print("Download Housekeep: Logout 選項點擊成功", flush=True)
 
-                    try:
-                        confirm_button = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='logout']//button[contains(text(), 'Close') or contains(text(), 'Confirm')]")))
-                        driver.execute_script("arguments[0].click();", confirm_button)
-                        print("Download Housekeep: 登出確認框關閉成功", flush=True)
-                    except TimeoutException:
-                        print("Download Housekeep: 未找到登出確認框，假設登出已完成", flush=True)
-
                     time.sleep(3)
                     final_url = driver.current_url
                     print(f"Download Housekeep: 登出後 URL: {final_url}", flush=True)
-                    if "login" not in final_url.lower() and "frontpage" not in final_url.lower() and "app" not in final_url.lower():
-                        print("Download Housekeep: 登出可能未成功，當前 URL 未跳轉到預期頁面", flush=True)
                 except TimeoutException:
                     print("Download Housekeep: 登出選項未找到，跳過登出", flush=True)
             except Exception as logout_error:
