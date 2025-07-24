@@ -22,7 +22,8 @@ def get_chrome_options():
     chrome_options.add_argument('--disable-extensions')
     chrome_options.add_argument('--no-first-run')
     chrome_options.add_argument('--window-size=1920,1080')  # 設置窗口大小
-    chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36')
+    chrome_options.add_argument('--disable-setuid-sandbox')  # 禁用 setuid 沙盒
+    chrome_options.add_argument('--disable-blink-features=AutomationControlled')  # 繞過自動化檢測
     chrome_options.binary_location = '/snap/bin/chromium'
     return chrome_options
 
@@ -90,7 +91,7 @@ def process_download_housekeep():
 
         # 設置 HKT 時區（Python 層面備用）
         hkt = pytz.timezone('Asia/Hong_Kong')
-        today = datetime.now(hkt).strftime("%d/%m/%Y")  # 格式：23/07/2025
+        today = datetime.now(hkt).strftime("%d/%m/%Y")  # 格式：24/07/2025
         print(f"Download Housekeep: 檢查日期，今日為 {today} (HKT)", flush=True)
         need_search = False  # 標記是否需要點擊 Search
 
@@ -199,7 +200,7 @@ def process_download_housekeep():
             time.sleep(1)
 
             # 輸入內文（HKT 時間，格式 MM:DD XX:XX）
-            current_time = datetime.now(hkt).strftime("%m:%d %H:%M")  # 例如 07:23 17:53
+            current_time = datetime.now(hkt).strftime("%m:%d %H:%M")  # 例如 07:24 09:51
             print(f"Download Housekeep: 輸入內文，格式為 {current_time} (HKT)", flush=True)
             body_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='body']")))
             body_field.clear()
