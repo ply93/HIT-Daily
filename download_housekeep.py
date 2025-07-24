@@ -201,7 +201,7 @@ def process_download_housekeep():
             time.sleep(1)
 
             # 輸入內文（HKT 時間，格式 MM:DD XX:XX）
-            current_time = datetime.now(hkt).strftime("%m:%d %H:%M")  # 例如 07:24 11:05
+            current_time = datetime.now(hkt).strftime("%m:%d %H:%M")  # 例如 07:24 11:10
             print(f"Download Housekeep: 輸入內文，格式為 {current_time} (HKT)", flush=True)
             body_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='body']")))
             body_field.clear()
@@ -235,4 +235,19 @@ def process_download_housekeep():
                 driver.execute_script("arguments[0].scrollIntoView(true);", logout_menu_button)
                 time.sleep(0.5)
                 driver.execute_script("arguments[0].click();", logout_menu_button)
-                print
+                print("Download Housekeep: 登錄按鈕點擊成功", flush=True)
+
+                logout_option = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='menu-list-grow']/div[6]/li")))
+                driver.execute_script("arguments[0].scrollIntoView(true);", logout_option)
+                time.sleep(0.5)
+                driver.execute_script("arguments[0].click();", logout_option)
+                print("Download Housekeep: Logout 選項點擊成功", flush=True)
+                time.sleep(2)
+            except Exception as logout_error:
+                print(f"Download Housekeep: 登出失敗: {str(logout_error)}", flush=True)
+            driver.quit()
+            print("Download Housekeep WebDriver 關閉", flush=True)
+
+if __name__ == "__main__":
+    process_download_housekeep()
+    print("Download Housekeep 腳本完成", flush=True)
