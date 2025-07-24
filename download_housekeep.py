@@ -13,7 +13,7 @@ from selenium.common.exceptions import TimeoutException, NoSuchElementException
 # 設置 Chrome 選項
 def get_chrome_options():
     chrome_options = Options()
-    chrome_options.add_argument('--headless=new')  # 使用新版 Headless 模式
+    chrome_options.add_argument('--headless')  # 使用舊版 Headless 模式，對齊 download_cplus.py
     chrome_options.add_argument('--no-sandbox')
     chrome_options.add_argument('--disable-dev-shm-usage')
     chrome_options.add_argument('--disable-gpu')
@@ -22,11 +22,9 @@ def get_chrome_options():
     chrome_options.add_argument('--disable-extensions')
     chrome_options.add_argument('--no-first-run')
     chrome_options.add_argument('--window-size=1920,1080')  # 設置窗口大小
-    chrome_options.add_argument('--disable-setuid-sandbox')  # 禁用 setuid 沙盒
-    chrome_options.add_argument('--no-zygote')  # 禁用 zygote 進程
-    chrome_options.add_argument('--single-process')  # 單進程模式
-    chrome_options.add_argument('--disable-dev-tools')  # 禁用 DevTools
-    chrome_options.add_argument('--disable-features=NetworkService,IsolateOrigins')  # 禁用網絡服務和隔離
+    chrome_options.add_argument('--disable-gpu-sandbox')  # 禁用 GPU 沙盒
+    chrome_options.add_argument('--disable-background-networking')  # 禁用後台網絡
+    chrome_options.add_argument('--disable-renderer-backgrounding')  # 禁用渲染器後台
     chrome_options.add_argument('--disable-blink-features=AutomationControlled')  # 繞過自動化檢測
     chrome_options.binary_location = '/snap/bin/chromium'
     return chrome_options
@@ -204,7 +202,7 @@ def process_download_housekeep():
             time.sleep(1)
 
             # 輸入內文（HKT 時間，格式 MM:DD XX:XX）
-            current_time = datetime.now(hkt).strftime("%m:%d %H:%M")  # 例如 07:24 10:20
+            current_time = datetime.now(hkt).strftime("%m:%d %H:%M")  # 例如 07:24 10:30
             print(f"Download Housekeep: 輸入內文，格式為 {current_time} (HKT)", flush=True)
             body_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='body']")))
             body_field.clear()
