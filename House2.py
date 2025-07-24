@@ -7,7 +7,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException
+from selenium.common.exceptions import TimeoutException, StaleElementReferenceException
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.chrome.service import Service
 
@@ -125,7 +125,7 @@ def navigate_to_housekeep_report(driver):
         raise
 
 def download_housekeep_report(driver):
-    wait = WebDriverWait(driver, 60)  # 增加等待時間
+    wait = WebDriverWait(driver, 60)
     try:
         navigate_to_housekeep_report(driver)
 
@@ -169,33 +169,55 @@ def download_housekeep_report(driver):
 
         print("Download Housekeep: 查找並點擊所有 Email Excel checkbox...", flush=True)
         try:
-            # 確保表格完全加載
             wait.until(EC.presence_of_all_elements_located((By.XPATH, "//tbody/tr")))
             driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-            checkboxes = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//tbody/tr/td[6]//input[@type='checkbox']")))
-            print(f"Download Housekeep: 找到 {len(checkboxes)} 個 Email Excel checkbox", flush=True)
-
             any_checked = False
-            for index, checkbox in enumerate(checkboxes, 1):
-                is_enabled = checkbox.is_enabled()
-                is_selected = checkbox.is_selected()
-                print(f"Download Housekeep: Checkbox {index} 狀態 - 啟用: {is_enabled}, 已選中: {is_selected}", flush=True)
-                
-                if is_enabled and not is_selected:
-                    try:
+            for index in range(1, 7):  # 假設最多 6 個 checkbox
+                try:
+                    checkboxes = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//tbody/tr/td[6]//input[@type='checkbox']")))
+                    if index > len(checkboxes):
+                        break
+                    checkbox = checkboxes[index - 1]
+                    is_enabled = checkbox.is_enabled()
+                    is_selected = driver.execute_script("return arguments[0].checked;", checkbox)
+                    print(f"Download Housekeep: Checkbox {index} 狀態 - 啟用: {is_enabled}, 已選中: {is_selected}", flush=True)
+                    
+                    if is_enabled and not is_selected:
                         driver.execute_script("arguments[0].scrollIntoView(true);", checkbox)
-                        checkbox.click()
-                        print(f"Download Housekeep: Checkbox {index} 點擊成功", flush=True)
-                        any_checked = True
-                    except Exception as e:
-                        print(f"Download Housekeep: Checkbox {index} 點擊失敗，嘗試 JavaScript 點擊: {str(e)}", flush=True)
-                        driver.execute_script("arguments[0].click();", checkbox)
-                        print(f"Download Housekeep: Checkbox {index} JavaScript 點擊成功", flush=True)
-                        any_checked = True
-                else:
-                    print(f"Download Housekeep: Checkbox {index} 已選中或不可點擊，跳過", flush=True)
-                    if is_selected:
-                        any_checked = True
+                        driver.execute_script("arguments[0].checked = true;", checkbox)
+                        is_selected_after = driver.execute_script("return arguments[0].checked;", checkbox)
+                        if is_selected_after:
+                            print(f"Download Housekeep: Checkbox {index} 設置成功", flush=True)
+                            any_checked = True
+                        else:
+                            print(f"Download Housekeep: Checkbox {index} 設置失敗，未選中", flush=True)
+                    else:
+                        print(f"Download Housekeep: Checkbox {index} 已選中或不可點擊，跳過", flush=True)
+                        if is_selected:
+                            any_checked = True
+                except StaleElementReferenceException:
+                    print(f"Download Housekeep: Checkbox {index} 遇到 StaleElementReferenceException，重新查找...", flush=True)
+                    checkboxes = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//tbody/tr/td[6]//input[@type='checkbox']")))
+                    if index > len(checkboxes):
+                        break
+                    checkbox = checkboxes[index - 1]
+                    is_enabled = checkbox.is_enabled()
+                    is_selected = driver.execute_script("return arguments[0].checked;", checkbox)
+                    print(f"Download Housekeep: Checkbox {index} 狀態 (重新查找) - 啟用: {is_enabled}, 已選中: {is_selected}", flush=True)
+                    
+                    if is_enabled and not is_selected:
+                        driver.execute_script("arguments[0].scrollIntoView(true);", checkbox)
+                        driver.execute_script("arguments[0].checked = true;", checkbox)
+                        is_selected_after = driver.execute_script("return arguments[0].checked;", checkbox)
+                        if is_selected_after:
+                            print(f"Download Housekeep: Checkbox {index} 設置成功 (重新查找)", flush=True)
+                            any_checked = True
+                        else:
+                            print(f"Download Housekeep: Checkbox {index} 設置失敗 (重新查找)，未選中", flush=True)
+                    else:
+                        print(f"Download Housekeep: Checkbox {index} 已選中或不可點擊 (重新查找)，跳過", flush=True)
+                        if is_selected:
+                            any_checked = True
 
             if not any_checked:
                 print("Download Housekeep: 無任何 Checkbox 被選中，可能影響 Email 按鈕", flush=True)
@@ -209,26 +231,29 @@ def download_housekeep_report(driver):
             if checkboxes:
                 any_checked = False
                 for index, checkbox in enumerate(checkboxes, 1):
-                    is_enabled = checkbox.is_enabled()
-                    is_selected = checkbox.is_selected()
-                    print(f"Download Housekeep: Checkbox {index} 狀態 (備用定位) - 啟用: {is_enabled}, 已選中: {is_selected}", flush=True)
-                    
-                    if is_enabled and not is_selected:
-                        try:
+                    try:
+                        is_enabled = checkbox.is_enabled()
+                        is_selected = driver.execute_script("return arguments[0].checked;", checkbox)
+                        print(f"Download Housekeep: Checkbox {index} 狀態 (備用定位) - 啟用: {is_enabled}, 已選中: {is_selected}", flush=True)
+                        
+                        if is_enabled and not is_selected:
                             driver.execute_script("arguments[0].scrollIntoView(true);", checkbox)
-                            checkbox.click()
-                            print(f"Download Housekeep: Checkbox {index} 點擊成功 (備用定位)", flush=True)
-                            any_checked = True
-                        except Exception as e:
-                            print(f"Download Housekeep: Checkbox {index} 點擊失敗 (備用定位)，嘗試 JavaScript 點擊: {str(e)}", flush=True)
-                            driver.execute_script("arguments[0].click();", checkbox)
-                            print(f"Download Housekeep: Checkbox {index} JavaScript 點擊成功 (備用定位)", flush=True)
-                            any_checked = True
-                    else:
-                        print(f"Download Housekeep: Checkbox {index} 已選中或不可點擊 (備用定位)，跳過", flush=True)
-                        if is_selected:
-                            any_checked = True
-                            
+                            driver.execute_script("arguments[0].checked = true;", checkbox)
+                            is_selected_after = driver.execute_script("return arguments[0].checked;", checkbox)
+                            if is_selected_after:
+                                print(f"Download Housekeep: Checkbox {index} 設置成功 (備用定位)", flush=True)
+                                any_checked = True
+                            else:
+                                print(f"Download Housekeep: Checkbox {index} 設置失敗 (備用定位)，未選中", flush=True)
+                        else:
+                            print(f"Download Housekeep: Checkbox {index} 已選中或不可點擊 (備用定位)，跳過", flush=True)
+                            if is_selected:
+                                any_checked = True
+                    except StaleElementReferenceException:
+                        print(f"Download Housekeep: Checkbox {index} 遇到 StaleElementReferenceException (備用定位)，任務中止", flush=True)
+                        with open("page_source.html", "w", encoding="utf-8") as f:
+                            f.write(driver.page_source)
+                        return
                 if not any_checked:
                     print("Download Housekeep: 無任何 Checkbox 被選中 (備用定位)，可能影響 Email 按鈕", flush=True)
                     with open("page_source.html", "w", encoding="utf-8") as f:
