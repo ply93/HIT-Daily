@@ -166,7 +166,7 @@ def navigate_to_housekeep_report(driver):
         raise
 
 def download_housekeep_report(driver):
-    wait = WebDriverWait(driver, 90)  # 增加等待時間
+    wait = WebDriverWait(driver, 90)
     try:
         navigate_to_housekeep_report(driver)
 
@@ -210,10 +210,10 @@ def download_housekeep_report(driver):
 
         # 嘗試點擊 Search 按鈕（如果存在）
         try:
-            search_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[@title='Search'] | //*[contains(@class, 'MuiIconButton-root')][@title='Search']")))
+            search_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[@title='Search'] | //button[contains(text(), 'Search')] | //button[@aria-label='Search']")))
             driver.execute_script("arguments[0].click();", search_button)
             print("Download Housekeep: Search 按鈕點擊成功", flush=True)
-            time.sleep(3)  # 等待表格刷新
+            time.sleep(5)  # 等待表格刷新
         except TimeoutException:
             print("Download Housekeep: 未找到 Search 按鈕，跳過", flush=True)
 
@@ -221,7 +221,7 @@ def download_housekeep_report(driver):
         try:
             wait.until(EC.presence_of_all_elements_located((By.XPATH, "//tbody/tr")))
             driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-            time.sleep(2)  # 等待表格穩定
+            time.sleep(2)
             any_checked = False
             for index in range(1, 7):
                 try:
@@ -344,17 +344,17 @@ def download_housekeep_report(driver):
 
         print("Download Housekeep: 點擊 Email 按鈕...", flush=True)
         try:
-            email_button = wait.until(EC.presence_of_element_located((By.XPATH, "//button[@title='Email'] | //*[contains(@class, 'MuiIconButton-root')][@title='Email']")))
+            email_button = wait.until(EC.presence_of_element_located((By.XPATH, "//button[@title='Email'] | //*[contains(@class, 'MuiIconButton-root')][@title='Email'] | //button[descendant::path[@fill='#0080ff']]")))
             is_disabled = email_button.get_attribute("disabled")
             print(f"Download Housekeep: Email 按鈕狀態 - 禁用: {is_disabled}", flush=True)
             if is_disabled:
                 print("Download Housekeep: Email 按鈕被禁用，嘗試點擊 Search 按鈕...", flush=True)
                 try:
-                    search_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[@title='Search'] | //*[contains(@class, 'MuiIconButton-root')][@title='Search']")))
+                    search_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[@title='Search'] | //button[contains(text(), 'Search')] | //button[@aria-label='Search']")))
                     driver.execute_script("arguments[0].click();", search_button)
                     print("Download Housekeep: Search 按鈕點擊成功", flush=True)
-                    time.sleep(3)
-                    email_button = wait.until(EC.presence_of_element_located((By.XPATH, "//button[@title='Email'] | //*[contains(@class, 'MuiIconButton-root')][@title='Email']")))
+                    time.sleep(5)
+                    email_button = wait.until(EC.presence_of_element_located((By.XPATH, "//button[@title='Email'] | //*[contains(@class, 'MuiIconButton-root')][@title='Email'] | //button[descendant::path[@fill='#0080ff']]")))
                     is_disabled = email_button.get_attribute("disabled")
                     print(f"Download Housekeep: Email 按鈕狀態 (再次檢查) - 禁用: {is_disabled}", flush=True)
                     if is_disabled:
@@ -367,7 +367,7 @@ def download_housekeep_report(driver):
                     with open("page_source.html", "w", encoding="utf-8") as f:
                         f.write(driver.page_source)
                     return
-            wait.until(EC.element_to_be_clickable((By.XPATH, "//button[@title='Email'] | //*[contains(@class, 'MuiIconButton-root')][@title='Email']")))
+            wait.until(EC.element_to_be_clickable((By.XPATH, "//button[@title='Email'] | //*[contains(@class, 'MuiIconButton-root')][@title='Email'] | //button[descendant::path[@fill='#0080ff']]")))
             driver.execute_script("arguments[0].scrollIntoView(true);", email_button)
             email_button.click()
             print("Download Housekeep: Email 按鈕點擊成功", flush=True)
@@ -447,7 +447,7 @@ def main():
                     driver.execute_script("arguments[0].click();", logout_option)
                     print("Download Housekeep: Logout 選項點擊成功", flush=True)
 
-                    time.sleep(3)
+                    time.sleep(5)
                     final_url = driver.current_url
                     print(f"Download Housekeep: 登出後 URL: {final_url}", flush=True)
                 except TimeoutException:
