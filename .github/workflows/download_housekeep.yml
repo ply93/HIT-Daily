@@ -17,9 +17,9 @@ jobs:
         path: |
           ~/.cache/pip
           ~/.wdm
-        key: ${{ runner.os }}-pip-chromium-wdm-v4-${{ hashFiles('**/requirements.txt') }}
+        key: ${{ runner.os }}-pip-chromium-wdm-v5-${{ hashFiles('**/requirements.txt') }}
         restore-keys: |
-          ${{ runner.os }}-pip-chromium-wdm-v4-
+          ${{ runner.os }}-pip-chromium-wdm-v5-
 
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -62,4 +62,5 @@ jobs:
       env:
         SITE_PASSWORD: ${{ secrets.SITE_PASSWORD }}
         LIBGL_ALWAYS_SOFTWARE: 1
+        XDG_RUNTIME_DIR: /tmp
       run: python download_housekeep.py
