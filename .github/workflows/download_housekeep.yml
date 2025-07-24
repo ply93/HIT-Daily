@@ -17,9 +17,9 @@ jobs:
         path: |
           ~/.cache/pip
           ~/.wdm
-        key: ${{ runner.os }}-pip-chromium-wdm-v5-${{ hashFiles('**/requirements.txt') }}
+        key: ${{ runner.os }}-pip-chromium-wdm-v6-${{ hashFiles('**/requirements.txt') }}
         restore-keys: |
-          ${{ runner.os }}-pip-chromium-wdm-v5-
+          ${{ runner.os }}-pip-chromium-wdm-v6-
 
     - name: Set up Python
       uses: actions/setup-python@v5
