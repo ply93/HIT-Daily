@@ -18,9 +18,9 @@ jobs:
           ~/.cache/pip
           ~/.wdm
           ~/chromium-bin
-        key: ${{ runner.os }}-pip-chromium-wdm-${{ hashFiles('**/requirements.txt') }}
+        key: ${{ runner.os }}-pip-chromium-wdm-v2-${{ hashFiles('**/requirements.txt') }}
         restore-keys: |
-          ${{ runner.os }}-pip-chromium-wdm-
+          ${{ runner.os }}-pip-chromium-wdm-v2-
 
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -29,7 +29,7 @@ jobs:
 
     - name: Install dependencies
       run: |
-        pip install --no-cache-dir selenium webdriver-manager pytz
+        pip install --no-cache-dir selenium webdriver-manager==4.0.2 pytz
         sudo apt-get update -qq
         sudo apt-get install -y chromium-browser libnss3 libfontconfig1 libx11-6 libxcomposite1 libxcursor1 libxi6 libxtst6 libxrandr2 unzip
         sudo snap install chromium
