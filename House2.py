@@ -94,7 +94,7 @@ def login_cplus(driver, company_code, user_id, password):
         # 等待頁面加載完成
         try:
             wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
-            time.sleep(3)  # 額外等待確保頁面穩定
+            time.sleep(3)
         except TimeoutException:
             print("CPLUS: 頁面加載超時，嘗試刷新頁面...", flush=True)
             driver.refresh()
@@ -314,3 +314,132 @@ def download_housekeep_report(driver):
                             print(f"Download Housekeep: Checkbox {index} 已選中或不可點擊 (備用定位)，跳過", flush=True)
                             if is_selected:
                                 any_checked = True
+                    except StaleElementReferenceException:
+                        print(f"Download Housekeep: Checkbox {index} 遇到 StaleElementReferenceException (備用定位)，任務中止", flush=True)
+                        with open("page_source.html", "w", encoding="utf-8") as f:
+                            f.write(driver.page_source)
+                        return
+                if not any_checked:
+                    print("Download Housekeep: 無任何 Checkbox 被選中 (備用定位)，可能影響 Email 按鈕", flush=True)
+                    with open("page_source.html", "w", encoding="utf-8") as f:
+                        f.write(driver.page_source)
+            else:
+                print("Download Housekeep: 備用定位也未找到 checkbox，任務中止", flush=True)
+                print(f"當前 URL: {driver.current_url}", flush=True)
+                print(f"頁面 HTML (前500字符): {driver.page_source[:500]}", flush=True)
+                with open("page_source.html", "w", encoding="utf-8") as f:
+                    f.write(driver.page_source)
+                return
+
+        print("Download Housekeep: 點擊 Email 按鈕...", flush=True)
+        try:
+            email_button = wait.until(EC.presence_of_element_located((By.XPATH, "//button[@title='Email'] | //*[contains(@class, 'MuiIconButton-root')][@title='Email']")))
+            is_disabled = email_button.get_attribute("disabled")
+            print(f"Download Housekeep: Email 按鈕狀態 - 禁用: {is_disabled}", flush=True)
+            if is_disabled:
+                print("Download Housekeep: Email 按鈕被禁用，可能需要額外條件", flush=True)
+                with open("page_source.html", "w", encoding="utf-8") as f:
+                    f.write(driver.page_source)
+                return
+            wait.until(EC.element_to_be_clickable((By.XPATH, "//button[@title='Email'] | //*[contains(@class, 'MuiIconButton-root')][@title='Email']")))
+            driver.execute_script("arguments[0].scrollIntoView(true);", email_button)
+            email_button.click()
+            print("Download Housekeep: Email 按鈕點擊成功", flush=True)
+
+            target_email = os.environ.get('TARGET_EMAIL', 'paklun@ckline.com.hk')
+            print("Download Housekeep: 輸入目標 Email 地址...", flush=True)
+            email_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='to'] | //input[@id='to']")))
+            email_field.clear()
+            email_field.send_keys(target_email)
+            print("Download Housekeep: Email 地址輸入完成", flush=True)
+
+            current_time = datetime.now().strftime("%m:%d %H:%M")
+            print(f"Download Housekeep: 輸入內文，格式為 {current_time}", flush=True)
+            body_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='body'] | //textarea[@id='body']")))
+            body_field.clear()
+            body_field.send_keys(current_time)
+            print("Download Housekeep: 內文輸入完成", flush=True)
+
+            print("Download Housekeep: 點擊 Confirm 按鈕...", flush=True)
+            confirm_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='EmailDialog']//button[contains(text(), 'Confirm')] | //*[@id='EmailDialog']//button[@type='submit']")))
+            driver.execute_script("arguments[0].click();", confirm_button)
+            print("Download Housekeep: Confirm 按鈕點擊成功", flush=True)
+        except TimeoutException as e:
+            print(f"Download Housekeep: Email 處理失敗: {str(e)}", flush=True)
+            print(f"當前 URL: {driver.current_url}", flush=True)
+            print(f"頁面 HTML (前500字符): {driver.page_source[:500]}", flush=True)
+            with open("page_source.html", "w", encoding="utf-8") as f:
+                f.write(driver.page_source)
+            return
+    except Exception as e:
+        print(f"Download Housekeep: 錯誤: {str(e)}", flush=True)
+        print(f"當前 URL: {driver.current_url}", flush=True)
+        print(f"頁面 HTML (前500字符): {driver.page_source[:500]}", flush=True)
+        with open("page_source.html", "w", encoding="utf-8") as f:
+            f.write(driver.page_source)
+        return
+
+def main():
+    setup_environment()
+    chromedriver_path = check_chromium_compatibility()
+    driver = None
+    try:
+        driver = webdriver.Chrome(service=Service(chromedriver_path), options=get_chrome_options())
+        driver.set_page_load_timeout(90)
+        print("CPLUS WebDriver 初始化成功", flush=True)
+
+        company_code = os.environ.get('COMPANY_CODE', 'CKL')
+        user_id = os.environ.get('USER_ID', 'KEN')
+        password = os.environ.get('SITE_PASSWORD')
+        if not password:
+            raise ValueError("環境變量 SITE_PASSWORD 未設置")
+
+        login_cplus(driver, company_code, user_id, password)
+        download_housekeep_report(driver)
+
+    except Exception as e:
+        print(f"Download Housekeep 錯誤: {str(e)}", flush=True)
+    finally:
+        if driver:
+            try:
+                print("Download Housekeep: 嘗試登出...", flush=True)
+                try:
+                    WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
+                    print("Download Housekeep: 檢測到登出按鈕，假設已登錄", flush=True)
+                except TimeoutException:
+                    print("Download Housekeep: 未檢測到登出按鈕，假設未登錄，跳過登出", flush=True)
+                    driver.quit()
+                    print("Download Housekeep WebDriver 關閉", flush=True)
+                    return
+
+                logout_menu_button = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
+                driver.execute_script("arguments[0].click();", logout_menu_button)
+                print("Download Housekeep: 登錄按鈕點擊成功", flush=True)
+
+                try:
+                    logout_option = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='menu-list-grow']/div[6]/li")))
+                    driver.execute_script("arguments[0].click();", logout_option)
+                    print("Download Housekeep: Logout 選項點擊成功", flush=True)
+
+                    try:
+                        confirm_button = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='logout']//button[contains(text(), 'Close')]")))
+                        driver.execute_script("arguments[0].click();", confirm_button)
+                        print("Download Housekeep: 登出確認框關閉成功", flush=True)
+                    except TimeoutException:
+                        print("Download Housekeep: 未找到登出確認框，假設登出已完成", flush=True)
+
+                    time.sleep(3)
+                    final_url = driver.current_url
+                    print(f"Download Housekeep: 登出後 URL: {final_url}", flush=True)
+                    if "login" not in final_url.lower() and "frontpage" not in final_url.lower():
+                        print("Download Housekeep: 登出可能未成功，當前 URL 未跳轉到登錄頁面", flush=True)
+                except TimeoutException:
+                    print("Download Housekeep: 登出選項未找到，跳過登出", flush=True)
+            except Exception as logout_error:
+                print(f"Download Housekeep: 登出失敗: {str(logout_error)}", flush=True)
+            driver.quit()
+            print("Download Housekeep WebDriver 關閉", flush=True)
+
+if __name__ == "__main__":
+    main()
+    print("Download Housekeep 腳本完成", flush=True)
