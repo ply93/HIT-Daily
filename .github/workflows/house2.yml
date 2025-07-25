@@ -11,7 +11,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Cache dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cache/pip
@@ -48,11 +48,14 @@ jobs:
       - name: Run Download Script
         env:
           SITE_PASSWORD: ${{ secrets.SITE_PASSWORD }}
-        run: python house2.py
+          COMPANY_CODE: CKL
+          USER_ID: KEN
+          TARGET_EMAIL: paklun@ckline.com.hk
+        run: python House2.py
 
       - name: Upload screenshots as artifact
         if: always()  # 確保即使腳本失敗也上傳 artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: screenshots
           path: screenshots_*.zip
