@@ -75,8 +75,18 @@ def wait_for_new_file(initial_files, timeout=5):
         new_files = current_files - initial_files
         if new_files:
             return new_files
-        time.sleep(0.5)  # 快速檢查間隔
+        time.sleep(0.2)  # 縮短檢查間隔
     return set()
+
+# 文件重命名（防止衝突）
+def rename_file_if_exists(file_path):
+    base, ext = os.path.splitext(file_path)
+    counter = 1
+    new_file_path = file_path
+    while os.path.exists(new_file_path):
+        new_file_path = f"{base}_{counter}{ext}"
+        counter += 1
+    return new_file_path
 
 # CPLUS 操作
 def process_cplus():
@@ -154,21 +164,13 @@ def process_cplus():
                 search_button = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Search')]")))
                 ActionChains(driver).move_to_element(search_button).click().perform()
                 print("CPLUS: 備用 Search 按鈕 2 點擊成功", flush=True)
-        time.sleep(0.5)  # 短暫延遲確保點擊處理
+        time.sleep(0.5)
 
         # 點擊 Download (CPLUS)
         print("CPLUS: 點擊 Download...", flush=True)
         download_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[2]/div/div[2]/div/div[1]/div[1]/button")))
         ActionChains(driver).move_to_element(download_button).click().perform()
-        print("CPLUS: Download 按鈕點擊成功 (ActionChains)", flush=True)
-        time.sleep(0.5)  # 短暫延遲
-
-        # 備用 JavaScript 點擊
-        try:
-            driver.execute_script("arguments[0].click();", download_button)
-            print("CPLUS: Download 按鈕點擊成功 (JavaScript)", flush=True)
-        except Exception as js_e:
-            print(f"CPLUS: Download 按鈕 JavaScript 點擊失敗: {str(js_e)}", flush=True)
+        print("CPLUS: Download 按鈕點擊成功", flush=True)
         time.sleep(0.5)
 
         # 檢查新文件
@@ -259,7 +261,7 @@ def process_cplus():
                 # 確保按鈕可點擊
                 button = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, f"(//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button[not(@disabled)])[{idx+1}]")))
                 driver.execute_script("arguments[0].scrollIntoView(true);", button)
-                time.sleep(0.5)  # 短暫延遲確保點擊處理
+                time.sleep(0.5)
 
                 # 記錄報告名稱
                 try:
@@ -270,25 +272,15 @@ def process_cplus():
 
                 # ActionChains 點擊
                 ActionChains(driver).move_to_element(button).pause(0.5).click().perform()
-                print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕點擊成功 (ActionChains)", flush=True)
-                time.sleep(0.5)
+                print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕點擊成功", flush=True)
 
                 # 檢查新文件
                 new_files = wait_for_new_file(initial_files, timeout=5)
                 if new_files:
                     print(f"CPLUS: 第 {idx+1} 個按鈕下載新文件: {', '.join(new_files)}", flush=True)
                     initial_files.update(new_files)
-
-                # 備用 JavaScript 點擊
-                try:
-                    driver.execute_script("arguments[0].click();", button)
-                    print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕點擊成功 (JavaScript)", flush=True)
-                    new_files = wait_for_new_file(initial_files, timeout=5)
-                    if new_files:
-                        print(f"CPLUS: 第 {idx+1} 個按鈕下載新文件 (JavaScript): {', '.join(new_files)}", flush=True)
-                        initial_files.update(new_files)
-                except Exception as js_e:
-                    print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 JavaScript 點擊失敗: {str(js_e)}", flush=True)
+                else:
+                    print(f"CPLUS: 第 {idx+1} 個按鈕未觸發新文件下載", flush=True)
 
             except ElementClickInterceptedException as e:
                 print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕點擊被攔截: {str(e)}", flush=True)
@@ -298,14 +290,17 @@ def process_cplus():
                 print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕點擊失敗: {str(e)}", flush=True)
 
         # 最終檢查下載文件
-        new_files = wait_for_new_file(initial_files, timeout=10)  # 最終檢查最多 10 秒
-        if new_files:
-            print(f"CPLUS: Housekeeping Reports Excel 文件下載完成，檔案位於: {download_dir}", flush=True)
-            for file in new_files:
-                print(f"CPLUS: 新下載檔案: {file}", flush=True)
-            initial_files.update(new_files)
+        downloaded_files = [f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx'))]
+        if downloaded_files:
+            print(f"CPLUS: Housekeeping Reports 下載完成，檔案位於: {download_dir}", flush=True)
+            for file in downloaded_files:
+                if file in initial_files:
+                    print(f"CPLUS: 已有檔案: {file}", flush=True)
+                else:
+                    print(f"CPLUS: 新下載檔案: {file}", flush=True)
+                    initial_files.add(file)
         else:
-            print("CPLUS: Housekeeping Reports Excel 文件下載失敗，無新文件", flush=True)
+            print("CPLUS: Housekeeping Reports 未下載任何文件", flush=True)
 
     except Exception as e:
         print(f"CPLUS 錯誤: {str(e)}", flush=True)
@@ -334,12 +329,13 @@ def process_cplus():
             driver.quit()
             print("CPLUS WebDriver 關閉", flush=True)
 
-# Barge 操作（保持不變）
+# Barge 操作
 def process_barge():
     driver = None
     try:
         driver = webdriver.Chrome(options=get_chrome_options())
         print("Barge WebDriver 初始化成功", flush=True)
+        driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")  # 隱藏自動化標誌
 
         # 前往登入頁面 (Barge)
         print("Barge: 嘗試打開網站 https://barge.oneport.com/bargeBooking...", flush=True)
@@ -418,6 +414,7 @@ def process_barge():
             print(f"Barge: Container Detail 下載完成，檔案位於: {download_dir}", flush=True)
             for file in new_files:
                 print(f"Barge: 新下載檔案: {file}", flush=True)
+            initial_files.update(new_files)
         else:
             print("Barge: Container Detail 未觸發新文件下載", flush=True)
 
@@ -435,15 +432,19 @@ def process_barge():
 
         print("Barge: 點擊 Logout 選項...", flush=True)
         try:
-            logout_button_barge = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='mat-menu-panel-11]/div/button/span")))
+            logout_button_barge = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='mat-menu-panel-11']/div/button/span")))
             driver.execute_script("arguments[0].scrollIntoView(true);", logout_button_barge)
             time.sleep(0.5)
             ActionChains(driver).move_to_element(logout_button_barge).click().perform()
             print("Barge: Logout 選項點擊成功", flush=True)
         except TimeoutException:
             print("Barge: Logout 選項未找到，嘗試備用定位...", flush=True)
-            raise
-
+            try:
+                logout_button_barge = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Logout')]")))
+                ActionChains(driver).move_to_element(logout_button_barge).click().perform()
+                print("Barge: 備用 Logout 選項點擊成功", flush=True)
+            except TimeoutException:
+                print("Barge: 備用 Logout 選項未找到，跳過登出", flush=True)
         time.sleep(2)
 
     except Exception as e:
@@ -471,13 +472,7 @@ if __name__ == "__main__":
 
     # 最終檢查所有下載文件
     print("檢查所有下載文件...", flush=True)
-    initial_files = set()
-    start_time = time.time()
-    while time.time() - start_time < 10:  # 最終檢查最多 10 秒
-        downloaded_files = [f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx'))]
-        if downloaded_files:
-            break
-        time.sleep(0.5)
+    downloaded_files = [f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx'))]
     if downloaded_files:
         print(f"所有下載完成，檔案位於: {download_dir}", flush=True)
         for file in downloaded_files:
@@ -502,13 +497,17 @@ if __name__ == "__main__":
             body = "Attached are the daily reports downloaded from CPLUS (Container Movement Log, OnHand Container List, and Housekeeping Reports) and Barge (Container Detail)."
             msg.attach(MIMEText(body, 'plain'))
 
-            # 添加附件
+            # 添加附件並檢查重命名
             for file in downloaded_files:
                 file_path = os.path.join(download_dir, file)
+                new_file_path = rename_file_if_exists(file_path)
+                if new_file_path != file_path:
+                    os.rename(file_path, new_file_path)
+                    print(f"重命名文件: {file} -> {os.path.basename(new_file_path)}", flush=True)
                 attachment = MIMEBase('application', 'octet-stream')
-                attachment.set_payload(open(file_path, 'rb').read())
+                attachment.set_payload(open(new_file_path, 'rb').read())
                 encoders.encode_base64(attachment)
-                attachment.add_header('Content-Disposition', f'attachment; filename={file}')
+                attachment.add_header('Content-Disposition', f'attachment; filename={os.path.basename(new_file_path)}')
                 msg.attach(attachment)
 
             # 連接 SMTP 伺服器並發送
