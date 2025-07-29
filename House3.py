@@ -13,7 +13,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException
+from selenium.common.exceptions import TimeoutException, ElementClickInterceptedException
 from webdriver_manager.chrome import ChromeDriverManager
 
 # 全局變量
@@ -22,7 +22,7 @@ if not os.path.exists(download_dir):
     os.makedirs(download_dir)
     print(f"創建下載目錄: {download_dir}", flush=True)
 
-# 確保環境準備
+# 確保 Tesco 確保環境準備
 def setup_environment():
     try:
         result = subprocess.run(['which', 'chromium-browser'], capture_output=True, text=True)
@@ -225,29 +225,95 @@ def process_cplus():
         time.sleep(2)
         wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
         print("CPLUS: Housekeeping Reports 頁面加載完成", flush=True)
-        time.sleep(5)  # 額外等待表格加載
 
-        # 定位所有 Excel 下載按鈕 (基於提供的 HTML 中的類別 jss198)
+        # 設置過濾條件
+        print("CPLUS: 設置 Housekeeping Reports 過濾條件...", flush=True)
+        try:
+            # 輸入 Owner
+            owner_field = wait.until(EC.presence_of_element_located((By.XPATH, "//input[@id='owners']")))
+            owner_field.clear()
+            owner_field.send_keys("CKL")
+            print("CPLUS: Owner 輸入完成", flush=True)
+            time.sleep(1)
+
+            # 輸入 From 日期（當前日期）
+            current_date = datetime.now().strftime("%d/%m/%Y")
+            from_field = wait.until(EC.presence_of_element_located((By.XPATH, "//input[@id='from']")))
+            from_field.clear()
+            from_field.send_keys(current_date)
+            print(f"CPLUS: From 日期輸入完成: {current_date}", flush=True)
+            time.sleep(1)
+
+            # 輸入 To 日期（當前日期）
+            to_field = wait.until(EC.presence_of_element_located((By.XPATH, "//input[@id='to']")))
+            to_field.clear()
+            to_field.send_keys(current_date)
+            print(f"CPLUS: To 日期輸入完成: {current_date}", flush=True)
+            time.sleep(1)
+
+            # 選擇 Report Type (ALL)
+            report_type_field = wait.until(EC.element_to_be_clickable((By.XPATH, "//input[@id='reportType']/ancestor::div[contains(@class, 'MuiAutocomplete-root')]")))
+            report_type_field.click()
+            time.sleep(1)
+            all_option = wait.until(EC.element_to_be_clickable((By.XPATH, "//div[contains(@class, 'MuiAutocomplete-option') and contains(text(), '(ALL)')]")))
+            all_option.click()
+            print("CPLUS: Report Type 選擇 (ALL) 完成", flush=True)
+            time.sleep(1)
+
+            # 點擊 Search 按鈕
+            search_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Search')]")))
+            driver.execute_script("arguments[0].scrollIntoView(true);", search_button)
+            search_button.click()
+            print("CPLUS: Housekeeping Reports Search 按鈕點擊成功", flush=True)
+            time.sleep(5)  # 等待表格加載
+
+        except TimeoutException as e:
+            print(f"CPLUS: 設置過濾條件失敗: {str(e)}", flush=True)
+
+        # 確保表格加載完成
+        print("CPLUS: 等待表格加載...", flush=True)
+        try:
+            wait.until(EC.presence_of_element_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
+            print("CPLUS: 表格加載完成", flush=True)
+        except TimeoutException:
+            print("CPLUS: 表格未加載，跳過下載步驟", flush=True)
+            return
+
+        # 定位並點擊所有 Excel 下載按鈕
         print("CPLUS: 定位並點擊所有 Excel 下載按鈕...", flush=True)
         excel_buttons = driver.find_elements(By.XPATH, "//svg[contains(@class, 'jss198')]/ancestor::button")
+        initial_file_count = len([f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx'))])
+        button_count = len(excel_buttons)
+        print(f"CPLUS: 找到 {button_count} 個 Excel 下載按鈕", flush=True)
+
         for idx, button in enumerate(excel_buttons):
             try:
-                button.click()
-                print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕點擊成功", flush=True)
+                # 確保按鈕可見且可點擊
+                driver.execute_script("arguments[0].scrollIntoView(true);", button)
+                time.sleep(1)
+                if button.is_enabled():
+                    button.click()
+                    print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕點擊成功", flush=True)
+                else:
+                    print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕被禁用，跳過", flush=True)
                 time.sleep(5)  # 等待每個下載開始
+            except ElementClickInterceptedException as e:
+                print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕點擊被攔截: {str(e)}", flush=True)
             except Exception as e:
                 print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕點擊失敗: {str(e)}", flush=True)
 
         # 等待所有下載完成，檢查文件
         start_time = time.time()
-        while time.time() - start_time < 60:  # 延長等待時間，因為有多個文件
+        while time.time() - start_time < 90:  # 延長等待時間，因為有多個文件
             downloaded_files = [f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx'))]
-            if len(downloaded_files) >= len(excel_buttons) + 2:  # +2 因為之前已有兩個下載
+            if len(downloaded_files) > initial_file_count:  # 檢查是否有新文件
                 print(f"CPLUS: Housekeeping Reports Excel 文件下載完成，檔案位於: {download_dir}", flush=True)
                 for file in downloaded_files:
                     print(f"CPLUS: 找到檔案: {file}", flush=True)
                 break
             time.sleep(2)
+        else:
+            print("CPLUS: Housekeeping Reports Excel 文件下載失敗，無新文件", flush=True)
 
     except Exception as e:
         print(f"CPLUS 錯誤: {str(e)}", flush=True)
@@ -441,7 +507,7 @@ if __name__ == "__main__":
             smtp_port = 587
             sender_email = os.environ.get('ZOHO_EMAIL', 'paklun_ckline@zohomail.com')
             sender_password = os.environ.get('ZOHO_PASSWORD', '@d6G.Pie5UkEPqm')
-            receiver_email = 'paklun@ckline.com.hk'
+            receiver_email = 'ckeqc@ckline.com.hk'
 
             # 創建郵件
             msg = MIMEMultipart()
@@ -450,7 +516,7 @@ if __name__ == "__main__":
             msg['Subject'] = f"[TESTING] HIT DAILY {datetime.now().strftime('%Y-%m-%d')}"
 
             # 新增步驟：添加郵件正文
-            body = "Attached are the daily reports downloaded from CPLUS (Container Movement Log and OnHand Container List) and Barge (Container Detail)."
+            body = "Attached are the daily reports downloaded from CPLUS (Container Movement Log, OnHand Container List, and Housekeeping Reports) and Barge (Container Detail)."
             msg.attach(MIMEText(body, 'plain'))
 
             # 添加附件
