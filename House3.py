@@ -1,5 +1,6 @@
 import os
 import time
+import shutil
 import subprocess
 import threading
 from datetime import datetime
@@ -19,9 +20,10 @@ from webdriver_manager.chrome import ChromeDriverManager
 
 # 全局變量
 download_dir = os.path.abspath("downloads")
-if not os.path.exists(download_dir):
-    os.makedirs(download_dir)
-    print(f"創建下載目錄: {download_dir}", flush=True)
+if os.path.exists(download_dir):
+    shutil.rmtree(download_dir)  # 清空下載目錄
+os.makedirs(download_dir)
+print(f"創建下載目錄: {download_dir}", flush=True)
 
 # 確保環境準備
 def setup_environment():
@@ -68,25 +70,15 @@ def get_chrome_options():
     return chrome_options
 
 # 檢查新文件出現
-def wait_for_new_file(initial_files, timeout=5):
+def wait_for_new_file(initial_files, timeout=10):
     start_time = time.time()
     while time.time() - start_time < timeout:
         current_files = set(f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx')))
         new_files = current_files - initial_files
         if new_files:
             return new_files
-        time.sleep(0.2)  # 縮短檢查間隔
+        time.sleep(0.1)  # 縮短檢查間隔
     return set()
-
-# 文件重命名（防止衝突）
-def rename_file_if_exists(file_path):
-    base, ext = os.path.splitext(file_path)
-    counter = 1
-    new_file_path = file_path
-    while os.path.exists(new_file_path):
-        new_file_path = f"{base}_{counter}{ext}"
-        counter += 1
-    return new_file_path
 
 # CPLUS 操作
 def process_cplus():
@@ -173,8 +165,16 @@ def process_cplus():
         print("CPLUS: Download 按鈕點擊成功", flush=True)
         time.sleep(0.5)
 
+        # 備用 JavaScript 點擊
+        try:
+            driver.execute_script("arguments[0].click();", download_button)
+            print("CPLUS: Download 按鈕 JavaScript 點擊成功", flush=True)
+        except Exception as js_e:
+            print(f"CPLUS: Download 按鈕 JavaScript 點擊失敗: {str(js_e)}", flush=True)
+        time.sleep(0.5)
+
         # 檢查新文件
-        new_files = wait_for_new_file(initial_files, timeout=5)
+        new_files = wait_for_new_file(initial_files, timeout=10)
         if new_files:
             print(f"CPLUS: Container Movement Log 下載完成，檔案位於: {download_dir}", flush=True)
             for file in new_files:
@@ -218,7 +218,7 @@ def process_cplus():
         time.sleep(0.5)
 
         # 檢查新文件
-        new_files = wait_for_new_file(initial_files, timeout=5)
+        new_files = wait_for_new_file(initial_files, timeout=10)
         if new_files:
             print(f"CPLUS: OnHandContainerList 下載完成，檔案位於: {download_dir}", flush=True)
             for file in new_files:
@@ -270,17 +270,39 @@ def process_cplus():
                 except:
                     print(f"CPLUS: 無法獲取第 {idx+1} 個按鈕的報告名稱", flush=True)
 
-                # ActionChains 點擊
-                ActionChains(driver).move_to_element(button).pause(0.5).click().perform()
-                print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕點擊成功", flush=True)
+                # ActionChains 點擊（重試 2 次）
+                for attempt in range(2):
+                    try:
+                        ActionChains(driver).move_to_element(button).pause(0.5).click().perform()
+                        print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕點擊成功", flush=True)
+                        break
+                    except Exception as e:
+                        print(f"CPLUS: 第 {idx+1} 個按鈕點擊嘗試 {attempt+1} 失敗: {str(e)}", flush=True)
+                        time.sleep(0.5)
+                else:
+                    print(f"CPLUS: 第 {idx+1} 個按鈕點擊失敗，重試 2 次後放棄", flush=True)
+                    continue
 
                 # 檢查新文件
-                new_files = wait_for_new_file(initial_files, timeout=5)
+                new_files = wait_for_new_file(initial_files, timeout=10)
                 if new_files:
                     print(f"CPLUS: 第 {idx+1} 個按鈕下載新文件: {', '.join(new_files)}", flush=True)
                     initial_files.update(new_files)
                 else:
                     print(f"CPLUS: 第 {idx+1} 個按鈕未觸發新文件下載", flush=True)
+
+                # 備用 JavaScript 點擊
+                try:
+                    driver.execute_script("arguments[0].click();", button)
+                    print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 JavaScript 點擊成功", flush=True)
+                    new_files = wait_for_new_file(initial_files, timeout=10)
+                    if new_files:
+                        print(f"CPLUS: 第 {idx+1} 個按鈕下載新文件 (JavaScript): {', '.join(new_files)}", flush=True)
+                        initial_files.update(new_files)
+                    else:
+                        print(f"CPLUS: 第 {idx+1} 個按鈕 JavaScript 未觸發新文件下載", flush=True)
+                except Exception as js_e:
+                    print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 JavaScript 點擊失敗: {str(js_e)}", flush=True)
 
             except ElementClickInterceptedException as e:
                 print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕點擊被攔截: {str(e)}", flush=True)
@@ -409,7 +431,7 @@ def process_barge():
         time.sleep(0.5)
 
         # 檢查新文件
-        new_files = wait_for_new_file(initial_files, timeout=5)
+        new_files = wait_for_new_file(initial_files, timeout=10)
         if new_files:
             print(f"Barge: Container Detail 下載完成，檔案位於: {download_dir}", flush=True)
             for file in new_files:
@@ -491,23 +513,19 @@ if __name__ == "__main__":
             msg = MIMEMultipart()
             msg['From'] = sender_email
             msg['To'] = receiver_email
-            msg['Subject'] = f"[TESTING] HIT DAILY {datetime.now().strftime('%Y-%m-%d')}"
+            msg['Subject'] = f"[TESTING] HIT DAILY {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
 
             # 新增郵件正文
             body = "Attached are the daily reports downloaded from CPLUS (Container Movement Log, OnHand Container List, and Housekeeping Reports) and Barge (Container Detail)."
             msg.attach(MIMEText(body, 'plain'))
 
-            # 添加附件並檢查重命名
+            # 添加附件
             for file in downloaded_files:
                 file_path = os.path.join(download_dir, file)
-                new_file_path = rename_file_if_exists(file_path)
-                if new_file_path != file_path:
-                    os.rename(file_path, new_file_path)
-                    print(f"重命名文件: {file} -> {os.path.basename(new_file_path)}", flush=True)
                 attachment = MIMEBase('application', 'octet-stream')
-                attachment.set_payload(open(new_file_path, 'rb').read())
+                attachment.set_payload(open(file_path, 'rb').read())
                 encoders.encode_base64(attachment)
-                attachment.add_header('Content-Disposition', f'attachment; filename={os.path.basename(new_file_path)}')
+                attachment.add_header('Content-Disposition', f'attachment; filename={file}')
                 msg.attach(attachment)
 
             # 連接 SMTP 伺服器並發送
