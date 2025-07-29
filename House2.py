@@ -1,17 +1,28 @@
 import os
 import time
 import subprocess
-import shutil
+import threading
 from datetime import datetime
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email.mime.text import MIMEText
+from email import encoders
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, StaleElementReferenceException
+from selenium.common.exceptions import TimeoutException
 from webdriver_manager.chrome import ChromeDriverManager
-from selenium.webdriver.chrome.service import Service
 
+# 全局變量
+download_dir = os.path.abspath("downloads")
+if not os.path.exists(download_dir):
+    os.makedirs(download_dir)
+    print(f"創建下載目錄: {download_dir}", flush=True)
+
+# 確保環境準備
 def setup_environment():
     try:
         result = subprocess.run(['which', 'chromium-browser'], capture_output=True, text=True)
@@ -32,26 +43,7 @@ def setup_environment():
         print(f"環境準備失敗: {e}", flush=True)
         raise
 
-def check_chromium_compatibility():
-    try:
-        result = subprocess.run(['chromium-browser', '--version'], capture_output=True, text=True, check=True)
-        chromium_version = result.stdout.strip().split()[1].split('.')[0]
-        print(f"Chromium 版本: {chromium_version}", flush=True)
-
-        chromedriver_path = ChromeDriverManager().install()
-        result = subprocess.run([chromedriver_path, '--version'], capture_output=True, text=True, check=True)
-        chromedriver_version = result.stdout.strip().split()[1].split('.')[0]
-        print(f"Chromedriver 版本: {chromedriver_version}", flush=True)
-
-        if chromium_version != chromedriver_version:
-            print(f"警告: Chromium ({chromium_version}) 與 Chromedriver ({chromedriver_version}) 版本不完全匹配，可能導致兼容性問題", flush=True)
-        else:
-            print("Chromium 和 Chromedriver 版本兼容", flush=True)
-        return chromedriver_path
-    except subprocess.CalledProcessError as e:
-        print(f"檢查版本失敗: {e}", flush=True)
-        raise
-
+# 設置 Chrome 選項
 def get_chrome_options():
     chrome_options = Options()
     chrome_options.add_argument('--headless')
@@ -63,60 +55,18 @@ def get_chrome_options():
     chrome_options.add_argument('--disable-extensions')
     chrome_options.add_argument('--no-first-run')
     chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36')
+    prefs = {"download.default_directory": download_dir, "download.prompt_for_download": False, "safebrowsing.enabled": False}
+    chrome_options.add_experimental_option("prefs", prefs)
     chrome_options.binary_location = '/usr/bin/chromium-browser'
     return chrome_options
 
-def save_screenshot(driver, screenshot_dir):
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    screenshot_path = os.path.join(screenshot_dir, f"screenshot_{timestamp}.png")
-    driver.save_screenshot(screenshot_path)
-    print(f"已保存截圖: {screenshot_path}", flush=True)
-    return screenshot_path
-
-def wait_for_dom_stable(driver, timeout=10):
+# CPLUS 操作
+def process_cplus():
+    driver = None
     try:
-        WebDriverWait(driver, timeout).until(
-            lambda d: d.execute_script("return document.readyState === 'complete'")
-        )
-        print("Download Housekeep: DOM 已穩定", flush=True)
-    except TimeoutException:
-        print("Download Housekeep: 等待 DOM 穩定超時", flush=True)
+        driver = webdriver.Chrome(options=get_chrome_options())
+        print("CPLUS WebDriver 初始化成功", flush=True)
 
-def check_iframes(driver, wait):
-    try:
-        wait_for_dom_stable(driver)
-        iframes = driver.find_elements(By.TAG_NAME, "iframe")
-        if iframes:
-            print("Download Housekeep: 檢測到 iframe，嘗試切換...", flush=True)
-            for iframe in iframes:
-                try:
-                    driver.switch_to.frame(iframe)
-                    wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "table")))
-                    print("Download Housekeep: 成功切換到 iframe，表格加載完成", flush=True)
-                    return True
-                except:
-                    driver.switch_to.default_content()
-                    # 檢查嵌套 iframe
-                    nested_iframes = driver.find_elements(By.XPATH, "//iframe//iframe")
-                    for nested_iframe in nested_iframes:
-                        try:
-                            driver.switch_to.frame(nested_iframe)
-                            wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "table")))
-                            print("Download Housekeep: 成功切換到嵌套 iframe，表格加載完成", flush=True)
-                            return True
-                        except:
-                            driver.switch_to.default_content()
-            print("Download Housekeep: 無法在任何 iframe 中找到表格，切回主框架", flush=True)
-            driver.switch_to.default_content()
-        return False
-    except:
-        print("Download Housekeep: 未找到 iframe，繼續在主框架操作", flush=True)
-        driver.switch_to.default_content()
-        return False
-
-def login_cplus(driver, company_code, user_id, password, screenshot_dir):
-    wait = WebDriverWait(driver, 20)
-    try:
         # 前往登入頁面 (CPLUS)
         print("CPLUS: 嘗試打開網站 https://cplus.hit.com.hk/frontpage/#/", flush=True)
         driver.get("https://cplus.hit.com.hk/frontpage/#/")
@@ -159,422 +109,333 @@ def login_cplus(driver, company_code, user_id, password, screenshot_dir):
         print("CPLUS: LOGIN 按鈕點擊成功", flush=True)
         time.sleep(2)
 
-        try:
-            wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "#root")))
-            print("CPLUS: 檢測到 root 元素，頁面加載完成", flush=True)
-        except TimeoutException:
-            print("CPLUS: 頁面加載超時，嘗試刷新頁面...", flush=True)
-            driver.refresh()
-            wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "#root")))
-            time.sleep(3)
+        # 前往 Container Movement Log 頁面 (CPLUS)
+        print("CPLUS: 直接前往 Container Movement Log...", flush=True)
+        driver.get("https://cplus.hit.com.hk/app/#/enquiry/ContainerMovementLog")
+        time.sleep(2)
+        wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
+        # 額外等待確保頁面穩定
+        WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[2]//form")))
+        print("CPLUS: Container Movement Log 頁面加載完成", flush=True)
 
-        final_url = driver.current_url
-        print(f"CPLUS: 登錄後 URL: {final_url}", flush=True)
-        
+        # 點擊 Search (CPLUS)
+        print("CPLUS: 點擊 Search...", flush=True)
         try:
-            error_message = driver.find_element(By.CSS_SELECTOR, "[class*='error'], [class*='failed'], [class*='invalid']")
-            print(f"CPLUS: 檢測到錯誤提示: {error_message.text}", flush=True)
-            with open("page_source.html", "w", encoding="utf-8") as f:
-                f.write(driver.page_source)
-            save_screenshot(driver, screenshot_dir)
-            raise Exception(f"登錄失敗，錯誤提示: {error_message.text}")
-        except:
-            print("CPLUS: 未檢測到錯誤提示", flush=True)
-
-        try:
-            WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.CSS_SELECTOR, "#root div header div button")))
-            print("CPLUS: 檢測到登出按鈕，假設登錄成功", flush=True)
+            search_button = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[1]/div/form/div[2]/div/div[4]/button")))
+            search_button.click()
+            print("CPLUS: Search 按鈕點擊成功", flush=True)
         except TimeoutException:
-            print("CPLUS: 未檢測到登出按鈕，登錄可能失敗", flush=True)
-            with open("page_source.html", "w", encoding="utf-8") as f:
-                f.write(driver.page_source)
-            save_screenshot(driver, screenshot_dir)
-            raise Exception(f"登錄失敗，當前 URL: {final_url}")
+            print("CPLUS: Search 按鈕未找到，嘗試備用定位 1...", flush=True)
+            try:
+                search_button = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'MuiButtonBase-root') and .//span[contains(text(), 'Search')]]")))
+                search_button.click()
+                print("CPLUS: 備用 Search 按鈕 1 點擊成功", flush=True)
+            except TimeoutException:
+                print("CPLUS: 備用 Search 按鈕 1 失敗，嘗試備用定位 2...", flush=True)
+                search_button = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Search')]")))
+                search_button.click()
+                print("CPLUS: 備用 Search 按鈕 2 點擊成功", flush=True)
+        time.sleep(5)
+
+        # 點擊 Download (CPLUS)
+        print("CPLUS: 點擊 Download...", flush=True)
+        download_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[2]/div/div[2]/div/div[1]/div[1]/button")))
+        download_button.click()
+        print("CPLUS: Download 按鈕點擊成功", flush=True)
+
+        # 等待下載完成 (假設有成功提示或按鈕禁用)
+        try:
+            WebDriverWait(driver, 90).until(
+                EC.invisibility_of_element_located((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[2]/div/div[2]/div/div[1]/div[1]/button"))
+                or EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'Download Complete')]"))
+            )
+            print("CPLUS: Container Movement Log 下載完成", flush=True)
+        except TimeoutException:
+            print("CPLUS: 下載完成提示未找到，繼續檢查文件...", flush=True)
+
+        # 檢查文件
+        start_time = time.time()
+        while time.time() - start_time < 30:
+            downloaded_files = [f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx'))]
+            if downloaded_files:
+                print(f"CPLUS: Container Movement Log 下載完成，檔案位於: {download_dir}", flush=True)
+                for file in downloaded_files:
+                    print(f"CPLUS: 找到檔案: {file}", flush=True)
+                break
+            time.sleep(2)
+
+        # 前往 OnHandContainerList 頁面 (CPLUS)
+        print("CPLUS: 前往 OnHandContainerList 頁面...", flush=True)
+        driver.get("https://cplus.hit.com.hk/app/#/enquiry/OnHandContainerList")
+        time.sleep(2)
+        wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
+        print("CPLUS: OnHandContainerList 頁面加載完成", flush=True)
+        time.sleep(2)
+
+        # 點擊 Search (CPLUS)
+        print("CPLUS: 點擊 Search...", flush=True)
+        try:
+            search_button_onhand = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div[1]/form/div[1]/div[24]/div[2]/button/span[1]")))
+            search_button_onhand.click()
+            print("CPLUS: Search 按鈕點擊成功", flush=True)
+        except TimeoutException:
+            print("CPLUS: Search 按鈕未找到，嘗試備用定位...", flush=True)
+            search_button_onhand = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Search')]")))
+            search_button_onhand.click()
+            print("CPLUS: 備用 Search 按鈕點擊成功", flush=True)
+        time.sleep(5)
+
+        # 點擊 Export (CPLUS)
+        print("CPLUS: 點擊 Export...", flush=True)
+        export_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div/div[2]/div[1]/div[1]/div/div/div[4]/div/div/span[1]/button")))
+        export_button.click()
+        print("CPLUS: Export 按鈕點擊成功", flush=True)
+        time.sleep(2)
+
+        # 點擊 Export as CSV (CPLUS)
+        print("CPLUS: 點擊 Export as CSV...", flush=True)
+        export_csv_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//li[contains(@class, 'MuiMenuItem-root') and text()='Export as CSV']")))
+        export_csv_button.click()
+        print("CPLUS: Export as CSV 按鈕點擊成功", flush=True)
+
+        # 等待下載完成 (假設有成功提示或按鈕禁用)
+        try:
+            WebDriverWait(driver, 90).until(
+                EC.invisibility_of_element_located((By.XPATH, "//li[contains(@class, 'MuiMenuItem-root') and text()='Export as CSV']"))
+                or EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'Export Complete')]"))
+            )
+            print("CPLUS: OnHandContainerList 下載完成", flush=True)
+        except TimeoutException:
+            print("CPLUS: 下載完成提示未找到，繼續檢查文件...", flush=True)
+
+        # 檢查文件
+        start_time = time.time()
+        while time.time() - start_time < 30:
+            downloaded_files = [f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx'))]
+            if downloaded_files:
+                print(f"CPLUS: OnHandContainerList 下載完成，檔案位於: {download_dir}", flush=True)
+                for file in downloaded_files:
+                    print(f"CPLUS: 找到檔案: {file}", flush=True)
+                break
+            time.sleep(2)
 
     except Exception as e:
-        print(f"CPLUS: 登錄失敗: {str(e)}", flush=True)
-        print(f"當前 URL: {driver.current_url}", flush=True)
-        print(f"頁面 HTML (前500字符): {driver.page_source[:500]}", flush=True)
-        with open("page_source.html", "w", encoding="utf-8") as f:
-            f.write(driver.page_source)
-        save_screenshot(driver, screenshot_dir)
-        raise
+        print(f"CPLUS 錯誤: {str(e)}", flush=True)
 
-def navigate_to_housekeep_report(driver, screenshot_dir):
-    wait = WebDriverWait(driver, 30)
-    try:
-        print("Download Housekeep: 嘗試導航到 Housekeep Report 頁面...", flush=True)
-        driver.get("https://cplus.hit.com.hk/app/#/report/housekeepReport")
-        wait_for_dom_stable(driver)
-        wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "#root")))
-        
-        if "404.html" in driver.current_url:
-            print(f"Download Housekeep: 訪問失敗，跳轉到 404，當前 URL: {driver.current_url}", flush=True)
-            print(f"頁面 HTML (前500字符): {driver.page_source[:500]}", flush=True)
-            with open("page_source.html", "w", encoding="utf-8") as f:
-                f.write(driver.page_source)
-            save_screenshot(driver, screenshot_dir)
-            raise Exception("訪問 Housekeep Report 頁面失敗，跳轉到 404")
-        
-        print("Download Housekeep: Housekeep Report 頁面加載完成", flush=True)
-        print(f"當前 URL: {driver.current_url}", flush=True)
-    except TimeoutException as e:
-        print(f"Download Housekeep: 導航到報告頁面失敗: {str(e)}", flush=True)
-        print(f"當前 URL: {driver.current_url}", flush=True)
-        print(f"頁面 HTML (前500字符): {driver.page_source[:500]}", flush=True)
-        with open("page_source.html", "w", encoding="utf-8") as f:
-            f.write(driver.page_source)
-        save_screenshot(driver, screenshot_dir)
-        raise
-
-def download_housekeep_report(driver, screenshot_dir):
-    wait = WebDriverWait(driver, 30)
-    try:
-        navigate_to_housekeep_report(driver, screenshot_dir)
-
-        # 檢查 iframe
-        check_iframes(driver, wait)
-
-        wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "form")))
-        print("Download Housekeep: 表單容器加載完成", flush=True)
-
-        today = datetime.now().strftime("%d/%m/%Y")
-        print(f"Download Housekeep: 檢查日期，今日為 {today}", flush=True)
-
-        try:
-            from_field = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input#from")))
-            from_value = from_field.get_attribute("value")
-            if from_value != today:
-                print(f"Download Housekeep: From 日期 ({from_value}) 不為今日，設置為 {today}", flush=True)
-                from_field.clear()
-                from_field.send_keys(today)
-            else:
-                print("Download Housekeep: From 日期已正確", flush=True)
-        except TimeoutException:
-            print("Download Housekeep: 未找到 From 輸入框", flush=True)
-            print(f"當前 URL: {driver.current_url}", flush=True)
-            print(f"頁面 HTML (前500字符): {driver.page_source[:500]}", flush=True)
-            with open("page_source.html", "w", encoding="utf-8") as f:
-                f.write(driver.page_source)
-            save_screenshot(driver, screenshot_dir)
-            raise
-
-        try:
-            to_field = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input#to")))
-            to_value = to_field.get_attribute("value")
-            if to_value != today:
-                print(f"Download Housekeep: To 日期 ({to_value}) 不為今日，設置為 {today}", flush=True)
-                to_field.clear()
-                to_field.send_keys(today)
-            else:
-                print("Download Housekeep: To 日期已正確", flush=True)
-        except TimeoutException:
-            print("Download Housekeep: 未找到 To 輸入框", flush=True)
-            print(f"當前 URL: {driver.current_url}", flush=True)
-            print(f"頁面 HTML (前500字符): {driver.page_source[:500]}", flush=True)
-            with open("page_source.html", "w", encoding="utf-8") as f:
-                f.write(driver.page_source)
-            save_screenshot(driver, screenshot_dir)
-            raise
-
-        print("Download Housekeep: 查找並點擊所有 Email Excel checkbox...", flush=True)
-        try:
-            wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "input[type='checkbox']")))
-            wait_for_dom_stable(driver)
-            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-            max_retries = 15
-            any_checked = False
-            for index in range(1, 7):
-                for attempt in range(max_retries):
-                    try:
-                        # 檢查 iframe
-                        check_iframes(driver, wait)
-                        checkboxes = wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "input[type='checkbox']")))
-                        if index > len(checkboxes):
-                            break
-                        checkbox = checkboxes[index - 1]
-                        is_enabled = checkbox.is_enabled()
-                        print(f"Download Housekeep: Checkbox {index} 狀態 (嘗試 {attempt + 1}) - 啟用: {is_enabled}", flush=True)
-                        
-                        if is_enabled:
-                            driver.execute_script("arguments[0].scrollIntoView(true);", checkbox)
-                            driver.execute_script("arguments[0].click();", checkbox)
-                            time.sleep(0.1)
-                            is_selected_after = driver.execute_script("return arguments[0].checked;", checkbox)
-                            if is_selected_after:
-                                print(f"Download Housekeep: Checkbox {index} 點擊成功", flush=True)
-                                any_checked = True
-                                break
-                            else:
-                                print(f"Download Housekeep: Checkbox {index} 點擊失敗，未選中，嘗試設置 checked 屬性", flush=True)
-                                driver.execute_script("arguments[0].checked = true;", checkbox)
-                                is_selected_after = driver.execute_script("return arguments[0].checked;", checkbox)
-                                if is_selected_after:
-                                    print(f"Download Housekeep: Checkbox {index} 設置成功", flush=True)
-                                    any_checked = True
-                                    break
-                                else:
-                                    print(f"Download Housekeep: Checkbox {index} 設置失敗，未選中", flush=True)
-                        else:
-                            print(f"Download Housekeep: Checkbox {index} 不可點擊，跳過", flush=True)
-                            break
-                    except StaleElementReferenceException:
-                        print(f"Download Housekeep: Checkbox {index} 遇到 StaleElementReferenceException (嘗試 {attempt + 1})，重新查找...", flush=True)
-                        if attempt == max_retries - 1:
-                            print(f"Download Housekeep: Checkbox {index} 重試 {max_retries} 次後仍失敗，嘗試刷新頁面...", flush=True)
-                            driver.switch_to.default_content()
-                            driver.refresh()
-                            wait_for_dom_stable(driver)
-                            wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "input[type='checkbox']")))
-                            if attempt == max_retries - 1:
-                                print(f"Download Housekeep: Checkbox {index} 刷新後仍失敗，任務中止", flush=True)
-                                with open("page_source.html", "w", encoding="utf-8") as f:
-                                    f.write(driver.page_source)
-                                save_screenshot(driver, screenshot_dir)
-                                driver.switch_to.default_content()
-                                return
-                        time.sleep(0.1)
-
-            if not any_checked:
-                print("Download Housekeep: 無任何 Checkbox 被選中，可能影響 Email 按鈕", flush=True)
-                with open("page_source.html", "w", encoding="utf-8") as f:
-                    f.write(driver.page_source)
-                save_screenshot(driver, screenshot_dir)
-                driver.switch_to.default_content()
-                return
-                
-        except TimeoutException:
-            print("Download Housekeep: 未找到 Email Excel checkbox，嘗試備用定位...", flush=True)
-            driver.switch_to.default_content()
-            checkboxes = driver.find_elements(By.XPATH, "//input[@type='checkbox']")
-            if checkboxes:
-                any_checked = False
-                for index, checkbox in enumerate(checkboxes, 1):
-                    for attempt in range(max_retries):
-                        try:
-                            # 檢查 iframe
-                            check_iframes(driver, wait)
-                            is_enabled = checkbox.is_enabled()
-                            print(f"Download Housekeep: Checkbox {index} 狀態 (備用定位，嘗試 {attempt + 1}) - 啟用: {is_enabled}", flush=True)
-                            
-                            if is_enabled:
-                                driver.execute_script("arguments[0].scrollIntoView(true);", checkbox)
-                                driver.execute_script("arguments[0].click();", checkbox)
-                                time.sleep(0.1)
-                                is_selected_after = driver.execute_script("return arguments[0].checked;", checkbox)
-                                if is_selected_after:
-                                    print(f"Download Housekeep: Checkbox {index} 點擊成功 (備用定位)", flush=True)
-                                    any_checked = True
-                                    break
-                                else:
-                                    print(f"Download Housekeep: Checkbox {index} 點擊失敗 (備用定位)，嘗試設置 checked 屬性", flush=True)
-                                    driver.execute_script("arguments[0].checked = true;", checkbox)
-                                    is_selected_after = driver.execute_script("return arguments[0].checked;", checkbox)
-                                    if is_selected_after:
-                                        print(f"Download Housekeep: Checkbox {index} 設置成功 (備用定位)", flush=True)
-                                        any_checked = True
-                                        break
-                                    else:
-                                        print(f"Download Housekeep: Checkbox {index} 設置失敗 (備用定位)，未選中", flush=True)
-                            else:
-                                print(f"Download Housekeep: Checkbox {index} 不可點擊 (備用定位)，跳過", flush=True)
-                                break
-                        except StaleElementReferenceException:
-                            print(f"Download Housekeep: Checkbox {index} 遇到 StaleElementReferenceException (備用定位，嘗試 {attempt + 1})，重新查找...", flush=True)
-                            if attempt == max_retries - 1:
-                                print(f"Download Housekeep: Checkbox {index} 重試 {max_retries} 次後仍失敗 (備用定位)，嘗試刷新頁面...", flush=True)
-                                driver.switch_to.default_content()
-                                driver.refresh()
-                                wait_for_dom_stable(driver)
-                                wait.until(EC.presence_of_all_elements_located((By.XPATH, "//input[@type='checkbox']")))
-                                if attempt == max_retries - 1:
-                                    print(f"Download Housekeep: Checkbox {index} 刷新後仍失敗 (備用定位)，任務中止", flush=True)
-                                    with open("page_source.html", "w", encoding="utf-8") as f:
-                                        f.write(driver.page_source)
-                                    save_screenshot(driver, screenshot_dir)
-                                    driver.switch_to.default_content()
-                                    return
-                            time.sleep(0.1)
-                if not any_checked:
-                    print("Download Housekeep: 無任何 Checkbox 被選中 (備用定位)，可能影響 Email 按鈕", flush=True)
-                    with open("page_source.html", "w", encoding="utf-8") as f:
-                        f.write(driver.page_source)
-                    save_screenshot(driver, screenshot_dir)
-                    driver.switch_to.default_content()
-            else:
-                print("Download Housekeep: 備用定位也未找到 checkbox，任務中止", flush=True)
-                print(f"當前 URL: {driver.current_url}", flush=True)
-                print(f"頁面 HTML (前500字符): {driver.page_source[:500]}", flush=True)
-                with open("page_source.html", "w", encoding="utf-8") as f:
-                    f.write(driver.page_source)
-                save_screenshot(driver, screenshot_dir)
-                driver.switch_to.default_content()
-                return
-
-        print("Download Housekeep: 點擊 Email 按鈕...", flush=True)
-        try:
-            email_button = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "button[title='Email'], [class*='MuiIconButton-root'][title='Email'], button path[fill='#0080ff']")))
-            is_disabled = email_button.get_attribute("disabled")
-            print(f"Download Housekeep: Email 按鈕狀態 - 禁用: {is_disabled}", flush=True)
-            if is_disabled:
-                print("Download Housekeep: Email 按鈕被禁用，嘗試選擇 Owner、Report Type 或點擊 Generate/Submit/Query...", flush=True)
-                try:
-                    # 嘗試選擇 Owner
-                    owner_select = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "select#owner, select[name*='owner'], select[id*='company'], select")))
-                    owner_select.click()
-                    driver.execute_script("arguments[0].value = arguments[0].options[1].value;", owner_select)
-                    print("Download Housekeep: Owner 選擇完成", flush=True)
-                    time.sleep(3)
-                except TimeoutException:
-                    print("Download Housekeep: 未找到 Owner 下拉選單，跳過", flush=True)
-
-                try:
-                    # 嘗試選擇 Report Type
-                    report_type_select = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "select#reportType, select[name*='reportType'], select[id*='status']")))
-                    report_type_select.click()
-                    driver.execute_script("arguments[0].value = arguments[0].options[1].value;", report_type_select)
-                    print("Download Housekeep: Report Type 選擇完成", flush=True)
-                    time.sleep(3)
-                except TimeoutException:
-                    print("Download Housekeep: 未找到 Report Type 下拉選單，跳過", flush=True)
-
-                try:
-                    # 嘗試點擊 Generate、Submit 或 Query 按鈕
-                    action_button = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button:contains('Generate'), button:contains('Submit'), button:contains('Query'), button[aria-label='Generate'], button[aria-label='Submit'], button[aria-label='Query']")))
-                    driver.execute_script("arguments[0].click();", action_button)
-                    print("Download Housekeep: Generate/Submit/Query 按鈕點擊成功", flush=True)
-                    time.sleep(3)
-                except TimeoutException:
-                    print("Download Housekeep: 未找到 Generate、Submit 或 Query 按鈕，跳過", flush=True)
-
-                # 再次檢查 Email 按鈕
-                email_button = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "button[title='Email'], [class*='MuiIconButton-root'][title='Email'], button path[fill='#0080ff']")))
-                is_disabled = email_button.get_attribute("disabled")
-                print(f"Download Housekeep: Email 按鈕狀態 (再次檢查) - 禁用: {is_disabled}", flush=True)
-                if is_disabled:
-                    print("Download Housekeep: Email 按鈕仍被禁用，任務中止", flush=True)
-                    with open("page_source.html", "w", encoding="utf-8") as f:
-                        f.write(driver.page_source)
-                    save_screenshot(driver, screenshot_dir)
-                    driver.switch_to.default_content()
-                    return
-
-            wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button[title='Email'], [class*='MuiIconButton-root'][title='Email'], button path[fill='#0080ff']")))
-            driver.execute_script("arguments[0].scrollIntoView(true);", email_button)
-            email_button.click()
-            print("Download Housekeep: Email 按鈕點擊成功", flush=True)
-
-            target_email = os.environ.get('TARGET_EMAIL', 'paklun@ckline.com.hk')
-            print("Download Housekeep: 輸入目標 Email 地址...", flush=True)
-            email_field = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input#to")))
-            email_field.clear()
-            email_field.send_keys(target_email)
-            print("Download Housekeep: Email 地址輸入完成", flush=True)
-
-            current_time = datetime.now().strftime("%m:%d %H:%M")
-            print(f"Download Housekeep: 輸入內文，格式為 {current_time}", flush=True)
-            body_field = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "textarea#body")))
-            body_field.clear()
-            body_field.send_keys(current_time)
-            print("Download Housekeep: 內文輸入完成", flush=True)
-
-            print("Download Housekeep: 點擊 Confirm 按鈕...", flush=True)
-            confirm_button = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "#EmailDialog button:contains('Confirm'), #EmailDialog button[type='submit']")))
-            driver.execute_script("arguments[0].click();", confirm_button)
-            print("Download Housekeep: Confirm 按鈕點擊成功", flush=True)
-        except TimeoutException as e:
-            print(f"Download Housekeep: Email 處理失敗: {str(e)}", flush=True)
-            print(f"當前 URL: {driver.current_url}", flush=True)
-            print(f"頁面 HTML (前500字符): {driver.page_source[:500]}", flush=True)
-            with open("page_source.html", "w", encoding="utf-8") as f:
-                f.write(driver.page_source)
-            save_screenshot(driver, screenshot_dir)
-            driver.switch_to.default_content()
-            return
-    except Exception as e:
-        print(f"Download Housekeep: 錯誤: {str(e)}", flush=True)
-        print(f"當前 URL: {driver.current_url}", flush=True)
-        print(f"頁面 HTML (前500字符): {driver.page_source[:500]}", flush=True)
-        with open("page_source.html", "w", encoding="utf-8") as f:
-            f.write(driver.page_source)
-        save_screenshot(driver, screenshot_dir)
-        driver.switch_to.default_content()
-        return
     finally:
-        driver.switch_to.default_content()  # 確保切回主框架
+        # 確保登出
+        try:
+            if driver:
+                print("CPLUS: 嘗試登出...", flush=True)
+                logout_menu_button = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
+                driver.execute_script("arguments[0].scrollIntoView(true);", logout_menu_button)
+                time.sleep(1)
+                driver.execute_script("arguments[0].click();", logout_menu_button)
+                print("CPLUS: 登錄按鈕點擊成功", flush=True)
 
-def main():
-    # 創建截圖目錄
-    screenshot_dir = "./screenshots"
-    if not os.path.exists(screenshot_dir):
-        os.makedirs(screenshot_dir)
-        print(f"已創建截圖目錄: {screenshot_dir}", flush=True)
+                logout_option = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='menu-list-grow']/div[6]/li")))
+                driver.execute_script("arguments[0].scrollIntoView(true);", logout_option)
+                time.sleep(1)
+                driver.execute_script("arguments[0].click();", logout_option)
+                print("CPLUS: Logout 選項點擊成功", flush=True)
+                time.sleep(5)
+        except Exception as logout_error:
+            print(f"CPLUS: 登出失敗: {str(logout_error)}", flush=True)
 
-    setup_environment()
-    chromedriver_path = check_chromium_compatibility()
+        if driver:
+            driver.quit()
+            print("CPLUS WebDriver 關閉", flush=True)
+
+# Barge 操作
+def process_barge():
     driver = None
     try:
-        driver = webdriver.Chrome(service=Service(chromedriver_path), options=get_chrome_options())
-        driver.set_page_load_timeout(90)
-        print("CPLUS WebDriver 初始化成功", flush=True)
+        driver = webdriver.Chrome(options=get_chrome_options())
+        print("Barge WebDriver 初始化成功", flush=True)
 
-        company_code = os.environ.get('COMPANY_CODE', 'CKL')
-        user_id = os.environ.get('USER_ID', 'KEN')
-        password = os.environ.get('SITE_PASSWORD')
-        if not password:
-            raise ValueError("環境變量 SITE_PASSWORD 未設置")
+        # 前往登入頁面 (Barge)
+        print("Barge: 嘗試打開網站 https://barge.oneport.com/bargeBooking...", flush=True)
+        driver.get("https://barge.oneport.com/bargeBooking")
+        print(f"Barge: 網站已成功打開，當前 URL: {driver.current_url}", flush=True)
+        time.sleep(3)
 
-        login_cplus(driver, company_code, user_id, password, screenshot_dir)
-        download_housekeep_report(driver, screenshot_dir)
+        # 輸入 COMPANY ID
+        print("Barge: 輸入 COMPANY ID...", flush=True)
+        wait = WebDriverWait(driver, 20)
+        company_id_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='mat-input-0']")))
+        company_id_field.send_keys("CKL")
+        print("Barge: COMPANY ID 輸入完成", flush=True)
+        time.sleep(1)
+
+        # 輸入 USER ID
+        print("Barge: 輸入 USER ID...", flush=True)
+        user_id_field_barge = driver.find_element(By.XPATH, "//*[@id='mat-input-1']")
+        user_id_field_barge.send_keys("barge")
+        print("Barge: USER ID 輸入完成", flush=True)
+        time.sleep(1)
+
+        # 輸入 PW
+        print("Barge: 輸入 PW...", flush=True)
+        password_field_barge = driver.find_element(By.XPATH, "//*[@id='mat-input-2']")
+        password_field_barge.send_keys("123456")
+        print("Barge: PW 輸入完成", flush=True)
+        time.sleep(1)
+
+        # 點擊 LOGIN
+        print("Barge: 點擊 LOGIN 按鈕...", flush=True)
+        login_button_barge = driver.find_element(By.XPATH, "//*[@id='login-form-container']/app-login-form/form/div/button")
+        login_button_barge.click()
+        print("Barge: LOGIN 按鈕點擊成功", flush=True)
+        time.sleep(3)
+
+        # 點擊主工具欄
+        print("Barge: 點擊主工具欄...", flush=True)
+        toolbar_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='main-toolbar']/button[1]/span[1]/mat-icon")))
+        toolbar_button.click()
+        print("Barge: 主工具欄點擊成功", flush=True)
+        time.sleep(2)
+
+        # 點擊 Report
+        print("Barge: 點擊 Report...", flush=True)
+        report_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='mat-menu-panel-4']/div/button[4]/span")))
+        report_button.click()
+        print("Barge: Report 點擊成功", flush=True)
+        time.sleep(2)
+
+        # 選擇 Report Type
+        print("Barge: 選擇 Report Type...", flush=True)
+        report_type_select = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='mat-select-value-61']/span")))
+        report_type_select.click()
+        print("Barge: Report Type 選擇開始", flush=True)
+        time.sleep(2)
+
+        # 點擊 Container Detail
+        print("Barge: 點擊 Container Detail...", flush=True)
+        container_detail_option = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='mat-option-508']/span")))
+        container_detail_option.click()
+        print("Barge: Container Detail 點擊成功", flush=True)
+        time.sleep(5)
+
+        # 點擊 Download
+        print("Barge: 點擊 Download...", flush=True)
+        download_button_barge = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='content-mount']/app-download-report/div[2]/div/form/div[2]/button")))
+        download_button_barge.click()
+        print("Barge: Download 按鈕點擊成功", flush=True)
+
+        # 等待下載完成 (假設有成功提示或按鈕禁用)
+        try:
+            WebDriverWait(driver, 90).until(
+                EC.invisibility_of_element_located((By.XPATH, "//*[@id='content-mount']/app-download-report/div[2]/div/form/div[2]/button"))
+                or EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'Download Complete')]"))
+            )
+            print("Barge: Container Detail 下載完成", flush=True)
+        except TimeoutException:
+            print("Barge: 下載完成提示未找到，繼續檢查文件...", flush=True)
+
+        # 檢查文件
+        start_time = time.time()
+        while time.time() - start_time < 30:
+            downloaded_files = [f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx'))]
+            if downloaded_files:
+                print(f"Barge: Container Detail 下載完成，檔案位於: {download_dir}", flush=True)
+                for file in downloaded_files:
+                    print(f"Barge: 找到檔案: {file}", flush=True)
+                break
+            time.sleep(2)
+
+        # 登出 Barge
+        print("Barge: 點擊工具欄進行登出...", flush=True)
+        try:
+            logout_toolbar_barge = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='main-toolbar']/button[4]/span[1]")))
+            driver.execute_script("arguments[0].scrollIntoView(true);", logout_toolbar_barge)
+            time.sleep(1)
+            driver.execute_script("arguments[0].click();", logout_toolbar_barge)
+            print("Barge: 工具欄點擊成功", flush=True)
+        except TimeoutException:
+            print("Barge: 主工具欄登出按鈕未找到，嘗試備用定位...", flush=True)
+            raise
+
+        print("Barge: 點擊 Logout 選項...", flush=True)
+        try:
+            logout_button_barge = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='mat-menu-panel-11']/div/button/span")))
+            driver.execute_script("arguments[0].scrollIntoView(true);", logout_button_barge)
+            time.sleep(1)
+            driver.execute_script("arguments[0].click();", logout_button_barge)
+            print("Barge: Logout 選項點擊成功", flush=True)
+        except TimeoutException:
+            print("Barge: Logout 選項未找到，嘗試備用定位...", flush=True)
+            raise
+
+        time.sleep(5)
 
     except Exception as e:
-        print(f"Download Housekeep 錯誤: {str(e)}", flush=True)
-        if driver:
-            save_screenshot(driver, screenshot_dir)
+        print(f"Barge 錯誤: {str(e)}", flush=True)
+
     finally:
         if driver:
-            try:
-                print("Download Housekeep: 嘗試登出...", flush=True)
-                try:
-                    WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.CSS_SELECTOR, "#root div header div button")))
-                    print("Download Housekeep: 檢測到登出按鈕，假設已登錄", flush=True)
-                except TimeoutException:
-                    print("Download Housekeep: 未檢測到登出按鈕，假設未登錄，跳過登出", flush=True)
-                    driver.quit()
-                    print("Download Housekeep WebDriver 關閉", flush=True)
-                    return
-
-                logout_menu_button = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "#root div header div button")))
-                driver.execute_script("arguments[0].click();", logout_menu_button)
-                print("Download Housekeep: 登錄按鈕點擊成功", flush=True)
-
-                try:
-                    logout_option = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "#menu-list-grow div li:last-child")))
-                    driver.execute_script("arguments[0].click();", logout_option)
-                    print("Download Housekeep: Logout 選項點擊成功", flush=True)
-
-                    WebDriverWait(driver, 30).until(EC.url_changes(driver.current_url))
-                    final_url = driver.current_url
-                    print(f"Download Housekeep: 登出後 URL: {final_url}", flush=True)
-                except TimeoutException:
-                    print("Download Housekeep: 登出選項未找到，跳過登出", flush=True)
-            except Exception as logout_error:
-                print(f"Download Housekeep: 登出失敗: {str(logout_error)}", flush=True)
             driver.quit()
-            print("Download Housekeep WebDriver 關閉", flush=True)
+            print("Barge WebDriver 關閉", flush=True)
 
-        # 壓縮截圖為 ZIP 並標記為 artifact
-        if os.path.exists(screenshot_dir):
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            zip_path = f"screenshots_{timestamp}.zip"
-            shutil.make_archive(zip_path[:-4], 'zip', screenshot_dir)
-            print(f"已創建截圖 ZIP 文件: {zip_path}", flush=True)
-            # 在 GitHub Actions 中，需在 workflow 文件中配置：
-            # - uses: actions/upload-artifact@v4
-            #   with:
-            #     name: screenshots
-            #     path: screenshots_*.zip
-
+# 主函數
 if __name__ == "__main__":
-    main()
-    print("Download Housekeep 腳本完成", flush=True)
+    # 啟動兩個線程
+    cplus_thread = threading.Thread(target=process_cplus)
+    barge_thread = threading.Thread(target=process_barge)
+
+    cplus_thread.start()
+    barge_thread.start()
+
+    # 等待兩個線程完成
+    cplus_thread.join()
+    barge_thread.join()
+
+    # 檢查所有下載文件
+    print("檢查所有下載文件...", flush=True)
+    start_time = time.time()
+    while time.time() - start_time < 120:
+        downloaded_files = [f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx'))]
+        if downloaded_files:
+            break
+        time.sleep(5)
+    if downloaded_files:
+        print(f"所有下載完成，檔案位於: {download_dir}", flush=True)
+        for file in downloaded_files:
+            print(f"找到檔案: {file}", flush=True)
+
+        # 發送 Zoho Mail
+        print("開始發送郵件...", flush=True)
+        try:
+            smtp_server = 'smtp.zoho.com'
+            smtp_port = 587
+            sender_email = os.environ.get('ZOHO_EMAIL', 'paklun_ckline@zohomail.com')
+            sender_password = os.environ.get('ZOHO_PASSWORD', '@d6G.Pie5UkEPqm')
+            receiver_email = 'ckeqc@ckline.com.hk'
+
+            # 創建郵件
+            msg = MIMEMultipart()
+            msg['From'] = sender_email
+            msg['To'] = receiver_email
+            msg['Subject'] = f"[TESTING] HIT DAILY {datetime.now().strftime('%Y-%m-%d')}"
+
+            # 添加附件
+            for file in downloaded_files:
+                file_path = os.path.join(download_dir, file)
+                attachment = MIMEBase('application', 'octet-stream')
+                attachment.set_payload(open(file_path, 'rb').read())
+                encoders.encode_base64(attachment)
+                attachment.add_header('Content-Disposition', f'attachment; filename={file}')
+                msg.attach(attachment)
+
+            # 連接 SMTP 伺服器並發送
+            server = smtplib.SMTP(smtp_server, smtp_port)
+            server.starttls()
+            server.login(sender_email, sender_password)
+            server.sendmail(sender_email, receiver_email, msg.as_string())
+            server.quit()
+            print("郵件發送成功!", flush=True)
+        except Exception as e:
+            print(f"郵件發送失敗: {str(e)}", flush=True)
+    else:
+        print("所有下載失敗，無文件可發送", flush=True)
+
+    print("腳本完成", flush=True)
