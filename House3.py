@@ -202,71 +202,47 @@ def process_cplus():
         else:
             print("CPLUS: Container Movement Log 未觸發新文件下載", flush=True)
 
-        # 前往 OnHandContainerList 頁面
+        # 前往 OnHandContainerList 頁面 (CPLUS)
         print("CPLUS: 前往 OnHandContainerList 頁面...", flush=True)
         driver.get("https://cplus.hit.com.hk/app/#/enquiry/OnHandContainerList")
         time.sleep(2)
         wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
         print("CPLUS: OnHandContainerList 頁面加載完成", flush=True)
 
-        # 點擊 Search
+        # 點擊 Search (CPLUS)
         print("CPLUS: 點擊 Search...", flush=True)
-        initial_files = downloaded_files.copy()
-        for attempt in range(2):
-            try:
-                search_button_onhand = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div[1]/form/div[1]/div[24]/div[2]/button/span[1]")))
-                ActionChains(driver).move_to_element(search_button_onhand).click().perform()
-                print("CPLUS: Search 按鈕點擊成功", flush=True)
-                break
-            except TimeoutException:
-                print(f"CPLUS: Search 按鈕未找到，嘗試備用定位 {attempt+1}/2...", flush=True)
-                try:
-                    search_button_onhand = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Search')]")))
-                    ActionChains(driver).move_to_element(search_button_onhand).click().perform()
-                    print("CPLUS: 備用 Search 按鈕點擊成功", flush=True)
-                    break
-                except TimeoutException:
-                    print(f"CPLUS: 備用 Search 按鈕失敗 (嘗試 {attempt+1}/2)", flush=True)
-        else:
-            print("CPLUS: OnHandContainerList Search 按鈕點擊失敗，重試 2 次後放棄", flush=True)
+        try:
+            search_button_onhand = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div[1]/form/div[1]/div[24]/div[2]/button/span[1]")))
+            ActionChains(driver).move_to_element(search_button_onhand).click().perform()
+            print("CPLUS: Search 按鈕點擊成功", flush=True)
+        except TimeoutException:
+            print("CPLUS: Search 按鈕未找到，嘗試備用定位...", flush=True)
+            search_button_onhand = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Search')]")))
+            ActionChains(driver).move_to_element(search_button_onhand).click().perform()
+            print("CPLUS: 備用 Search 按鈕點擊成功", flush=True)
+        time.sleep(0.5)
 
-        # 點擊 Export
+        # 點擊 Export (CPLUS)
         print("CPLUS: 點擊 Export...", flush=True)
-        for attempt in range(2):
-            try:
-                export_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div/div[2]/div[1]/div[1]/div/div/div[4]/div/div/span[1]/button")))
-                ActionChains(driver).move_to_element(export_button).click().perform()
-                print("CPLUS: Export 按鈕點擊成功", flush=True)
-                time.sleep(0.5)
-                break
-            except Exception as e:
-                print(f"CPLUS: Export 按鈕點擊失敗 (嘗試 {attempt+1}/2): {str(e)}", flush=True)
-                time.sleep(0.5)
-        else:
-            print("CPLUS: OnHandContainerList Export 按鈕點擊失敗，重試 2 次後放棄", flush=True)
+        export_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div/div[2]/div[1]/div[1]/div/div/div[4]/div/div/span[1]/button")))
+        ActionChains(driver).move_to_element(export_button).click().perform()
+        print("CPLUS: Export 按鈕點擊成功", flush=True)
+        time.sleep(0.5)
 
-        # 點擊 Export as CSV
+        # 點擊 Export as CSV (CPLUS)
         print("CPLUS: 點擊 Export as CSV...", flush=True)
-        for attempt in range(2):
-            try:
-                export_csv_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//li[contains(@class, 'MuiMenuItem-root') and text()='Export as CSV']")))
-                ActionChains(driver).move_to_element(export_csv_button).click().perform()
-                print("CPLUS: Export as CSV 按鈕點擊成功", flush=True)
-                time.sleep(0.5)
-                break
-            except Exception as e:
-                print(f"CPLUS: Export as CSV 按鈕點擊失敗 (嘗試 {attempt+1}/2): {str(e)}", flush=True)
-                time.sleep(0.5)
-        else:
-            print("CPLUS: OnHandContainerList Export as CSV 按鈕點擊失敗，重試 2 次後放棄", flush=True)
+        export_csv_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//li[contains(@class, 'MuiMenuItem-root') and text()='Export as CSV']")))
+        ActionChains(driver).move_to_element(export_csv_button).click().perform()
+        print("CPLUS: Export as CSV 按鈕點擊成功", flush=True)
+        time.sleep(0.5)
 
         # 檢查新文件
-        new_files = wait_for_new_file(initial_files, timeout=15)
+        new_files = wait_for_new_file(initial_files, timeout=5)
         if new_files:
             print(f"CPLUS: OnHandContainerList 下載完成，檔案位於: {download_dir}", flush=True)
             for file in new_files:
                 print(f"CPLUS: 新下載檔案: {file}", flush=True)
-            downloaded_files.update(new_files)
+            initial_files.update(new_files)
         else:
             print("CPLUS: OnHandContainerList 未觸發新文件下載", flush=True)
 
