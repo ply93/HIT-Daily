@@ -219,6 +219,36 @@ def process_cplus():
                 break
             time.sleep(2)
 
+        # 新增步驟：前往 Housekeeping Reports 頁面並下載 Excel 文件
+        print("CPLUS: 前往 Housekeeping Reports 頁面...", flush=True)
+        driver.get("https://cplus.hit.com.hk/app/#/report/housekeepReport")
+        time.sleep(2)
+        wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
+        print("CPLUS: Housekeeping Reports 頁面加載完成", flush=True)
+        time.sleep(5)  # 額外等待表格加載
+
+        # 定位所有 Excel 下載按鈕 (基於提供的 HTML 中的類別 jss198)
+        print("CPLUS: 定位並點擊所有 Excel 下載按鈕...", flush=True)
+        excel_buttons = driver.find_elements(By.XPATH, "//svg[contains(@class, 'jss198')]/ancestor::button")
+        for idx, button in enumerate(excel_buttons):
+            try:
+                button.click()
+                print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕點擊成功", flush=True)
+                time.sleep(5)  # 等待每個下載開始
+            except Exception as e:
+                print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕點擊失敗: {str(e)}", flush=True)
+
+        # 等待所有下載完成，檢查文件
+        start_time = time.time()
+        while time.time() - start_time < 60:  # 延長等待時間，因為有多個文件
+            downloaded_files = [f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx'))]
+            if len(downloaded_files) >= len(excel_buttons) + 2:  # +2 因為之前已有兩個下載
+                print(f"CPLUS: Housekeeping Reports Excel 文件下載完成，檔案位於: {download_dir}", flush=True)
+                for file in downloaded_files:
+                    print(f"CPLUS: 找到檔案: {file}", flush=True)
+                break
+            time.sleep(2)
+
     except Exception as e:
         print(f"CPLUS 錯誤: {str(e)}", flush=True)
 
@@ -378,6 +408,8 @@ def process_barge():
 
 # 主函數
 if __name__ == "__main__":
+    setup_environment()  # 新增步驟：確保環境準備，包括安裝必要的套件
+
     # 啟動兩個線程
     cplus_thread = threading.Thread(target=process_cplus)
     barge_thread = threading.Thread(target=process_barge)
@@ -416,6 +448,10 @@ if __name__ == "__main__":
             msg['From'] = sender_email
             msg['To'] = receiver_email
             msg['Subject'] = f"[TESTING] HIT DAILY {datetime.now().strftime('%Y-%m-%d')}"
+
+            # 新增步驟：添加郵件正文
+            body = "Attached are the daily reports downloaded from CPLUS (Container Movement Log and OnHand Container List) and Barge (Container Detail)."
+            msg.attach(MIMEText(body, 'plain'))
 
             # 添加附件
             for file in downloaded_files:
