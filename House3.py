@@ -571,36 +571,36 @@ def process_barge():
                 print("Barge: Container Detail 未觸發新文件下載", flush=True)
                 return downloaded_files, False
 
-        finally:
-            if driver:
-                try:
-                    print("Barge: 點擊工具欄進行登出...", flush=True)
-                    logout_toolbar_barge = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='main-toolbar']/button[4]/span[1]")))
-                    driver.execute_script("arguments[0].scrollIntoView(true);", logout_toolbar_barge)
-                    time.sleep(0.5)
-                    driver.execute_script("arguments[0].click();", logout_toolbar_barge)
-                    print("Barge: 工具欄點擊成功", flush=True)
+    finally:
+        if driver:
+            try:
+                print("Barge: 點擊工具欄進行登出...", flush=True)
+                logout_toolbar_barge = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='main-toolbar']/button[4]/span[1]")))
+                driver.execute_script("arguments[0].scrollIntoView(true);", logout_toolbar_barge)
+                time.sleep(0.5)
+                driver.execute_script("arguments[0].click();", logout_toolbar_barge)
+                print("Barge: 工具欄點擊成功", flush=True)
 
-                    print("Barge: 點擊 Logout 選項...", flush=True)
-                    logout_button_barge = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='mat-menu-panel-11']/div/button/span")))
-                    driver.execute_script("arguments[0].scrollIntoView(true);", logout_button_barge)
-                    time.sleep(0.5)
+                print("Barge: 點擊 Logout 選項...", flush=True)
+                logout_button_barge = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='mat-menu-panel-11']/div/button/span")))
+                driver.execute_script("arguments[0].scrollIntoView(true);", logout_button_barge)
+                time.sleep(0.5)
+                driver.execute_script("arguments[0].click();", logout_button_barge)
+                print("Barge: Logout 選項點擊成功", flush=True)
+                time.sleep(2)
+            except TimeoutException:
+                print("Barge: 登出按鈕未找到，嘗試備用定位...", flush=True)
+                try:
+                    logout_button_barge = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Logout')]")))
                     driver.execute_script("arguments[0].click();", logout_button_barge)
-                    print("Barge: Logout 選項點擊成功", flush=True)
+                    print("Barge: 備用 Logout 選項點擊成功", flush=True)
                     time.sleep(2)
                 except TimeoutException:
-                    print("Barge: 登出按鈕未找到，嘗試備用定位...", flush=True)
-                    try:
-                        logout_button_barge = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Logout')]")))
-                        driver.execute_script("arguments[0].click();", logout_button_barge)
-                        print("Barge: 備用 Logout 選項點擊成功", flush=True)
-                        time.sleep(2)
-                    except TimeoutException:
-                        print("Barge: 備用 Logout 選項未找到，跳過登出", flush=True)
-                except Exception as e:
-                    print(f"Barge: 登出失敗: {str(e)}", flush=True)
-                driver.quit()
-                print("Barge WebDriver 關閉", flush=True)
+                    print("Barge: 備用 Logout 選項未找到，跳過登出", flush=True)
+            except Exception as e:
+                print(f"Barge: 登出失敗: {str(e)}", flush=True)
+            driver.quit()
+            print("Barge WebDriver 關閉", flush=True)
 
 # 主函數
 def main():
