@@ -29,14 +29,12 @@ EXPECTED_HOUSEKEEPING_FILES = {
     "REEFER CONTAINER MONITOR REPORT": "IE2"
 }
 
-# 清空下載目錄
 def clear_download_dir():
     if os.path.exists(download_dir):
         shutil.rmtree(download_dir)
     os.makedirs(download_dir)
     print(f"創建下載目錄: {download_dir}", flush=True)
 
-# 確保環境準備
 def setup_environment():
     try:
         result = subprocess.run(['which', 'chromium-browser'], capture_output=True, text=True)
@@ -57,7 +55,6 @@ def setup_environment():
         print(f"環境準備失敗: {e}", flush=True)
         raise
 
-# 設置 Chrome 選項
 def get_chrome_options():
     chrome_options = Options()
     chrome_options.add_argument('--headless')
@@ -80,7 +77,6 @@ def get_chrome_options():
     chrome_options.binary_location = '/usr/bin/chromium-browser'
     return chrome_options
 
-# 檢查新文件出現
 def wait_for_new_file(initial_files, timeout=30):
     start_time = time.time()
     while time.time() - start_time < timeout:
@@ -91,7 +87,6 @@ def wait_for_new_file(initial_files, timeout=30):
         time.sleep(0.1)
     return set()
 
-# CPLUS 登錄
 def cplus_login(driver):
     try:
         wait = WebDriverWait(driver, 20)
@@ -134,7 +129,6 @@ def cplus_login(driver):
         print(f"CPLUS 登錄失敗: {str(e)}", flush=True)
         return False
 
-# CPLUS 登出
 def cplus_logout(driver):
     try:
         wait = WebDriverWait(driver, 30)
@@ -163,7 +157,6 @@ def cplus_logout(driver):
     except Exception as e:
         print(f"CPLUS: 登出失敗: {str(e)}", flush=True)
 
-# 下載 Container Movement Log
 def download_container_movement_log(driver, initial_files):
     downloaded_files = set()
     try:
@@ -228,7 +221,6 @@ def download_container_movement_log(driver, initial_files):
             print("CPLUS: Container Movement Log 未觸發新文件下載", flush=True)
             return downloaded_files, False
 
-# 下載 OnHandContainerList
 def download_onhand_container_list(driver, initial_files):
     downloaded_files = set()
     try:
@@ -300,7 +292,6 @@ def download_onhand_container_list(driver, initial_files):
             print("CPLUS: OnHandContainerList 未觸發新文件下載", flush=True)
             return downloaded_files, False
 
-# 下載 Housekeeping Reports
 def download_housekeeping_reports(driver, initial_files):
     downloaded_files = set()
     failed_buttons = []
@@ -375,7 +366,6 @@ def download_housekeeping_reports(driver, initial_files):
         success = len(downloaded_files) >= 6 and all(any(prefix in f for f in downloaded_files) for prefix in EXPECTED_HOUSEKEEPING_FILES.values())
         return downloaded_files, success, failed_buttons
 
-# 重試 Housekeeping Reports 的失敗按鈕
 def retry_housekeeping_reports(driver, initial_files, failed_buttons):
     downloaded_files = set()
     still_failed = []
@@ -417,7 +407,6 @@ def retry_housekeeping_reports(driver, initial_files, failed_buttons):
         success = len(downloaded_files) >= 6 and all(any(prefix in f for f in downloaded_files) for prefix in EXPECTED_HOUSEKEEPING_FILES.values())
         return downloaded_files, success, still_failed
 
-# CPLUS 主流程
 def process_cplus():
     driver = None
     all_downloaded_files = set()
@@ -428,7 +417,6 @@ def process_cplus():
         if not cplus_login(driver):
             return all_downloaded_files
 
-        # 下載 Container Movement Log
         cm_success = False
         for attempt in range(max_retries):
             print(f"CPLUS: Container Movement Log 第 {attempt+1}/{max_retries} 次嘗試...", flush=True)
@@ -440,7 +428,6 @@ def process_cplus():
                 print(f"CPLUS: Container Movement Log 失敗，等待 5 秒後重試...", flush=True)
                 time.sleep(5)
 
-        # 下載 OnHandContainerList
         oh_success = False
         for attempt in range(max_retries):
             print(f"CPLUS: OnHandContainerList 第 {attempt+1}/{max_retries} 次嘗試...", flush=True)
@@ -452,7 +439,6 @@ def process_cplus():
                 print(f"CPLUS: OnHandContainerList 失敗，等待 5 秒後重試...", flush=True)
                 time.sleep(5)
 
-        # 下載 Housekeeping Reports
         hr_success = False
         failed_buttons = []
         for attempt in range(max_retries):
@@ -479,7 +465,6 @@ def process_cplus():
             driver.quit()
             print("CPLUS WebDriver 關閉", flush=True)
 
-# Barge 操作
 def process_barge():
     driver = None
     downloaded_files = set()
@@ -571,44 +556,42 @@ def process_barge():
                 print("Barge: Container Detail 未觸發新文件下載", flush=True)
                 return downloaded_files, False
 
-    finally:
-        if driver:
-            try:
-                print("Barge: 點擊工具欄進行登出...", flush=True)
-                logout_toolbar_barge = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='main-toolbar']/button[4]/span[1]")))
-                driver.execute_script("arguments[0].scrollIntoView(true);", logout_toolbar_barge)
-                time.sleep(0.5)
-                driver.execute_script("arguments[0].click();", logout_toolbar_barge)
-                print("Barge: 工具欄點擊成功", flush=True)
-
-                print("Barge: 點擊 Logout 選項...", flush=True)
-                logout_button_barge = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='mat-menu-panel-11']/div/button/span")))
-                driver.execute_script("arguments[0].scrollIntoView(true);", logout_button_barge)
-                time.sleep(0.5)
-                driver.execute_script("arguments[0].click();", logout_button_barge)
-                print("Barge: Logout 選項點擊成功", flush=True)
-                time.sleep(2)
-            except TimeoutException:
-                print("Barge: 登出按鈕未找到，嘗試備用定位...", flush=True)
+        finally:
+            if driver:
                 try:
-                    logout_button_barge = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Logout')]")))
+                    print("Barge: 點擊工具欄進行登出...", flush=True)
+                    logout_toolbar_barge = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='main-toolbar']/button[4]/span[1]")))
+                    driver.execute_script("arguments[0].scrollIntoView(true);", logout_toolbar_barge)
+                    time.sleep(0.5)
+                    driver.execute_script("arguments[0].click();", logout_toolbar_barge)
+                    print("Barge: 工具欄點擊成功", flush=True)
+
+                    print("Barge: 點擊 Logout 選項...", flush=True)
+                    logout_button_barge = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='mat-menu-panel-11']/div/button/span")))
+                    driver.execute_script("arguments[0].scrollIntoView(true);", logout_button_barge)
+                    time.sleep(0.5)
                     driver.execute_script("arguments[0].click();", logout_button_barge)
-                    print("Barge: 備用 Logout 選項點擊成功", flush=True)
+                    print("Barge: Logout 選項點擊成功", flush=True)
                     time.sleep(2)
                 except TimeoutException:
-                    print("Barge: 備用 Logout 選項未找到，跳過登出", flush=True)
-            except Exception as e:
-                print(f"Barge: 登出失敗: {str(e)}", flush=True)
-            driver.quit()
-            print("Barge WebDriver 關閉", flush=True)
+                    print("Barge: 登出按鈕未找到，嘗試備用定位...", flush=True)
+                    try:
+                        logout_button_barge = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Logout')]")))
+                        driver.execute_script("arguments[0].click();", logout_button_barge)
+                        print("Barge: 備用 Logout 選項點擊成功", flush=True)
+                        time.sleep(2)
+                    except TimeoutException:
+                        print("Barge: 備用 Logout 選項未找到，跳過登出", flush=True)
+                except Exception as e:
+                    print(f"Barge: 登出失敗: {str(e)}", flush=True)
+                driver.quit()
+                print("Barge WebDriver 關閉", flush=True)
 
-# 主函數
 def main():
     max_retries = 3
     all_downloaded_files = set()
     clear_download_dir()
 
-    # 第一次嘗試
     print("開始運行腳本，第 1 次嘗試...", flush=True)
     cplus_files = set()
     barge_files = set()
@@ -622,13 +605,11 @@ def main():
     all_downloaded_files.update(cplus_files)
     all_downloaded_files.update(barge_files)
 
-    # 檢查每個部分的成功狀態
     cm_success = any("cntrMoveLog.xlsx" in f for f in all_downloaded_files)
     oh_success = any("data_" in f for f in all_downloaded_files)
     hr_success = len([f for f in all_downloaded_files if any(prefix in f for prefix in EXPECTED_HOUSEKEEPING_FILES.values())]) >= 6
     barge_success = any("ContainerDetailReport" in f for f in all_downloaded_files)
 
-    # 重試失敗部分
     for attempt in range(1, max_retries):
         if cm_success and oh_success and hr_success and barge_success:
             break
@@ -681,14 +662,12 @@ def main():
             print(f"等待 5 秒後進行下一次重試...", flush=True)
             time.sleep(5)
 
-    # 最終檢查
     downloaded_files = [f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx'))]
     if len(downloaded_files) >= EXPECTED_FILE_COUNT:
         print(f"所有下載完成，檔案位於: {download_dir}", flush=True)
         for file in downloaded_files:
             print(f"找到檔案: {file}", flush=True)
 
-        # 發送 Zoho Mail
         print("開始發送郵件...", flush=True)
         try:
             smtp_server = 'smtp.zoho.com'
