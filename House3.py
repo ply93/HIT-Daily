@@ -103,7 +103,7 @@ def cplus_login(driver):
 
         print("CPLUS: 點擊登錄前按鈕...", flush=True)
         login_button_pre = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
-        ActionChains(driver).move_to_element(login_button_pre).click().perform()
+        driver.execute_script("arguments[0].click();", login_button_pre)
         print("CPLUS: 登錄前按鈕點擊成功", flush=True)
         time.sleep(2)
 
@@ -127,7 +127,7 @@ def cplus_login(driver):
 
         print("CPLUS: 點擊 LOGIN 按鈕...", flush=True)
         login_button = driver.find_element(By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/div[2]/div/div/form/button/span[1]")
-        ActionChains(driver).move_to_element(login_button).click().perform()
+        driver.execute_script("arguments[0].click();", login_button)
         print("CPLUS: LOGIN 按鈕點擊成功", flush=True)
         time.sleep(2)
         return True
@@ -143,20 +143,20 @@ def cplus_logout(driver):
         logout_menu_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
         driver.execute_script("arguments[0].scrollIntoView(true);", logout_menu_button)
         time.sleep(0.5)
-        ActionChains(driver).move_to_element(logout_menu_button).click().perform()
+        driver.execute_script("arguments[0].click();", logout_menu_button)
         print("CPLUS: 登錄按鈕點擊成功", flush=True)
 
         logout_option = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='menu-list-grow']/div[6]/li")))
         driver.execute_script("arguments[0].scrollIntoView(true);", logout_option)
         time.sleep(0.5)
-        ActionChains(driver).move_to_element(logout_option).click().perform()
+        driver.execute_script("arguments[0].click();", logout_option)
         print("CPLUS: Logout 選項點擊成功", flush=True)
         time.sleep(2)
     except TimeoutException:
         print("CPLUS: 登出按鈕未找到，嘗試備用定位...", flush=True)
         try:
             logout_option = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//li[contains(text(), 'Logout')]")))
-            ActionChains(driver).move_to_element(logout_option).click().perform()
+            driver.execute_script("arguments[0].click();", logout_option)
             print("CPLUS: 備用 Logout 選項點擊成功", flush=True)
             time.sleep(2)
         except TimeoutException:
@@ -572,34 +572,36 @@ def process_barge():
                 print("Barge: Container Detail 未觸發新文件下載", flush=True)
                 return downloaded_files, False
 
-    finally:
-        if driver:
-            try:
-                print("Barge: 點擊工具欄進行登出...", flush=True)
-                logout_toolbar_barge = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='main-toolbar']/button[4]/span[1]")))
-                driver.execute_script("arguments[0].scrollIntoView(true);", logout_toolbar_barge)
-                time.sleep(0.5)
-                driver.execute_script("arguments[0].click();", logout_toolbar_barge)
-                print("Barge: 工具欄點擊成功", flush=True)
-
-                print("Barge: 點擊 Logout 選項...", flush=True)
-                logout_button_barge = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='mat-menu-panel-11']/div/button/span")))
-                driver.execute_script("arguments[0].click();", logout_button_barge)
-                print("Barge: Logout 選項點擊成功", flush=True)
-                time.sleep(2)
-            except TimeoutException:
-                print("Barge: 登出按鈕未找到，嘗試備用定位...", flush=True)
+        finally:
+            if driver:
                 try:
-                    logout_button_barge = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Logout')]")))
+                    print("Barge: 點擊工具欄進行登出...", flush=True)
+                    logout_toolbar_barge = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='main-toolbar']/button[4]/span[1]")))
+                    driver.execute_script("arguments[0].scrollIntoView(true);", logout_toolbar_barge)
+                    time.sleep(0.5)
+                    driver.execute_script("arguments[0].click();", logout_toolbar_barge)
+                    print("Barge: 工具欄點擊成功", flush=True)
+
+                    print("Barge: 點擊 Logout 選項...", flush=True)
+                    logout_button_barge = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='mat-menu-panel-11']/div/button/span")))
+                    driver.execute_script("arguments[0].scrollIntoView(true);", logout_button_barge)
+                    time.sleep(0.5)
                     driver.execute_script("arguments[0].click();", logout_button_barge)
-                    print("Barge: 備用 Logout 選項點擊成功", flush=True)
+                    print("Barge: Logout 選項點擊成功", flush=True)
                     time.sleep(2)
                 except TimeoutException:
-                    print("Barge: 備用 Logout 選項未找到，跳過登出", flush=True)
-            except Exception as e:
-                print(f"Barge: 登出失敗: {str(e)}", flush=True)
-            driver.quit()
-            print("Barge WebDriver 關閉", flush=True)
+                    print("Barge: 登出按鈕未找到，嘗試備用定位...", flush=True)
+                    try:
+                        logout_button_barge = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Logout')]")))
+                        driver.execute_script("arguments[0].click();", logout_button_barge)
+                        print("Barge: 備用 Logout 選項點擊成功", flush=True)
+                        time.sleep(2)
+                    except TimeoutException:
+                        print("Barge: 備用 Logout 選項未找到，跳過登出", flush=True)
+                except Exception as e:
+                    print(f"Barge: 登出失敗: {str(e)}", flush=True)
+                driver.quit()
+                print("Barge WebDriver 關閉", flush=True)
 
 # 主函數
 def main():
@@ -674,8 +676,7 @@ def main():
 
         all_downloaded_files.update(new_files)
         cm_success = any("cntrMoveLog.xlsx" in f for f in all_downloaded_files)
-        oh_success = any("data_" in PLANTUML
-f in all_downloaded_files)
+        oh_success = any("data_" in f for f in all_downloaded_files)
         hr_success = len([f for f in all_downloaded_files if any(prefix in f for prefix in EXPECTED_HOUSEKEEPING_FILES.values())]) >= 6
         barge_success = any("ContainerDetailReport" in f for f in all_downloaded_files)
 
