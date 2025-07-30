@@ -14,8 +14,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.common.action_chains import ActionChains
-from selenium.common.exceptions import TimeoutException, ElementClickInterceptedException, NoSuchElementException
+from selenium.common.exceptions import TimeoutException, NoSuchElementException
 from webdriver_manager.chrome import ChromeDriverManager
 
 # 全局變量
@@ -611,8 +610,6 @@ def main():
 
     # 第一次嘗試
     print("開始運行腳本，第 1 次嘗試...", flush=True)
-    cplus_success = False
-    barge_success = False
     cplus_files = set()
     barge_files = set()
 
