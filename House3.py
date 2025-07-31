@@ -161,7 +161,7 @@ def process_cplus_movement(driver, wait, initial_files):
         raise Exception("CPLUS: Container Movement Log Search 按鈕點擊失敗")
 
     print("CPLUS: 點擊 Download...", flush=True)
-    for attempt in range(3):  # Increased to 3 retries
+    for attempt in range(2):
         try:
             download_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[2]/div/div[2]/div/div[1]/div[1]/button")))
             ActionChains(driver).move_to_element(download_button).click().perform()
@@ -175,7 +175,7 @@ def process_cplus_movement(driver, wait, initial_files):
             time.sleep(0.5)
             break
         except Exception as e:
-            print(f"CPLUS: Download 按鈕點擊失敗 (嘗試 {attempt+1}/3): {str(e)}", flush=True)
+            print(f"CPLUS: Download 按鈕點擊失敗 (嘗試 {attempt+1}/2): {str(e)}", flush=True)
             time.sleep(0.5)
     else:
         raise Exception("CPLUS: Container Movement Log Download 按鈕點擊失敗")
@@ -479,15 +479,11 @@ def process_barge():
             try:
                 print("Barge: 嘗試登出...", flush=True)
                 user_menu_button = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//mat-toolbar//button[.//mat-icon[text()='account_circle']]")))
-                driver.execute_script("arguments[0].scrollIntoView(true);", user_menu_button)
-                time.sleep(1)
-                driver.execute_script("arguments[0].click();", user_menu_button)
+                ActionChains(driver).move_to_element(user_menu_button).click().perform()
                 print("Barge: 用戶菜單點擊成功", flush=True)
 
                 logout_option = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='mat-menu-panel-7']/div/button")))
-                driver.execute_script("arguments[0].scrollIntoView(true);", logout_option)
-                time.sleep(1)
-                driver.execute_script("arguments[0].click();", logout_option)
+                ActionChains(driver).move_to_element(logout_option).click().perform()
                 print("Barge: Logout 選項點擊成功", flush=True)
                 time.sleep(2)
             except Exception as e:
