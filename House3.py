@@ -382,7 +382,7 @@ def process_onhand_container_list(driver, wait, downloaded_files):
 
 # Housekeeping Reports 下載
 def process_housekeeping_reports(driver, wait, downloaded_files):
-    max_retries = 3
+    max_retries = 2  # 減少重試次數
     attempt = 0
     expected_files = 6
     downloaded_reports = set()
@@ -404,7 +404,7 @@ def process_housekeeping_reports(driver, wait, downloaded_files):
 
             wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
             print("CPLUS: Housekeeping Reports 頁面加載完成", flush=True)
-            time.sleep(5)
+            time.sleep(2)
 
             print("CPLUS: 檢查是否有日期選擇...", flush=True)
             try:
@@ -412,9 +412,17 @@ def process_housekeeping_reports(driver, wait, downloaded_files):
                 if date_fields:
                     for date_field in date_fields:
                         date_field.clear()
-                        date_field.send_keys(datetime.now().strftime('%Y-%m-%d'))
-                        print("CPLUS: 已填充日期字段", flush=True)
+                        date_field.send_keys((datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d'))
+                        print("CPLUS: 已填充日期字段（過去7天）", flush=True)
                         time.sleep(1)
+                    # 點擊可能的確認按鈕
+                    try:
+                        confirm_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Confirm') or contains(text(), 'OK')]")))
+                        confirm_button.click()
+                        print("CPLUS: 確認按鈕點擊成功", flush=True)
+                        time.sleep(2)
+                    except TimeoutException:
+                        print("CPLUS: 未找到確認按鈕，繼續...", flush=True)
             except Exception as e:
                 print(f"CPLUS: 日期選擇失敗: {str(e)}", flush=True)
 
@@ -429,7 +437,7 @@ def process_housekeeping_reports(driver, wait, downloaded_files):
                 continue
 
             print("CPLUS: 定位所有 Excel 下載按鈕...", flush=True)
-            initial_files = set(f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx')))
+            initial_files = set(f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx')) and not f.startswith('ContainerDetailReport'))
             locator_list = [
                 "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button[not(@disabled)]//svg[@viewBox='0 0 24 24']//path[@fill='#036e11']",
                 "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)]",
@@ -659,16 +667,23 @@ def process_barge():
                     if date_fields:
                         for date_field in date_fields:
                             date_field.clear()
-                            date_field.send_keys(datetime.now().strftime('%Y-%m-%d'))
-                            print("Barge: 已填充日期字段", flush=True)
+                            date_field.send_keys((datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d'))
+                            print("Barge: 已填充日期字段（過去7天）", flush=True)
                             time.sleep(1)
+                        try:
+                            confirm_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Confirm') or contains(text(), 'OK')]")))
+                            confirm_button.click()
+                            print("Barge: 確認按鈕點擊成功", flush=True)
+                            time.sleep(2)
+                        except TimeoutException:
+                            print("Barge: 未找到確認按鈕，繼續...", flush=True)
                 except Exception as e:
                     print(f"Barge: 日期選擇失敗: {str(e)}", flush=True)
 
                 print("Barge: 選擇 Report Type...", flush=True)
                 report_type_select_locators = [
+                    "//mat-select[@id='mat-select-60']",
                     "//mat-select[contains(@aria-label, 'Report Type') or contains(@id, 'mat-select')]",
-                    "//select[contains(@id, 'mat-select') or contains(@class, 'mat-select')]",
                     "//*[contains(text(), 'Report Type')]/following-sibling::mat-select"
                 ]
                 type_selected = False
@@ -682,30 +697,30 @@ def process_barge():
                     except TimeoutException:
                         print(f"Barge: Report Type 未找到 (定位: {locator})", flush=True)
                 if not type_selected:
-                    print("Barge: Report Type 選擇失敗，嘗試直接選擇 Container Detail...", flush=True)
+                    print("Barge: Report Type 選擇失敗，嘗試直接選擇 Container Details...", flush=True)
 
                 time.sleep(2)
 
-                print("Barge: 點擊 Container Detail...", flush=True)
+                print("Barge: 點擊 Container Details...", flush=True)
                 container_detail_locators = [
-                    "//mat-option[contains(text(), 'Container Detail')]",
-                    "//*[contains(text(), 'Container Detail') and @role='option']",
-                    "//*[contains(text(), 'Container Detail')]"
+                    "//mat-option[contains(text(), 'Container Details')]",
+                    "//*[contains(text(), 'Container Details') and @role='option']",
+                    "//*[contains(text(), 'Container Details')]"
                 ]
                 detail_clicked = False
                 for locator in container_detail_locators:
                     try:
                         container_detail_option = wait.until(EC.element_to_be_clickable((By.XPATH, locator)))
                         ActionChains(driver).move_to_element(container_detail_option).click().perform()
-                        print(f"Barge: Container Detail 點擊成功 (使用定位: {locator})", flush=True)
+                        print(f"Barge: Container Details 點擊成功 (使用定位: {locator})", flush=True)
                         detail_clicked = True
                         break
                     except TimeoutException:
-                        print(f"Barge: Container Detail 選項未找到 (定位: {locator})", flush=True)
+                        print(f"Barge: Container Details 選項未找到 (定位: {locator})", flush=True)
                 if not detail_clicked:
-                    print("Barge: Container Detail 點擊失敗", flush=True)
-                    driver.save_screenshot(f"barge_container_detail_error_attempt_{attempt}.png")
-                    save_page_source(driver, f"barge_container_detail_error_attempt_{attempt}.html")
+                    print("Barge: Container Details 點擊失敗", flush=True)
+                    driver.save_screenshot(f"barge_container_details_error_attempt_{attempt}.png")
+                    save_page_source(driver, f"barge_container_details_error_attempt_{attempt}.html")
                     continue
 
                 time.sleep(2)
@@ -727,20 +742,20 @@ def process_barge():
                     except Exception as e:
                         print(f"Barge: Download 按鈕點擊失敗 (使用定位: {locator}): {str(e)}", flush=True)
                 if not download_clicked:
-                    print("Barge: Container Detail Download 按鈕點擊失敗", flush=True)
+                    print("Barge: Container Details Download 按鈕點擊失敗", flush=True)
                     driver.save_screenshot(f"barge_download_error_attempt_{attempt}.png")
                     save_page_source(driver, f"barge_download_error_attempt_{attempt}.html")
                     continue
 
                 new_files = wait_for_new_file(initial_files, timeout=15)
                 if new_files:
-                    print(f"Barge: Container Detail 下載完成，檔案位於: {download_dir}", flush=True)
+                    print(f"Barge: Container Details 下載完成，檔案位於: {download_dir}", flush=True)
                     for file in new_files:
                         print(f"Barge: 新下載檔案: {file}", flush=True)
                     downloaded_files.update(new_files)
                     break
                 else:
-                    print("Barge: Container Detail 未觸發新文件下載", flush=True)
+                    print("Barge: Container Details 未觸發新文件下載", flush=True)
                     driver.save_screenshot(f"barge_no_download_attempt_{attempt}.png")
                     save_page_source(driver, f"barge_no_download_attempt_{attempt}.html")
                     continue
@@ -756,33 +771,31 @@ def process_barge():
     if driver:
         try:
             print("Barge: 嘗試登出...", flush=True)
-            logout_toolbar_locators = [
-                "//*[@id='main-toolbar']/button[4]/span[1]",
-                "//button[contains(@aria-label, 'account')]"
+            logout_menu_locators = [
+                "//span[contains(@class, 'mat-button-wrapper') and contains(text(), 'ckl/barge')]"
             ]
             logout_option_locators = [
-                "//*[@id='mat-menu-panel-11']/div/button/span",
-                "//button[contains(text(), 'Logout')]"
+                "//*[@id='mat-menu-panel-7']/div/button"
             ]
-            toolbar_clicked = False
-            for toolbar_locator in logout_toolbar_locators:
+            menu_clicked = False
+            for menu_locator in logout_menu_locators:
                 try:
-                    logout_toolbar_barge = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, toolbar_locator)))
-                    driver.execute_script("arguments[0].scrollIntoView(true);", logout_toolbar_barge)
-                    ActionChains(driver).move_to_element(logout_toolbar_barge).click().perform()
-                    print(f"Barge: 工具欄點擊成功 (使用定位: {toolbar_locator})", flush=True)
-                    toolbar_clicked = True
+                    logout_menu_button = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, menu_locator)))
+                    driver.execute_script("arguments[0].scrollIntoView(true);", logout_menu_button)
+                    ActionChains(driver).move_to_element(logout_menu_button).click().perform()
+                    print(f"Barge: 登出菜單按鈕點擊成功 (使用定位: {menu_locator})", flush=True)
+                    menu_clicked = True
                     break
                 except TimeoutException:
-                    print(f"Barge: 工具欄按鈕未找到 (定位: {toolbar_locator})", flush=True)
+                    print(f"Barge: 登出菜單按鈕未找到 (定位: {menu_locator})", flush=True)
 
-            if toolbar_clicked:
+            if menu_clicked:
                 option_clicked = False
                 for option_locator in logout_option_locators:
                     try:
-                        logout_button_barge = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, option_locator)))
-                        driver.execute_script("arguments[0].scrollIntoView(true);", logout_button_barge)
-                        ActionChains(driver).move_to_element(logout_button_barge).click().perform()
+                        logout_option = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, option_locator)))
+                        driver.execute_script("arguments[0].scrollIntoView(true);", logout_option)
+                        ActionChains(driver).move_to_element(logout_option).click().perform()
                         print(f"Barge: Logout 選項點擊成功 (使用定位: {option_locator})", flush=True)
                         option_clicked = True
                         break
@@ -791,7 +804,7 @@ def process_barge():
                 if not option_clicked:
                     print("Barge: 無法點擊 Logout 選項，跳過登出", flush=True)
             else:
-                print("Barge: 無法打開工具欄，跳過登出", flush=True)
+                print("Barge: 無法打開登出菜單，跳過登出", flush=True)
             time.sleep(2)
         except Exception as e:
             print(f"Barge: 登出失敗: {str(e)}", flush=True)
