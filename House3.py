@@ -403,7 +403,7 @@ def process_housekeeping_reports(driver, wait, downloaded_files):
                 except Exception as e:
                     print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕處理失敗: {str(e)}", flush=True)
 
-return downloaded_files
+            return downloaded_files
 
 # CPLUS 主流程
 def process_cplus():
