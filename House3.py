@@ -479,28 +479,45 @@ def process_barge():
         try:
             if driver:
                 print("Barge: 點擊工具欄進行登出...", flush=True)
-                logout_toolbar_barge = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='main-toolbar']/button[4]/span[1]")))
-                driver.execute_script("arguments[0].scrollIntoView(true);", logout_toolbar_barge)
-                time.sleep(0.5)
-                ActionChains(driver).move_to_element(logout_toolbar_barge).click().perform()
-                print("Barge: 工具欄點擊成功", flush=True)
+                try:
+                    logout_toolbar_barge = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='main-toolbar']/button[4]/span[1]")))
+                    driver.execute_script("arguments[0].scrollIntoView(true);", logout_toolbar_barge)
+                    time.sleep(1)
+                    driver.execute_script("arguments[0].click();", logout_toolbar_barge)
+                    print("Barge: 工具欄點擊成功", flush=True)
+                except TimeoutException:
+                    print("Barge: 主工具欄登出按鈕未找到，嘗試備用定位...", flush=True)
+                    try:
+                        logout_toolbar_barge = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Logout')]")))
+                        driver.execute_script("arguments[0].scrollIntoView(true);", logout_toolbar_barge)
+                        time.sleep(1)
+                        driver.execute_script("arguments[0].click();", logout_toolbar_barge)
+                        print("Barge: 備用工具欄點擊成功", flush=True)
+                    except TimeoutException:
+                        print("Barge: 備用工具欄登出按鈕未找到，跳過登出", flush=True)
+                        raise
 
                 print("Barge: 點擊 Logout 選項...", flush=True)
-                logout_button_barge = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='mat-menu-panel-11']/div/button/span")))
-                driver.execute_script("arguments[0].scrollIntoView(true);", logout_button_barge)
-                time.sleep(0.5)
-                ActionChains(driver).move_to_element(logout_button_barge).click().perform()
-                print("Barge: Logout 選項點擊成功", flush=True)
-                time.sleep(2)
-        except TimeoutException:
-            print("Barge: 登出按鈕未找到，嘗試備用定位...", flush=True)
-            try:
-                logout_button_barge = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Logout')]")))
-                ActionChains(driver).move_to_element(logout_button_barge).click().perform()
-                print("Barge: 備用 Logout 選項點擊成功", flush=True)
-                time.sleep(2)
-            except TimeoutException:
-                print("Barge: 備用 Logout 選項未找到，跳過登出", flush=True)
+                try:
+                    logout_button_barge = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='mat-menu-panel-11']/div/button/span")))
+                    driver.execute_script("arguments[0].scrollIntoView(true);", logout_button_barge)
+                    time.sleep(1)
+                    driver.execute_script("arguments[0].click();", logout_button_barge)
+                    print("Barge: Logout 選項點擊成功", flush=True)
+                except TimeoutException:
+                    print("Barge: Logout 選項未找到，嘗試備用定位...", flush=True)
+                    try:
+                        logout_button_barge = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Logout')]")))
+                        driver.execute_script("arguments[0].scrollIntoView(true);", logout_button_barge)
+                        time.sleep(1)
+                        driver.execute_script("arguments[0].click();", logout_button_barge)
+                        print("Barge: 備用 Logout 選項點擊成功", flush=True)
+                    except TimeoutException:
+                        print("Barge: 備用 Logout 選項未找到，跳過登出", flush=True)
+                        raise
+
+                time.sleep(5)
+
         except Exception as e:
             print(f"Barge: 登出失敗: {str(e)}", flush=True)
 
