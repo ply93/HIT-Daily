@@ -62,7 +62,7 @@ def get_chrome_options():
     chrome_options.add_argument('--no-first-run')
     chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36')
     chrome_options.add_argument('--disable-blink-features=AutomationControlled')
-    chrome_options.add_argument('--window-size=1920,1080')  # 確保全屏渲染
+    chrome_options.add_argument('--window-size=1920,1080')
     chrome_options.add_experimental_option('excludeSwitches', ['enable-automation'])
     prefs = {
         "download.default_directory": download_dir,
@@ -74,7 +74,7 @@ def get_chrome_options():
     return chrome_options
 
 # 檢查新文件出現，並確保沒有正在下載的文件
-def wait_for_new_file(initial_files, timeout=30):
+def wait_for_new_file(initial_files, timeout=60):
     start_time = time.time()
     while time.time() - start_time < timeout:
         all_files = set(os.listdir(download_dir))
@@ -193,7 +193,7 @@ def process_container_movement_log(driver, wait, downloaded_files):
                 print("CPLUS: Container Movement Log Download 按鈕點擊失敗", flush=True)
                 continue
 
-            new_files = wait_for_new_file(initial_files, timeout=30)
+            new_files = wait_for_new_file(initial_files, timeout=60)
             if new_files:
                 print(f"CPLUS: Container Movement Log 下載完成，檔案位於: {download_dir}", flush=True)
                 for file in new_files:
@@ -284,7 +284,7 @@ def process_onhand_container_list(driver, wait, downloaded_files):
                 print("CPLUS: OnHandContainerList Export as CSV 按鈕點擊失敗", flush=True)
                 continue
 
-            new_files = wait_for_new_file(initial_files, timeout=30)
+            new_files = wait_for_new_file(initial_files, timeout=60)
             if new_files:
                 print(f"CPLUS: OnHandContainerList 下載完成，檔案位於: {download_dir}", flush=True)
                 for file in new_files:
@@ -342,7 +342,7 @@ def process_housekeeping_reports(driver, wait, downloaded_files):
                 print("CPLUS: 未找到任何 Excel 下載按鈕，頁面源碼長度: ", len(driver.page_source), flush=True)
                 continue
 
-            for idx in range(button_count):
+            for idx in range(min(button_count, expected_files)):
                 try:
                     button_locator = f"({selected_locator})[{idx+1}]"
                     button = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, button_locator)))
@@ -356,12 +356,10 @@ def process_housekeeping_reports(driver, wait, downloaded_files):
                         report_name = f"Unknown Report {idx+1}"
                         print(f"CPLUS: 無法獲取第 {idx+1} 個按鈕的報告名稱", flush=True)
 
-                    # 檢查是否已下載此報告
                     if report_name in downloaded_reports:
                         print(f"CPLUS: 報告 {report_name} 已下載，跳過", flush=True)
                         continue
 
-                    # 檢查按鈕狀態
                     try:
                         is_disabled = driver.execute_script("return arguments[0].hasAttribute('disabled');", button)
                         button_class = driver.execute_script("return arguments[0].getAttribute('class');", button)
@@ -389,21 +387,22 @@ def process_housekeeping_reports(driver, wait, downloaded_files):
                     except Exception as js_e:
                         print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 JavaScript 點擊失敗: {str(js_e)}", flush=True)
 
-                    new_files = wait_for_new_file(initial_files, timeout=60)  # 延長超時
+                    new_files = wait_for_new_file(initial_files, timeout=60)
                     if new_files:
                         print(f"CPLUS: 第 {idx+1} 個按鈕下載新文件: {', '.join(new_files)}", flush=True)
                         initial_files.update(new_files)
                         downloaded_files.update(new_files)
-                        downloaded_reports.add(report_name)  # 記錄已下載報告
+                        downloaded_reports.add(report_name)
                     else:
                         print(f"CPLUS: 第 {idx+1} 個按鈕未觸發新文件下載", flush=True)
 
-                    time.sleep(5)  # 增加等待時間確保下載完成
+                    time.sleep(5)
 
                 except Exception as e:
                     print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕處理失敗: {str(e)}", flush=True)
-
-            return downloaded_files
+        except Exception as e:
+            print(f"CPLUS Housekeeping Reports 錯誤: {str(e)}", flush=True)
+    return downloaded_files
 
 # CPLUS 主流程
 def process_cplus():
@@ -412,29 +411,21 @@ def process_cplus():
     try:
         driver = webdriver.Chrome(options=get_chrome_options())
         driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-        wait = WebDriverWait(driver, 30)  # 增加等待時間
+        wait = WebDriverWait(driver, 30)
         print("CPLUS WebDriver 初始化成功", flush=True)
 
-        # 登錄
         if not cplus_login(driver, wait):
             print("CPLUS: 登錄失敗，終止流程", flush=True)
             return downloaded_files
 
-        # 處理 Container Movement Log
         downloaded_files = process_container_movement_log(driver, wait, downloaded_files)
-
-        # 處理 OnHandContainerList
         downloaded_files = process_onhand_container_list(driver, wait, downloaded_files)
-
-        # 處理 Housekeeping Reports
         downloaded_files = process_housekeeping_reports(driver, wait, downloaded_files)
 
         return downloaded_files
-
     except Exception as e:
         print(f"CPLUS 總錯誤: {str(e)}", flush=True)
         return downloaded_files
-
     finally:
         if driver:
             try:
@@ -482,9 +473,8 @@ def process_cplus():
             driver.quit()
             print("CPLUS WebDriver 關閉", flush=True)
 
-# Barge 操作 (保持原樣，僅小修 locator)
+# Barge 操作
 def process_barge():
-    # (原代碼，僅修正登出 locator 的打印和錯誤處理)
     driver = None
     downloaded_files = set()
     max_retries = 3
@@ -564,7 +554,7 @@ def process_barge():
 
             print("Barge: 選擇 Report Type...", flush=True)
             report_type_select_locators = [
-                "//*[@id='mat-select-value-61']/span",
+                "//*[@id='mat-select-value-61]/span",
                 "//mat-select[contains(@aria-label, 'Report Type')]"
             ]
             type_selected = False
@@ -620,7 +610,7 @@ def process_barge():
                 print("Barge: Container Detail Download 按鈕點擊失敗，重試 3 次後放棄", flush=True)
                 continue
 
-            new_files = wait_for_new_file(initial_files, timeout=30)
+            new_files = wait_for_new_file(initial_files, timeout=60)
             if new_files:
                 print(f"Barge: Container Detail 下載完成，檔案位於: {download_dir}", flush=True)
                 for file in new_files:
@@ -639,7 +629,6 @@ def process_barge():
             time.sleep(10)
             continue
 
-    # 登出
     if driver:
         try:
             print("Barge: 嘗試登出...", flush=True)
@@ -717,7 +706,7 @@ def main():
     # 過濾重複文件（保留最新版本）
     unique_files = {}
     for file in downloaded_files:
-        base_name = file.split(' (')[0]  # 移除 (1), (2) 等後綴
+        base_name = file.split(' (')[0]
         if base_name not in unique_files or ' (' not in file:
             unique_files[base_name] = file
         elif ' (' in file:
@@ -773,3 +762,6 @@ def main():
         print(f"下載文件數量不足（{len(final_files)}/{EXPECTED_TOTAL_FILES}），無法發送郵件", flush=True)
 
     print("腳本完成", flush=True)
+
+if __name__ == "__main__":
+    main()
