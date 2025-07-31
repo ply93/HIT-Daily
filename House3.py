@@ -322,7 +322,7 @@ def download_housekeeping_reports(driver, initial_files):
             button_count = len(excel_buttons)
             print(f"CPLUS: 備用定位找到 {button_count} 個 Excel 下載按鈕", flush=True)
 
-        for idx, button in enumerate(excel_buttons):
+        for idx in range(button_count):
             try:
                 button = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, f"(//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button[not(@disabled)])[{idx+1}]")))
                 driver.execute_script("arguments[0].scrollIntoView(true);", button)
