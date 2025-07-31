@@ -382,7 +382,7 @@ def process_onhand_container_list(driver, wait, downloaded_files):
 
 # Housekeeping Reports 下載
 def process_housekeeping_reports(driver, wait, downloaded_files):
-    max_retries = 2  # 減少重試次數
+    max_retries = 2
     attempt = 0
     expected_files = 6
     downloaded_reports = set()
@@ -404,27 +404,16 @@ def process_housekeeping_reports(driver, wait, downloaded_files):
 
             wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
             print("CPLUS: Housekeeping Reports 頁面加載完成", flush=True)
-            time.sleep(2)
+            time.sleep(5)
 
-            print("CPLUS: 檢查是否有日期選擇...", flush=True)
+            print("CPLUS: 嘗試點擊 Search 或 Refresh 按鈕...", flush=True)
             try:
-                date_fields = driver.find_elements(By.XPATH, "//input[contains(@id, 'date') or contains(@type, 'date')]")
-                if date_fields:
-                    for date_field in date_fields:
-                        date_field.clear()
-                        date_field.send_keys((datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d'))
-                        print("CPLUS: 已填充日期字段（過去7天）", flush=True)
-                        time.sleep(1)
-                    # 點擊可能的確認按鈕
-                    try:
-                        confirm_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Confirm') or contains(text(), 'OK')]")))
-                        confirm_button.click()
-                        print("CPLUS: 確認按鈕點擊成功", flush=True)
-                        time.sleep(2)
-                    except TimeoutException:
-                        print("CPLUS: 未找到確認按鈕，繼續...", flush=True)
-            except Exception as e:
-                print(f"CPLUS: 日期選擇失敗: {str(e)}", flush=True)
+                search_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Search') or contains(text(), 'Refresh')]")))
+                ActionChains(driver).move_to_element(search_button).click().perform()
+                print("CPLUS: Search/Refresh 按鈕點擊成功", flush=True)
+                time.sleep(5)
+            except TimeoutException:
+                print("CPLUS: 未找到 Search/Refresh 按鈕，繼續...", flush=True)
 
             print("CPLUS: 等待表格加載...", flush=True)
             try:
@@ -441,7 +430,8 @@ def process_housekeeping_reports(driver, wait, downloaded_files):
             locator_list = [
                 "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button[not(@disabled)]//svg[@viewBox='0 0 24 24']//path[@fill='#036e11']",
                 "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)]",
-                "//table//tbody//tr//td[4]//button[not(@disabled)]"
+                "//table//tbody//tr//td[4]//button[not(@disabled)]",
+                "//table//td[4]//button"
             ]
             excel_buttons = []
             selected_locator = None
@@ -772,10 +762,12 @@ def process_barge():
         try:
             print("Barge: 嘗試登出...", flush=True)
             logout_menu_locators = [
-                "//span[contains(@class, 'mat-button-wrapper') and contains(text(), 'ckl/barge')]"
+                "//span[contains(@class, 'mat-button-wrapper') and contains(text(), 'ckl/barge')]",
+                "//button[contains(@aria-label, 'account')]"
             ]
             logout_option_locators = [
-                "//*[@id='mat-menu-panel-7']/div/button"
+                "//*[@id='mat-menu-panel-7']/div/button",
+                "//button[contains(text(), 'Logout')]"
             ]
             menu_clicked = False
             for menu_locator in logout_menu_locators:
