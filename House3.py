@@ -443,7 +443,7 @@ def process_barge_download(driver, wait, initial_files):
         raise Exception("Barge: Container Detail 未觸發新文件下載")
 
 # Barge 操作
-def process_barge(initial_files=set()):
+def process_barge():
     driver = None
     downloaded_files = set()
     try:
@@ -457,7 +457,7 @@ def process_barge(initial_files=set()):
         success = False
         for attempt in range(MAX_RETRIES):
             try:
-                new_files = process_barge_download(driver, wait, initial_files)
+                new_files = process_barge_download(driver, wait, downloaded_files)
                 downloaded_files.update(new_files)
                 success = True
                 break
@@ -482,7 +482,7 @@ def process_barge(initial_files=set()):
                 ActionChains(driver).move_to_element(user_menu_button).click().perform()
                 print("Barge: 用戶菜單點擊成功", flush=True)
 
-                logout_option = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//button[span[contains(text(), 'Logout')]]")))
+                logout_option = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='mat-menu-panel-7']/div/button")))
                 ActionChains(driver).move_to_element(logout_option).click().perform()
                 print("Barge: Logout 選項點擊成功", flush=True)
                 time.sleep(2)
@@ -495,14 +495,17 @@ def process_barge(initial_files=set()):
 def main():
     clear_download_dir()
 
-    # CPLUS
-    cplus_files = process_cplus()
+    cplus_files = set()
+    barge_files = set()
+    cplus_thread = threading.Thread(target=lambda: cplus_files.update(process_cplus()))
+    barge_thread = threading.Thread(target=lambda: barge_files.update(process_barge()))
 
-    # Barge
-    initial_for_barge = set(f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx')))
-    barge_files = process_barge(initial_for_barge)
+    cplus_thread.start()
+    barge_thread.start()
 
-    # 最終檢查
+    cplus_thread.join()
+    barge_thread.join()
+
     print("檢查所有下載文件...", flush=True)
     downloaded_files = [f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx'))]
     if len(downloaded_files) >= EXPECTED_FILE_COUNT:
@@ -510,7 +513,6 @@ def main():
         for file in downloaded_files:
             print(f"找到檔案: {file}", flush=True)
 
-        # 發送郵件
         print("開始發送郵件...", flush=True)
         try:
             smtp_server = 'smtp.zoho.com'
