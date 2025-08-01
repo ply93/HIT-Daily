@@ -262,6 +262,7 @@ def process_cplus_onhand(driver, wait, initial_files):
 def process_cplus_house(driver, wait, initial_files):
     new_files = set()
     button_count = 0
+    downloaded_file_names = set()  # 追蹤已下載文件名
     for page_attempt in range(2):  # 最多重試頁面 2 次
         print(f"CPLUS: 前往 Housekeeping Reports 頁面 (嘗試 {page_attempt+1}/2)...", flush=True)
         driver.get("https://cplus.hit.com.hk/app/#/report/housekeepReport")
@@ -304,7 +305,7 @@ def process_cplus_house(driver, wait, initial_files):
                     button = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, button_xpath)))
                     wait.until(EC.visibility_of(button))  # 確保按鈕可見
                     driver.execute_script("arguments[0].scrollIntoView(true);", button)
-                    time.sleep(1.5)
+                    time.sleep(2)  # 從 1.5 秒增加到 2 秒
 
                     try:
                         report_name = driver.find_element(By.XPATH, f"//table[contains(@class, 'MuiTable-root')]//tbody//tr[{idx+1}]//td[3]").text
@@ -312,9 +313,13 @@ def process_cplus_house(driver, wait, initial_files):
                     except:
                         print(f"CPLUS: 無法獲取第 {idx+1} 個按鈕的報告名稱 (嘗試 {attempt+1}/3)", flush=True)
 
+                    # 檢查按鈕屬性
+                    button_attrs = driver.execute_script("return arguments[0].outerHTML;", button)
+                    print(f"CPLUS: 第 {idx+1} 個按鈕屬性: {button_attrs}", flush=True)
+
                     driver.execute_script("arguments[0].click();", button)
                     print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 JavaScript 點擊成功 (嘗試 {attempt+1}/3)", flush=True)
-                    time.sleep(1.5)
+                    time.sleep(2)
 
                     ActionChains(driver).move_to_element(button).pause(0.5).click().perform()
                     print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 ActionChains 點擊成功 (嘗試 {attempt+1}/3)", flush=True)
@@ -323,9 +328,14 @@ def process_cplus_house(driver, wait, initial_files):
                     if temp_new:
                         filtered_files = {f for f in temp_new if any(re.match(pattern, f) for pattern in HOUSEKEEP_FILE_PATTERNS)}
                         if filtered_files:
+                            # 檢查是否重複文件名
+                            duplicates = filtered_files & downloaded_file_names
+                            if duplicates:
+                                print(f"CPLUS: 警告: 第 {idx+1} 個按鈕下載文件 {', '.join(duplicates)} 已存在", flush=True)
                             print(f"CPLUS: 第 {idx+1} 個按鈕下載新文件: {', '.join(filtered_files)} (嘗試 {attempt+1}/3)", flush=True)
                             local_initial.update(temp_new)
                             new_files.update(filtered_files)
+                            downloaded_file_names.update(filtered_files)
                             success = True
                             break
                         else:
@@ -447,7 +457,7 @@ def barge_login(driver, wait):
     time.sleep(1)
 
     print("Barge: 輸入 PW...", flush=True)
-    password_field = driver.find_element(By.XPATH, "//input[contains(@id, 'mat-input') and @placeholder='Password' or contains(@id, 'mat-input-2')]")
+    password_field = driver.find_element(By.XPATHuppgift("//input[contains(@id, 'mat-input') and @placeholder='Password' or contains(@id, 'mat-input-2')]"))
     password_field.send_keys("123456")
     print("Barge: PW 輸入完成", flush=True)
     time.sleep(1)
