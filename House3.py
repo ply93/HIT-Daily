@@ -24,6 +24,7 @@ CPLUS_MOVEMENT_COUNT = 1  # Container Movement Log
 CPLUS_ONHAND_COUNT = 1  # OnHandContainerList
 BARGE_COUNT = 1  # Barge
 MAX_RETRIES = 3
+HOUSEKEEP_FILE_PATTERNS = ['DM1C', 'GA1', 'IA15', 'IA17', 'INV-114']  # Housekeeping 文件模式
 
 # 清空下載目錄
 def clear_download_dir():
@@ -137,27 +138,29 @@ def process_cplus_movement(driver, wait, initial_files):
     local_initial = initial_files.copy()
     for attempt in range(2):
         try:
-            search_button = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[1]/div/form/div[2]/div/div[4]/button")))
+            search_button = WebDriverWait(driver, 45).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[1]/div/form/div[2]/div/div[4]/button")))
             ActionChains(driver).move_to_element(search_button).click().perform()
             print("CPLUS: Search 按鈕點擊成功", flush=True)
             break
         except TimeoutException:
             print(f"CPLUS: Search 按鈕未找到，嘗試備用定位 {attempt+1}/2...", flush=True)
             try:
-                search_button = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'MuiButtonBase-root') and .//span[contains(text(), 'Search')]]")))
+                search_button = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'MuiButtonBase-root') and .//span[contains(text(), 'Search')]]")))
                 ActionChains(driver).move_to_element(search_button).click().perform()
                 print("CPLUS: 備用 Search 按鈕 1 點擊成功", flush=True)
                 break
             except TimeoutException:
                 print(f"CPLUS: 備用 Search 按鈕 1 失敗，嘗試備用定位 2 (嘗試 {attempt+1}/2)...", flush=True)
                 try:
-                    search_button = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Search')]")))
+                    search_button = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Search')]")))
                     ActionChains(driver).move_to_element(search_button).click().perform()
                     print("CPLUS: 備用 Search 按鈕 2 點擊成功", flush=True)
                     break
                 except TimeoutException:
                     print(f"CPLUS: 備用 Search 按鈕 2 失敗 (嘗試 {attempt+1}/2)", flush=True)
     else:
+        print("CPLUS: Container Movement Log Search 按鈕點擊失敗，記錄頁面狀態...", flush=True)
+        driver.save_screenshot("movement_search_failure.png")
         raise Exception("CPLUS: Container Movement Log Search 按鈕點擊失敗")
 
     print("CPLUS: 點擊 Download...", flush=True)
@@ -178,6 +181,8 @@ def process_cplus_movement(driver, wait, initial_files):
             print(f"CPLUS: Download 按鈕點擊失敗 (嘗試 {attempt+1}/2): {str(e)}", flush=True)
             time.sleep(0.5)
     else:
+        print("CPLUS: Container Movement Log Download 按鈕點擊失敗，記錄頁面狀態...", flush=True)
+        driver.save_screenshot("movement_download_failure.png")
         raise Exception("CPLUS: Container Movement Log Download 按鈕點擊失敗")
 
     new_files = wait_for_new_file(local_initial, timeout=6)
@@ -287,45 +292,51 @@ def process_cplus_house(driver, wait, initial_files):
 
     for idx in range(button_count):
         success = False
-        try:
-            button_xpath = f"(//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button[not(@disabled)])[{idx+1}]"
-            button = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, button_xpath)))
-            driver.execute_script("arguments[0].scrollIntoView(true);", button)
-            time.sleep(1.5)  # 從 1 秒增加到 1.5 秒
-
+        for attempt in range(3):  # 增加到 3 次重試
             try:
-                report_name = driver.find_element(By.XPATH, f"//table[contains(@class, 'MuiTable-root')]//tbody//tr[{idx+1}]//td[3]").text
-                print(f"CPLUS: 準備點擊第 {idx+1} 個 Excel 按鈕，報告名稱: {report_name}", flush=True)
-            except:
-                print(f"CPLUS: 無法獲取第 {idx+1} 個按鈕的報告名稱", flush=True)
+                button_xpath = f"(//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button[not(@disabled)])[{idx+1}]"
+                button = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, button_xpath)))
+                driver.execute_script("arguments[0].scrollIntoView(true);", button)
+                time.sleep(1.5)
 
-            driver.execute_script("arguments[0].click();", button)
-            print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 JavaScript 點擊成功", flush=True)
-            time.sleep(1.5)
+                try:
+                    report_name = driver.find_element(By.XPATH, f"//table[contains(@class, 'MuiTable-root')]//tbody//tr[{idx+1}]//td[3]").text
+                    print(f"CPLUS: 準備點擊第 {idx+1} 個 Excel 按鈕 (嘗試 {attempt+1}/3)，報告名稱: {report_name}", flush=True)
+                except:
+                    print(f"CPLUS: 無法獲取第 {idx+1} 個按鈕的報告名稱 (嘗試 {attempt+1}/3)", flush=True)
 
-            ActionChains(driver).move_to_element(button).pause(0.5).click().perform()
-            print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 ActionChains 點擊成功", flush=True)
+                driver.execute_script("arguments[0].click();", button)
+                print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 JavaScript 點擊成功 (嘗試 {attempt+1}/3)", flush=True)
+                time.sleep(1.5)
 
-            temp_new = wait_for_new_file(local_initial, timeout=6)
-            if temp_new:
-                print(f"CPLUS: 第 {idx+1} 個按鈕下載新文件: {', '.join(temp_new)}", flush=True)
-                local_initial.update(temp_new)
-                new_files.update(temp_new)
-                success = True
-            else:
-                print(f"CPLUS: 第 {idx+1} 個按鈕未觸發新文件下載", flush=True)
-                driver.save_screenshot(f"house_button_{idx+1}_failure.png")
-                with open(f"house_button_{idx+1}_failure.html", "w", encoding="utf-8") as f:
+                ActionChains(driver).move_to_element(button).pause(0.5).click().perform()
+                print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 ActionChains 點擊成功 (嘗試 {attempt+1}/3)", flush=True)
+
+                temp_new = wait_for_new_file(local_initial, timeout=6)
+                if temp_new:
+                    filtered_files = {f for f in temp_new if any(pattern in f for pattern in HOUSEKEEP_FILE_PATTERNS)}
+                    if filtered_files:
+                        print(f"CPLUS: 第 {idx+1} 個按鈕下載新文件: {', '.join(filtered_files)} (嘗試 {attempt+1}/3)", flush=True)
+                        local_initial.update(temp_new)
+                        new_files.update(filtered_files)
+                        success = True
+                        break
+                    else:
+                        print(f"CPLUS: 第 {idx+1} 個按鈕下載非預期檔案: {', '.join(temp_new)} (嘗試 {attempt+1}/3)", flush=True)
+                else:
+                    print(f"CPLUS: 第 {idx+1} 個按鈕未觸發新文件下載 (嘗試 {attempt+1}/3)", flush=True)
+
+            except Exception as e:
+                print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕點擊失敗 (嘗試 {attempt+1}/3): {str(e)}", flush=True)
+
+            if not success:
+                print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕嘗試 {attempt+1}/3 失敗，記錄頁面狀態...", flush=True)
+                driver.save_screenshot(f"house_button_{idx+1}_attempt_{attempt+1}_failure.png")
+                with open(f"house_button_{idx+1}_attempt_{attempt+1}_failure.html", "w", encoding="utf-8") as f:
                     f.write(driver.page_source)
 
-        except Exception as e:
-            print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕點擊失敗: {str(e)}", flush=True)
-            driver.save_screenshot(f"house_button_{idx+1}_failure.png")
-            with open(f"house_button_{idx+1}_failure.html", "w", encoding="utf-8") as f:
-                f.write(driver.page_source)
-
         if not success:
-            print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕失敗", flush=True)
+            print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕經過 3 次嘗試失敗", flush=True)
 
     if new_files:
         print(f"CPLUS: Housekeeping Reports 下載完成，共 {len(new_files)} 個文件，預期 {button_count} 個", flush=True)
