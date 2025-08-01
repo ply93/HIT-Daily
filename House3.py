@@ -183,7 +183,7 @@ def process_cplus_movement(driver, wait, initial_files):
     new_files = wait_for_new_file(local_initial, timeout=6)
     if new_files:
         print(f"CPLUS: Container Movement Log 下載完成，檔案位於: {download_dir}", flush=True)
-        filtered_files = {f for f in new_files if "cntrMoveLog" in f}  # 只報告 cntrMoveLog 文件
+        filtered_files = {f for f in new_files if "cntrMoveLog" in f}
         for file in filtered_files:
             print(f"CPLUS: 新下載檔案: {file}", flush=True)
         if not filtered_files:
@@ -239,7 +239,7 @@ def process_cplus_onhand(driver, wait, initial_files):
     new_files = wait_for_new_file(local_initial, timeout=6)
     if new_files:
         print(f"CPLUS: OnHandContainerList 下載完成，檔案位於: {download_dir}", flush=True)
-        filtered_files = {f for f in new_files if "data_2025" in f}  # 只報告 data_*.csv 文件
+        filtered_files = {f for f in new_files if "data_2025" in f}
         for file in filtered_files:
             print(f"CPLUS: 新下載檔案: {file}", flush=True)
         if not filtered_files:
@@ -291,7 +291,7 @@ def process_cplus_house(driver, wait, initial_files):
             button_xpath = f"(//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button[not(@disabled)])[{idx+1}]"
             button = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, button_xpath)))
             driver.execute_script("arguments[0].scrollIntoView(true);", button)
-            time.sleep(1)  # 從 0.5 秒增加到 1 秒
+            time.sleep(1.5)  # 從 1 秒增加到 1.5 秒
 
             try:
                 report_name = driver.find_element(By.XPATH, f"//table[contains(@class, 'MuiTable-root')]//tbody//tr[{idx+1}]//td[3]").text
@@ -301,7 +301,7 @@ def process_cplus_house(driver, wait, initial_files):
 
             driver.execute_script("arguments[0].click();", button)
             print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 JavaScript 點擊成功", flush=True)
-            time.sleep(1)  # 點擊後等待 1 秒
+            time.sleep(1.5)
 
             ActionChains(driver).move_to_element(button).pause(0.5).click().perform()
             print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 ActionChains 點擊成功", flush=True)
@@ -328,8 +328,8 @@ def process_cplus_house(driver, wait, initial_files):
             print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕失敗", flush=True)
 
     if new_files:
-        print(f"CPLUS: Housekeeping Reports 下載完成，共 {len(new_files)} 個文件", flush=True)
-        return new_files, len(new_files)
+        print(f"CPLUS: Housekeeping Reports 下載完成，共 {len(new_files)} 個文件，預期 {button_count} 個", flush=True)
+        return new_files, len(new_files), button_count
     else:
         print("CPLUS: Housekeeping Reports 未下載任何文件，記錄頁面狀態...", flush=True)
         driver.save_screenshot("house_download_failure.png")
@@ -343,6 +343,7 @@ def process_cplus():
     downloaded_files = set()
     initial_files = set()
     house_file_count = 0
+    house_button_count = 0
     try:
         driver = webdriver.Chrome(options=get_chrome_options())
         print("CPLUS WebDriver 初始化成功", flush=True)
@@ -362,8 +363,9 @@ def process_cplus():
             for attempt in range(MAX_RETRIES):
                 try:
                     if section_name == 'house':
-                        new_files, count = section_func(driver, wait, initial_files)
+                        new_files, count, button_count = section_func(driver, wait, initial_files)
                         house_file_count = count
+                        house_button_count = button_count
                     else:
                         new_files = section_func(driver, wait, initial_files)
                     downloaded_files.update(new_files)
@@ -377,11 +379,11 @@ def process_cplus():
             if not success:
                 print(f"CPLUS {section_name} 經過 {MAX_RETRIES} 次嘗試失敗", flush=True)
 
-        return downloaded_files, house_file_count
+        return downloaded_files, house_file_count, house_button_count
 
     except Exception as e:
         print(f"CPLUS 總錯誤: {str(e)}", flush=True)
-        return downloaded_files, house_file_count
+        return downloaded_files, house_file_count, house_button_count
 
     finally:
         if driver:
@@ -553,12 +555,14 @@ def main():
 
     cplus_files = set()
     house_file_count = [0]
+    house_button_count = [0]
     barge_files = set()
 
     def update_cplus_files_and_count(result):
-        files, count = result
+        files, count, button_count = result
         cplus_files.update(files)
         house_file_count[0] = count
+        house_button_count[0] = button_count
 
     cplus_thread = threading.Thread(target=lambda: update_cplus_files_and_count(process_cplus()))
     barge_thread = threading.Thread(target=lambda: barge_files.update(process_barge()))
@@ -571,8 +575,13 @@ def main():
 
     print("檢查所有下載文件...", flush=True)
     downloaded_files = [f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx'))]
-    expected_file_count = CPLUS_MOVEMENT_COUNT + CPLUS_ONHAND_COUNT + house_file_count[0] + BARGE_COUNT
-    print(f"預期文件數量: {expected_file_count} (Movement: {CPLUS_MOVEMENT_COUNT}, OnHand: {CPLUS_ONHAND_COUNT}, Housekeeping: {house_file_count[0]}, Barge: {BARGE_COUNT})", flush=True)
+    expected_file_count = CPLUS_MOVEMENT_COUNT + CPLUS_ONHAND_COUNT + house_button_count[0] + BARGE_COUNT
+    print(f"預期文件數量: {expected_file_count} (Movement: {CPLUS_MOVEMENT_COUNT}, OnHand: {CPLUS_ONHAND_COUNT}, Housekeeping: {house_button_count[0]}, Barge: {BARGE_COUNT})", flush=True)
+
+    # 檢查 Housekeeping 文件數量是否匹配按鈕數量
+    if house_file_count[0] < house_button_count[0]:
+        print(f"Housekeeping Reports 下載文件數量（{house_file_count[0]}）少於按鈕數量（{house_button_count[0]}），放棄發送郵件", flush=True)
+        return
 
     if len(downloaded_files) >= expected_file_count:
         print(f"所有下載完成，檔案位於: {download_dir}", flush=True)
