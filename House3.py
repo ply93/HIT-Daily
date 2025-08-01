@@ -21,11 +21,11 @@ import re
 
 # 全局變量
 download_dir = os.path.abspath("downloads")
-CPLUS_MOVEMENT_COUNT = 1  # Container Movement Log
-CPLUS_ONHAND_COUNT = 1  # OnHandContainerList
-BARGE_COUNT = 1  # Barge
+CPLUS_MOVEMENT_COUNT = 1 # Container Movement Log
+CPLUS_ONHAND_COUNT = 1 # OnHandContainerList
+BARGE_COUNT = 1 # Barge
 MAX_RETRIES = 3
-HOUSEKEEP_FILE_PATTERNS = [r'DM1C.*\.csv', r'GA1.*\.csv', r'IA15.*\.csv', r'IA17.*\.csv', r'INV-114.*\.csv']
+HOUSEKEEP_FILE_PATTERNS = [r'DM1C.*\.csv', r'GA1.*\.csv', r'IA15.*\.csv', r'IA17.*\.csv', r'INV-114.*\.csv'] # 支持帶後綴的文件名
 
 # 清空下載目錄
 def clear_download_dir():
@@ -91,63 +91,52 @@ def wait_for_new_file(initial_files, timeout=6):
 
 # CPLUS 登入
 def cplus_login(driver, wait):
-    for attempt in range(3):  # 最多重試 3 次
-        print(f"CPLUS: 嘗試打開網站 https://cplus.hit.com.hk/frontpage/#/ (嘗試 {attempt+1}/3)...", flush=True)
-        try:
-            driver.get("https://cplus.hit.com.hk/frontpage/#/")
-            wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
-            print(f"CPLUS: 網站已成功打開，當前 URL: {driver.current_url}", flush=True)
-            time.sleep(1)
+    print("CPLUS: 嘗試打開網站 https://cplus.hit.com.hk/frontpage/#/", flush=True)
+    driver.get("https://cplus.hit.com.hk/frontpage/#/")
+    print(f"CPLUS: 網站已成功打開，當前 URL: {driver.current_url}", flush=True)
+    time.sleep(2)
 
-            print("CPLUS: 點擊登錄前按鈕...", flush=True)
-            login_button_pre = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
-            ActionChains(driver).move_to_element(login_button_pre).click().perform()
-            print("CPLUS: 登錄前按鈕點擊成功", flush=True)
-            time.sleep(1)
+    print("CPLUS: 點擊登錄前按鈕...", flush=True)
+    login_button_pre = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
+    ActionChains(driver).move_to_element(login_button_pre).click().perform()
+    print("CPLUS: 登錄前按鈕點擊成功", flush=True)
+    time.sleep(2)
 
-            print("CPLUS: 輸入 COMPANY CODE...", flush=True)
-            company_code_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='companyCode']")))
-            company_code_field.send_keys("CKL")
-            print("CPLUS: COMPANY CODE 輸入完成", flush=True)
-            time.sleep(0.5)
+    print("CPLUS: 輸入 COMPANY CODE...", flush=True)
+    company_code_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='companyCode']")))
+    company_code_field.send_keys("CKL")
+    print("CPLUS: COMPANY CODE 輸入完成", flush=True)
+    time.sleep(1)
 
-            print("CPLUS: 輸入 USER ID...", flush=True)
-            user_id_field = driver.find_element(By.XPATH, "//*[@id='userId']")
-            user_id_field.send_keys("KEN")
-            print("CPLUS: USER ID 輸入完成", flush=True)
-            time.sleep(0.5)
+    print("CPLUS: 輸入 USER ID...", flush=True)
+    user_id_field = driver.find_element(By.XPATH, "//*[@id='userId']")
+    user_id_field.send_keys("KEN")
+    print("CPLUS: USER ID 輸入完成", flush=True)
+    time.sleep(1)
 
-            print("CPLUS: 輸入 PASSWORD...", flush=True)
-            password_field = driver.find_element(By.XPATH, "//*[@id='passwd']")
-            password_field.send_keys(os.environ.get('SITE_PASSWORD'))
-            print("CPLUS: PASSWORD 輸入完成", flush=True)
-            time.sleep(0.5)
+    print("CPLUS: 輸入 PASSWORD...", flush=True)
+    password_field = driver.find_element(By.XPATH, "//*[@id='passwd']")
+    password_field.send_keys(os.environ.get('SITE_PASSWORD'))
+    print("CPLUS: PASSWORD 輸入完成", flush=True)
+    time.sleep(1)
 
-            print("CPLUS: 點擊 LOGIN 按鈕...", flush=True)
-            login_button = driver.find_element(By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/div[2]/div/div/form/button/span[1]")
-            ActionChains(driver).move_to_element(login_button).click().perform()
-            print("CPLUS: LOGIN 按鈕點擊成功", flush=True)
-            time.sleep(1)
-            return
-        except Exception as e:
-            print(f"CPLUS 登入嘗試 {attempt+1}/3 失敗: {str(e)}", flush=True)
-            driver.save_screenshot(f"cplus_login_failure_attempt_{attempt+1}.png")
-            with open(f"cplus_login_failure_attempt_{attempt+1}.html", "w", encoding="utf-8") as f:
-                f.write(driver.page_source)
-            if attempt < 2:
-                time.sleep(3)
-    print("CPLUS: 登入失敗，記錄頁面狀態...", flush=True)
-    driver.save_screenshot("cplus_login_failure.png")
-    raise Exception("CPLUS: 登入失敗")
+    print("CPLUS: 點擊 LOGIN 按鈕...", flush=True)
+    login_button = driver.find_element(By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/div[2]/div/div/form/button/span[1]")
+    ActionChains(driver).move_to_element(login_button).click().perform()
+    print("CPLUS: LOGIN 按鈕點擊成功", flush=True)
+    time.sleep(2)
 
 # CPLUS Container Movement Log
 def process_cplus_movement(driver, wait, initial_files):
-    for page_attempt in range(3):  # 最多重試頁面 3 次
+    local_initial = initial_files.copy()
+    success = False
+    for page_attempt in range(3):  # 最多重試 3 次
         print(f"CPLUS: 直接前往 Container Movement Log (嘗試 {page_attempt+1}/3)...", flush=True)
         driver.get("https://cplus.hit.com.hk/app/#/enquiry/ContainerMovementLog")
-        time.sleep(1)
+        time.sleep(1)  # 短暫等待頁面開始載入
+
         try:
-            wait = WebDriverWait(driver, 5)  # 頁面加載超時 5 秒
+            wait = WebDriverWait(driver, 5)
             wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
             wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[2]//form")))
             print("CPLUS: Container Movement Log 頁面加載完成", flush=True)
@@ -161,7 +150,6 @@ def process_cplus_movement(driver, wait, initial_files):
             raise Exception("CPLUS: Container Movement Log 頁面加載失敗")
 
         print("CPLUS: 點擊 Search...", flush=True)
-        local_initial = initial_files.copy()
         for attempt in range(2):
             try:
                 search_button = WebDriverWait(driver, 2).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[1]/div/form/div[2]/div/div[4]/button")))
@@ -180,7 +168,7 @@ def process_cplus_movement(driver, wait, initial_files):
                 except TimeoutException:
                     print(f"CPLUS: 備用 Search 按鈕 1 失敗，嘗試備用定位 2 (嘗試 {attempt+1}/2)...", flush=True)
                     try:
-                        search_button = WebDriverWait(driver, 2).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Search') or contains(@class, 'MuiButton-contained')]")))
+                        search_button = WebDriverWait(driver, 2).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Search')]")))
                         wait.until(EC.visibility_of(search_button))
                         ActionChains(driver).move_to_element(search_button).click().perform()
                         print("CPLUS: 備用 Search 按鈕 2 點擊成功", flush=True)
@@ -248,7 +236,7 @@ def process_cplus_onhand(driver, wait, initial_files):
         driver.get("https://cplus.hit.com.hk/app/#/enquiry/OnHandContainerList")
         time.sleep(1)
         try:
-            wait = WebDriverWait(driver, 5)  # 頁面加載超時 5 秒
+            wait = WebDriverWait(driver, 5)
             wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
             print("CPLUS: OnHandContainerList 頁面加載完成", flush=True)
         except TimeoutException:
@@ -351,7 +339,7 @@ def process_cplus_house(driver, wait, initial_files):
         driver.get("https://cplus.hit.com.hk/app/#/report/housekeepReport")
         time.sleep(1)
         try:
-            wait = WebDriverWait(driver, 5)  # 頁面加載超時 5 秒
+            wait = WebDriverWait(driver, 5)
             wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
             print("CPLUS: Housekeeping Reports 頁面加載完成", flush=True)
         except TimeoutException:
@@ -374,8 +362,18 @@ def process_cplus_house(driver, wait, initial_files):
             print("CPLUS: 表格未加載，嘗試刷新頁面...", flush=True)
             driver.refresh()
             time.sleep(1)
-            wait.until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
-            print("CPLUS: 表格加載完成 (after refresh)", flush=True)
+            try:
+                wait = WebDriverWait(driver, 5)
+                wait.until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
+                print("CPLUS: 表格加載完成 (after refresh)", flush=True)
+            except TimeoutException:
+                print(f"CPLUS: 表格加載失敗 (嘗試 {page_attempt+1}/2)，記錄頁面狀態...", flush=True)
+                driver.save_screenshot(f"house_table_failure_attempt_{page_attempt+1}.png")
+                with open(f"house_table_failure_attempt_{page_attempt+1}.html", "w", encoding="utf-8") as f:
+                    f.write(driver.page_source)
+                if page_attempt < 1:
+                    continue
+                raise Exception("CPLUS: Housekeeping Reports 表格加載失敗")
 
         print("CPLUS: 定位並點擊所有 Excel 下載按鈕...", flush=True)
         local_initial = initial_files.copy()
@@ -476,7 +474,7 @@ def process_cplus():
         driver = webdriver.Chrome(options=get_chrome_options())
         print("CPLUS WebDriver 初始化成功", flush=True)
         driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-        wait = WebDriverWait(driver, 5)  # 默認超時 5 秒
+        wait = WebDriverWait(driver, 20)
 
         cplus_login(driver, wait)
 
@@ -503,7 +501,7 @@ def process_cplus():
                 except Exception as e:
                     print(f"CPLUS {section_name} 嘗試 {attempt+1}/{MAX_RETRIES} 失敗: {str(e)}", flush=True)
                     if attempt < MAX_RETRIES - 1:
-                        time.sleep(3)
+                        time.sleep(5)
             if not success:
                 print(f"CPLUS {section_name} 經過 {MAX_RETRIES} 次嘗試失敗", flush=True)
 
@@ -515,155 +513,94 @@ def process_cplus():
 
     finally:
         if driver:
-            for attempt in range(3):  # 最多重試 Logout 3 次
-                try:
-                    print("CPLUS: 嘗試登出...", flush=True)
-                    logout_menu_button = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
-                    ActionChains(driver).move_to_element(logout_menu_button).click().perform()
-                    print("CPLUS: 用戶菜單點擊成功", flush=True)
+            try:
+                print("CPLUS: 嘗試登出...", flush=True)
+                logout_menu_button = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
+                ActionChains(driver).move_to_element(logout_menu_button).click().perform()
+                print("CPLUS: 用戶菜單點擊成功", flush=True)
 
-                    logout_option = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//li[contains(text(), 'Logout')]")))
-                    ActionChains(driver).move_to_element(logout_option).click().perform()
-                    print("CPLUS: Logout 選項點擊成功", flush=True)
-                    time.sleep(1)
-                    break
-                except Exception as e:
-                    print(f"CPLUS: 登出失敗 (嘗試 {attempt+1}/3): {str(e)}", flush=True)
-                    driver.save_screenshot(f"cplus_logout_failure_attempt_{attempt+1}.png")
-                    with open(f"cplus_logout_failure_attempt_{attempt+1}.html", "w", encoding="utf-8") as f:
-                        f.write(driver.page_source)
-                    if attempt < 2:
-                        continue
+                logout_option = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//li[contains(text(), 'Logout')]")))
+                ActionChains(driver).move_to_element(logout_option).click().perform()
+                print("CPLUS: Logout 選項點擊成功", flush=True)
+                time.sleep(2)
+            except Exception as e:
+                print(f"CPLUS: 登出失敗: {str(e)}", flush=True)
             driver.quit()
             print("CPLUS WebDriver 關閉", flush=True)
 
 # Barge 登入
 def barge_login(driver, wait):
-    for attempt in range(3):  # 最多重試 3 次
-        print(f"Barge: 嘗試打開網站 https://barge.oneport.com/login (嘗試 {attempt+1}/3)...", flush=True)
-        try:
-            driver.get("https://barge.oneport.com/login")
-            wait = WebDriverWait(driver, 5)  # 頁面加載超時 5 秒
-            wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
-            print(f"Barge: 網站已成功打開，當前 URL: {driver.current_url}", flush=True)
-            time.sleep(1)
+    print("Barge: 嘗試打開網站 https://barge.oneport.com/login...", flush=True)
+    driver.get("https://barge.oneport.com/login")
+    print(f"Barge: 網站已成功打開，當前 URL: {driver.current_url}", flush=True)
+    time.sleep(3)
 
-            print("Barge: 輸入 COMPANY ID...", flush=True)
-            company_id_field = wait.until(EC.presence_of_element_located((By.XPATH, "//input[contains(@id, 'mat-input') and @placeholder='Company ID' or contains(@id, 'mat-input-0')]")))
-            company_id_field.send_keys("CKL")
-            print("Barge: COMPANY ID 輸入完成", flush=True)
-            time.sleep(0.5)
+    print("Barge: 輸入 COMPANY ID...", flush=True)
+    company_id_field = wait.until(EC.presence_of_element_located((By.XPATH, "//input[contains(@id, 'mat-input') and @placeholder='Company ID' or contains(@id, 'mat-input-0')]")))
+    company_id_field.send_keys("CKL")
+    print("Barge: COMPANY ID 輸入完成", flush=True)
+    time.sleep(1)
 
-            print("Barge: 輸入 USER ID...", flush=True)
-            user_id_field = driver.find_element(By.XPATH, "//input[contains(@id, 'mat-input') and @placeholder='User ID' or contains(@id, 'mat-input-1')]")
-            user_id_field.send_keys("barge")
-            print("Barge: USER ID 輸入完成", flush=True)
-            time.sleep(0.5)
+    print("Barge: 輸入 USER ID...", flush=True)
+    user_id_field = driver.find_element(By.XPATH, "//input[contains(@id, 'mat-input') and @placeholder='User ID' or contains(@id, 'mat-input-1')]")
+    user_id_field.send_keys("barge")
+    print("Barge: USER ID 輸入完成", flush=True)
+    time.sleep(1)
 
-            print("Barge: 輸入 PW...", flush=True)
-            password_field = driver.find_element(By.XPATH, "//input[contains(@id, 'mat-input') and @placeholder='Password' or contains(@id, 'mat-input-2')]")
-            password_field.send_keys("123456")
-            print("Barge: PW 輸入完成", flush=True)
-            time.sleep(0.5)
+    print("Barge: 輸入 PW...", flush=True)
+    password_field = driver.find_element(By.XPATH, "//input[contains(@id, 'mat-input') and @placeholder='Password' or contains(@id, 'mat-input-2')]")
+    password_field.send_keys("123456")
+    print("Barge: PW 輸入完成", flush=True)
+    time.sleep(1)
 
-            print("Barge: 點擊 LOGIN 按鈕...", flush=True)
-            login_button_barge = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'LOGIN') or contains(@class, 'mat-raised-button')]")))
-            ActionChains(driver).move_to_element(login_button_barge).click().perform()
-            print("Barge: LOGIN 按鈕點擊成功", flush=True)
-            time.sleep(1)
-            return
-        except Exception as e:
-            print(f"Barge 登入嘗試 {attempt+1}/3 失敗: {str(e)}", flush=True)
-            driver.save_screenshot(f"barge_login_failure_attempt_{attempt+1}.png")
-            with open(f"barge_login_failure_attempt_{attempt+1}.html", "w", encoding="utf-8") as f:
-                f.write(driver.page_source)
-            if attempt < 2:
-                time.sleep(3)
-    print("Barge: 登入失敗，記錄頁面狀態...", flush=True)
-    driver.save_screenshot("barge_login_failure.png")
-    raise Exception("Barge: 登入失敗")
+    print("Barge: 點擊 LOGIN 按鈕...", flush=True)
+    login_button_barge = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'LOGIN') or contains(@class, 'mat-raised-button')]")))
+    ActionChains(driver).move_to_element(login_button_barge).click().perform()
+    print("Barge: LOGIN 按鈕點擊成功", flush=True)
+    time.sleep(3)
 
 # Barge 下載部分
 def process_barge_download(driver, wait, initial_files):
-    for page_attempt in range(3):  # 最多重試頁面 3 次
-        print(f"Barge: 直接前往 https://barge.oneport.com/downloadReport (嘗試 {page_attempt+1}/3)...", flush=True)
-        driver.get("https://barge.oneport.com/downloadReport")
-        time.sleep(1)
-        try:
-            wait = WebDriverWait(driver, 5)  # 頁面加載超時 5 秒
-            wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
-            print("Barge: downloadReport 頁面加載完成", flush=True)
-        except TimeoutException:
-            print(f"Barge: downloadReport 頁面加載失敗 (嘗試 {page_attempt+1}/3)，記錄頁面狀態...", flush=True)
-            driver.save_screenshot(f"barge_page_failure_attempt_{page_attempt+1}.png")
-            with open(f"barge_page_failure_attempt_{page_attempt+1}.html", "w", encoding="utf-8") as f:
-                f.write(driver.page_source)
-            if page_attempt < 2:
-                continue
-            raise Exception("Barge: downloadReport 頁面加載失敗")
+    print("Barge: 直接前往 https://barge.oneport.com/downloadReport...", flush=True)
+    driver.get("https://barge.oneport.com/downloadReport")
+    time.sleep(3)
+    wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+    print("Barge: downloadReport 頁面加載完成", flush=True)
 
-        print("Barge: 選擇 Report Type...", flush=True)
-        try:
-            report_type_trigger = wait.until(EC.element_to_be_clickable((By.XPATH, "//mat-form-field[.//mat-label[contains(text(), 'Report Type')]]//div[contains(@class, 'mat-select-trigger')]")))
-            ActionChains(driver).move_to_element(report_type_trigger).click().perform()
-            print("Barge: Report Type 選擇開始", flush=True)
-            time.sleep(0.5)
-        except TimeoutException:
-            print(f"Barge: Report Type 按鈕未找到 (嘗試 {page_attempt+1}/3)，記錄頁面狀態...", flush=True)
-            driver.save_screenshot(f"barge_report_type_failure_attempt_{page_attempt+1}.png")
-            with open(f"barge_report_type_failure_attempt_{page_attempt+1}.html", "w", encoding="utf-8") as f:
-                f.write(driver.page_source)
-            if page_attempt < 2:
-                continue
-            raise Exception("Barge: Report Type 按鈕點擊失敗")
+    print("Barge: 選擇 Report Type...", flush=True)
 
-        print("Barge: 點擊 Container Detail...", flush=True)
-        try:
-            container_detail_option = wait.until(EC.element_to_be_clickable((By.XPATH, "//mat-option//span[contains(text(), 'Container Detail')]")))
-            ActionChains(driver).move_to_element(container_detail_option).click().perform()
-            print("Barge: Container Detail 點擊成功", flush=True)
-            time.sleep(0.5)
-        except TimeoutException:
-            print(f"Barge: Container Detail 按鈕未找到 (嘗試 {page_attempt+1}/3)，記錄頁面狀態...", flush=True)
-            driver.save_screenshot(f"barge_container_detail_failure_attempt_{page_attempt+1}.png")
-            with open(f"barge_container_detail_failure_attempt_{page_attempt+1}.html", "w", encoding="utf-8") as f:
-                f.write(driver.page_source)
-            if page_attempt < 2:
-                continue
-            raise Exception("Barge: Container Detail 按鈕點擊失敗")
+report_type_trigger = wait.until(EC.element_to_be_clickable((By.XPATH, "//mat-form-field[.//mat-label[contains(text(), 'Report Type')]]//div[contains(@class, 'mat-select-trigger')]")))
+    ActionChains(driver).move_to_element(report_type_trigger).click().perform()
+    print("Barge: Report Type 選擇開始", flush=True)
+    time.sleep(2)
 
-        print("Barge: 點擊 Download...", flush=True)
-        local_initial = initial_files.copy()
-        try:
-            download_button_barge = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[span[text()='Download']]")))
-            ActionChains(driver).move_to_element(download_button_barge).click().perform()
-            print("Barge: Download 按鈕點擊成功", flush=True)
-        except TimeoutException:
-            print(f"Barge: Download 按鈕未找到 (嘗試 {page_attempt+1}/3)，記錄頁面狀態...", flush=True)
-            driver.save_screenshot(f"barge_download_failure_attempt_{page_attempt+1}.png")
-            with open(f"barge_download_failure_attempt_{page_attempt+1}.html", "w", encoding="utf-8") as f:
-                f.write(driver.page_source)
-            if page_attempt < 2:
-                continue
-            raise Exception("Barge: Download 按鈕點擊失敗")
+    print("Barge: 點擊 Container Detail...", flush=True)
+    container_detail_option = wait.until(EC.element_to_be_clickable((By.XPATH, "//mat-option//span[contains(text(), 'Container Detail')]")))
+    ActionChains(driver).move_to_element(container_detail_option).click().perform()
+    print("Barge: Container Detail 點擊成功", flush=True)
+    time.sleep(2)
 
-        new_files = wait_for_new_file(local_initial, timeout=6)
-        if new_files:
-            print(f"Barge: Container Detail 下載完成，檔案位於: {download_dir}", flush=True)
-            filtered_files = {f for f in new_files if "ContainerDetailReport" in f}
-            for file in filtered_files:
-                print(f"Barge: 新下載檔案: {file}", flush=True)
-            if not filtered_files:
-                print(f"Barge: 未下載預期檔案 (ContainerDetailReport*.csv)，記錄頁面狀態...", flush=True)
-                driver.save_screenshot(f"barge_download_failure_attempt_{page_attempt+1}.png")
-                raise Exception("Barge: Container Detail 未下載預期檔案")
-            return filtered_files
-        else:
-            print(f"Barge: Container Detail 未觸發新文件下載 (嘗試 {page_attempt+1}/3)，記錄頁面狀態...", flush=True)
-            driver.save_screenshot(f"barge_download_failure_attempt_{page_attempt+1}.png")
-            if page_attempt < 2:
-                continue
-            raise Exception("Barge: Container Detail 未觸發新文件下載")
+    print("Barge: 點擊 Download...", flush=True)
+    local_initial = initial_files.copy()
+    download_button_barge = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[span[text()='Download']]")))
+    ActionChains(driver).move_to_element(download_button_barge).click().perform()
+    print("Barge: Download 按鈕點擊成功", flush=True)
+
+    new_files = wait_for_new_file(local_initial, timeout=6)
+    if new_files:
+        print(f"Barge: Container Detail 下載完成，檔案位於: {download_dir}", flush=True)
+        filtered_files = {f for f in new_files if "ContainerDetailReport" in f}
+        for file in filtered_files:
+            print(f"Barge: 新下載檔案: {file}", flush=True)
+        if not filtered_files:
+            print("Barge: 未下載預期檔案 (ContainerDetailReport*.csv)，記錄頁面狀態...", flush=True)
+            driver.save_screenshot("barge_download_failure.png")
+            raise Exception("Barge: Container Detail 未下載預期檔案")
+        return filtered_files
+    else:
+        print("Barge: Container Detail 未觸發新文件下載，記錄頁面狀態...", flush=True)
+        driver.save_screenshot("barge_download_failure.png")
+        raise Exception("Barge: Container Detail 未觸發新文件下載")
 
 # Barge 操作
 def process_barge():
@@ -673,7 +610,7 @@ def process_barge():
         driver = webdriver.Chrome(options=get_chrome_options())
         print("Barge WebDriver 初始化成功", flush=True)
         driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-        wait = WebDriverWait(driver, 5)  # 默認超時 5 秒
+        wait = WebDriverWait(driver, 20)
 
         barge_login(driver, wait)
 
@@ -687,7 +624,7 @@ def process_barge():
             except Exception as e:
                 print(f"Barge 下載嘗試 {attempt+1}/{MAX_RETRIES} 失敗: {str(e)}", flush=True)
                 if attempt < MAX_RETRIES - 1:
-                    time.sleep(3)
+                    time.sleep(5)
         if not success:
             print(f"Barge 下載經過 {MAX_RETRIES} 次嘗試失敗", flush=True)
 
@@ -699,32 +636,26 @@ def process_barge():
 
     finally:
         if driver:
-            for attempt in range(3):  # 最多重試 Logout 3 次
-                try:
-                    print("Barge: 點擊工具欄進行登出...", flush=True)
-                    logout_toolbar_barge = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='main-toolbar']/button[4]/span[1]")))
-                    driver.execute_script("arguments[0].scrollIntoView(true);", logout_toolbar_barge)
-                    time.sleep(1)
-                    driver.execute_script("arguments[0].click();", logout_toolbar_barge)
-                    print("Barge: 工具欄點擊成功", flush=True)
+            try:
+                print("Barge: 點擊工具欄進行登出...", flush=True)
+                logout_toolbar_barge = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='main-toolbar']/button[4]/span[1]")))
+                driver.execute_script("arguments[0].scrollIntoView(true);", logout_toolbar_barge)
+                time.sleep(1)
+                driver.execute_script("arguments[0].click();", logout_toolbar_barge)
+                print("Barge: 工具欄點擊成功", flush=True)
 
-                    time.sleep(1)
-                    print("Barge: 點擊 Logout 選項...", flush=True)
-                    logout_span_xpath = "//div[contains(@class, 'mat-menu-panel')]//button//span[contains(text(), 'Logout')]"
-                    logout_button_barge = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, logout_span_xpath)))
-                    driver.execute_script("arguments[0].scrollIntoView(true);", logout_button_barge)
-                    time.sleep(1)
-                    driver.execute_script("arguments[0].click();", logout_button_barge)
-                    print("Barge: Logout 選項點擊成功", flush=True)
-                    time.sleep(1)
-                    break
-                except Exception as e:
-                    print(f"Barge: 登出失敗 (嘗試 {attempt+1}/3): {str(e)}", flush=True)
-                    driver.save_screenshot(f"barge_logout_failure_attempt_{attempt+1}.png")
-                    with open(f"barge_logout_failure_attempt_{attempt+1}.html", "w", encoding="utf-8") as f:
-                        f.write(driver.page_source)
-                    if attempt < 2:
-                        continue
+                time.sleep(2)
+
+                print("Barge: 點擊 Logout 選項...", flush=True)
+                logout_span_xpath = "//div[contains(@class, 'mat-menu-panel')]//button//span[contains(text(), 'Logout')]"
+                logout_button_barge = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, logout_span_xpath)))
+                driver.execute_script("arguments[0].scrollIntoView(true);", logout_button_barge)
+                time.sleep(1)
+                driver.execute_script("arguments[0].click();", logout_button_barge)
+                print("Barge: Logout 選項點擊成功", flush=True)
+                time.sleep(2)
+            except Exception as e:
+                print(f"Barge: 登出失敗: {str(e)}", flush=True)
             driver.quit()
             print("Barge WebDriver 關閉", flush=True)
 
