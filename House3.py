@@ -77,7 +77,7 @@ def get_chrome_options():
     return chrome_options
 
 # 檢查新文件出現
-def wait_for_new_file(initial_files, timeout=6):  # 從 8 秒減到 6 秒
+def wait_for_new_file(initial_files, timeout=6):
     start_time = time.time()
     while time.time() - start_time < timeout:
         current_files = set(f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx')))
@@ -183,10 +183,17 @@ def process_cplus_movement(driver, wait, initial_files):
     new_files = wait_for_new_file(local_initial, timeout=6)
     if new_files:
         print(f"CPLUS: Container Movement Log 下載完成，檔案位於: {download_dir}", flush=True)
-        for file in new_files:
+        filtered_files = {f for f in new_files if "cntrMoveLog" in f}  # 只報告 cntrMoveLog 文件
+        for file in filtered_files:
             print(f"CPLUS: 新下載檔案: {file}", flush=True)
-        return new_files
+        if not filtered_files:
+            print("CPLUS: 未下載預期檔案 (cntrMoveLog.xlsx)，記錄頁面狀態...", flush=True)
+            driver.save_screenshot("movement_download_failure.png")
+            raise Exception("CPLUS: Container Movement Log 未下載預期檔案")
+        return filtered_files
     else:
+        print("CPLUS: Container Movement Log 未觸發新文件下載，記錄頁面狀態...", flush=True)
+        driver.save_screenshot("movement_download_failure.png")
         raise Exception("CPLUS: Container Movement Log 未觸發新文件下載")
 
 # CPLUS OnHandContainerList
@@ -232,9 +239,14 @@ def process_cplus_onhand(driver, wait, initial_files):
     new_files = wait_for_new_file(local_initial, timeout=6)
     if new_files:
         print(f"CPLUS: OnHandContainerList 下載完成，檔案位於: {download_dir}", flush=True)
-        for file in new_files:
+        filtered_files = {f for f in new_files if "data_2025" in f}  # 只報告 data_*.csv 文件
+        for file in filtered_files:
             print(f"CPLUS: 新下載檔案: {file}", flush=True)
-        return new_files
+        if not filtered_files:
+            print("CPLUS: 未下載預期檔案 (data_*.csv)，記錄頁面狀態...", flush=True)
+            driver.save_screenshot("onhand_download_failure.png")
+            raise Exception("CPLUS: OnHandContainerList 未下載預期檔案")
+        return filtered_files
     else:
         print("CPLUS: OnHandContainerList 未觸發新文件下載，記錄頁面狀態...", flush=True)
         driver.save_screenshot("onhand_download_failure.png")
@@ -279,7 +291,7 @@ def process_cplus_house(driver, wait, initial_files):
             button_xpath = f"(//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button[not(@disabled)])[{idx+1}]"
             button = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, button_xpath)))
             driver.execute_script("arguments[0].scrollIntoView(true);", button)
-            time.sleep(0.5)
+            time.sleep(1)  # 從 0.5 秒增加到 1 秒
 
             try:
                 report_name = driver.find_element(By.XPATH, f"//table[contains(@class, 'MuiTable-root')]//tbody//tr[{idx+1}]//td[3]").text
@@ -289,6 +301,10 @@ def process_cplus_house(driver, wait, initial_files):
 
             driver.execute_script("arguments[0].click();", button)
             print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 JavaScript 點擊成功", flush=True)
+            time.sleep(1)  # 點擊後等待 1 秒
+
+            ActionChains(driver).move_to_element(button).pause(0.5).click().perform()
+            print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 ActionChains 點擊成功", flush=True)
 
             temp_new = wait_for_new_file(local_initial, timeout=6)
             if temp_new:
@@ -444,12 +460,14 @@ def process_barge_download(driver, wait, initial_files):
     new_files = wait_for_new_file(local_initial, timeout=6)
     if new_files:
         print(f"Barge: Container Detail 下載完成，檔案位於: {download_dir}", flush=True)
-        for file in new_files:
-            if "ContainerDetailReport" in file:  # 僅報告 ContainerDetailReport 文件
-                print(f"Barge: 新下載檔案: {file}", flush=True)
-            else:
-                print(f"Barge: 忽略非預期檔案: {file}", flush=True)
-        return new_files
+        filtered_files = {f for f in new_files if "ContainerDetailReport" in f}
+        for file in filtered_files:
+            print(f"Barge: 新下載檔案: {file}", flush=True)
+        if not filtered_files:
+            print("Barge: 未下載預期檔案 (ContainerDetailReport*.csv)，記錄頁面狀態...", flush=True)
+            driver.save_screenshot("barge_download_failure.png")
+            raise Exception("Barge: Container Detail 未下載預期檔案")
+        return filtered_files
     else:
         print("Barge: Container Detail 未觸發新文件下載，記錄頁面狀態...", flush=True)
         driver.save_screenshot("barge_download_failure.png")
