@@ -77,7 +77,7 @@ def get_chrome_options():
     return chrome_options
 
 # 檢查新文件出現
-def wait_for_new_file(initial_files, timeout=10):  # 從 15 秒減到 10 秒
+def wait_for_new_file(initial_files, timeout=10):
     start_time = time.time()
     while time.time() - start_time < timeout:
         current_files = set(f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx')))
@@ -524,9 +524,15 @@ def main():
     clear_download_dir()
 
     cplus_files = set()
-    house_file_count = 0
+    house_file_count = [0]  # 使用列表存儲 house_file_count 以支持修改
     barge_files = set()
-    cplus_thread = threading.Thread(target=lambda: (cplus_files.update, house_file_count.__setitem__)(*process_cplus()))
+
+    def update_cplus_files_and_count(result):
+        files, count = result
+        cplus_files.update(files)
+        house_file_count[0] = count
+
+    cplus_thread = threading.Thread(target=lambda: update_cplus_files_and_count(process_cplus()))
     barge_thread = threading.Thread(target=lambda: barge_files.update(process_barge()))
 
     cplus_thread.start()
@@ -537,8 +543,8 @@ def main():
 
     print("檢查所有下載文件...", flush=True)
     downloaded_files = [f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx'))]
-    expected_file_count = CPLUS_MOVEMENT_COUNT + CPLUS_ONHAND_COUNT + house_file_count + BARGE_COUNT
-    print(f"預期文件數量: {expected_file_count} (Movement: {CPLUS_MOVEMENT_COUNT}, OnHand: {CPLUS_ONHAND_COUNT}, Housekeeping: {house_file_count}, Barge: {BARGE_COUNT})", flush=True)
+    expected_file_count = CPLUS_MOVEMENT_COUNT + CPLUS_ONHAND_COUNT + house_file_count[0] + BARGE_COUNT
+    print(f"預期文件數量: {expected_file_count} (Movement: {CPLUS_MOVEMENT_COUNT}, OnHand: {CPLUS_ONHAND_COUNT}, Housekeeping: {house_file_count[0]}, Barge: {BARGE_COUNT})", flush=True)
 
     if len(downloaded_files) >= expected_file_count:
         print(f"所有下載完成，檔案位於: {download_dir}", flush=True)
