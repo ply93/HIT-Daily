@@ -20,8 +20,8 @@ from webdriver_manager.chrome import ChromeDriverManager
 
 # 全局變量
 download_dir = os.path.abspath("downloads")
-EXPECTED_FILE_COUNT = 9  # 預期文件數：1 (Container Movement Log) + 1 (OnHandContainerList) + 6 (Housekeeping Reports) + 1 (Barge)
-CPLUS_EXPECTED_COUNT = 8
+EXPECTED_FILE_COUNT = 8  # 預期文件數：1 (Container Movement Log) + 1 (OnHandContainerList) + 6 (Housekeeping Reports) + 1 (Barge)
+CPLUS_EXPECTED_COUNT = 7
 BARGE_EXPECTED_COUNT = 1
 MAX_RETRIES = 3
 
