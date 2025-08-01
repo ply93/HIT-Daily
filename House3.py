@@ -17,6 +17,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.common.exceptions import TimeoutException, ElementClickInterceptedException, NoSuchElementException
 from webdriver_manager.chrome import ChromeDriverManager
+import re
 
 # 全局變量
 download_dir = os.path.abspath("downloads")
@@ -24,7 +25,7 @@ CPLUS_MOVEMENT_COUNT = 1  # Container Movement Log
 CPLUS_ONHAND_COUNT = 1  # OnHandContainerList
 BARGE_COUNT = 1  # Barge
 MAX_RETRIES = 3
-HOUSEKEEP_FILE_PATTERNS = ['DM1C', 'GA1', 'IA15', 'IA17', 'INV-114', 'IA15.*\(.+\)']  # 支持帶後綴的文件名
+HOUSEKEEP_FILE_PATTERNS = [r'DM1C.*\.csv', r'GA1.*\.csv', r'IA15.*\.csv', r'IA17.*\.csv', r'INV-114.*\.csv']  # 支持帶後綴的文件名
 
 # 清空下載目錄
 def clear_download_dir():
@@ -301,6 +302,7 @@ def process_cplus_house(driver, wait, initial_files):
                 try:
                     button_xpath = f"(//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button[not(@disabled)])[{idx+1}]"
                     button = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, button_xpath)))
+                    wait.until(EC.visibility_of(button))  # 確保按鈕可見
                     driver.execute_script("arguments[0].scrollIntoView(true);", button)
                     time.sleep(1.5)
 
@@ -319,7 +321,7 @@ def process_cplus_house(driver, wait, initial_files):
 
                     temp_new = wait_for_new_file(local_initial, timeout=6)
                     if temp_new:
-                        filtered_files = {f for f in temp_new if any(pattern in f for pattern in HOUSEKEEP_FILE_PATTERNS)}
+                        filtered_files = {f for f in temp_new if any(re.match(pattern, f) for pattern in HOUSEKEEP_FILE_PATTERNS)}
                         if filtered_files:
                             print(f"CPLUS: 第 {idx+1} 個按鈕下載新文件: {', '.join(filtered_files)} (嘗試 {attempt+1}/3)", flush=True)
                             local_initial.update(temp_new)
@@ -433,7 +435,7 @@ def barge_login(driver, wait):
     time.sleep(3)
 
     print("Barge: 輸入 COMPANY ID...", flush=True)
-    company_id_field = wait.until(EC.p presence_of_element_located((By.XPATH, "//input[contains(@id, 'mat-input') and @placeholder='Company ID' or contains(@id, 'mat-input-0')]")))
+    company_id_field = wait.until(EC.presence_of_element_located((By.XPATH, "//input[contains(@id, 'mat-input') and @placeholder='Company ID' or contains(@id, 'mat-input-0')]")))
     company_id_field.send_keys("CKL")
     print("Barge: COMPANY ID 輸入完成", flush=True)
     time.sleep(1)
@@ -644,7 +646,7 @@ def main():
         except Exception as e:
             print(f"郵件發送失敗: {str(e)}", flush=True)
     else:
-        print(f"總下載文件數量onious（{len(downloaded_files)}/{expected_file_count}），放棄發送郵件", flush=True)
+        print(f"總下載文件數量不足（{len(downloaded_files)}/{expected_file_count}），放棄發送郵件", flush=True)
 
     print("腳本完成", flush=True)
 
