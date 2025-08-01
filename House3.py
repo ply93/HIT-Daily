@@ -569,7 +569,7 @@ def process_barge_download(driver, wait, initial_files):
 
     print("Barge: 選擇 Report Type...", flush=True)
 
-report_type_trigger = wait.until(EC.element_to_be_clickable((By.XPATH, "//mat-form-field[.//mat-label[contains(text(), 'Report Type')]]//div[contains(@class, 'mat-select-trigger')]")))
+    report_type_trigger = wait.until(EC.element_to_be_clickable((By.XPATH, "//mat-form-field[.//mat-label[contains(text(), 'Report Type')]]//div[contains(@class, 'mat-select-trigger')]")))
     ActionChains(driver).move_to_element(report_type_trigger).click().perform()
     print("Barge: Report Type 選擇開始", flush=True)
     time.sleep(2)
