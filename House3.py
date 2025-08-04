@@ -1,3 +1,4 @@
+```python
 import os
 import time
 import shutil
@@ -389,9 +390,21 @@ def process_cplus():
                 logout_option = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//li[contains(text(), 'Logout')]")))
                 ActionChains(driver).move_to_element(logout_option).click().perform()
                 print("CPLUS: Logout 選項點擊成功", flush=True)
-                time.sleep(2)
+                time.sleep(1)
+                # 點擊 Close 按鈕完成登出
+                print("CPLUS: 點擊 Close 按鈕完成登出...", flush=True)
+                try:
+                    close_button = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='logout']/div[3]/div/div[3]/button/span[1]")))
+                    ActionChains(driver).move_to_element(close_button).click().perform()
+                    print("CPLUS: Close 按鈕點擊成功", flush=True)
+                    time.sleep(2)  # 確保登出完成
+                except TimeoutException as e:
+                    print(f"CPLUS: Close 按鈕點擊失敗: {str(e)}", flush=True)
+                    driver.save_screenshot("logout_close_failure.png")
+                    raise Exception("CPLUS: Close 按鈕點擊失敗")
             except Exception as e:
                 print(f"CPLUS: 登出失敗: {str(e)}", flush=True)
+                driver.save_screenshot("logout_failure.png")
             driver.quit()
             print("CPLUS WebDriver 關閉", flush=True)
 
@@ -562,7 +575,7 @@ def main():
             smtp_port = 587
             sender_email = os.environ.get('ZOHO_EMAIL', 'paklun_ckline@zohomail.com')
             sender_password = os.environ.get('ZOHO_PASSWORD', '@d6G.Pie5UkEPqm')
-            receiver_email = 'paklun@ckline.com.hk'
+            receiver_email = 'ckeqc@ckline.com.hk'
             msg = MIMEMultipart()
             msg['From'] = sender_email
             msg['To'] = receiver_email
@@ -591,3 +604,4 @@ def main():
 if __name__ == "__main__":
     setup_environment()
     main()
+```
