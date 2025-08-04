@@ -2,6 +2,7 @@ import os
 import time
 import shutil
 import subprocess
+import threading
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
@@ -507,15 +508,28 @@ def process_barge():
 # 主函數
 def main():
     clear_download_dir()
-    cplus_files, house_file_count, house_button_count = process_cplus()
-    barge_files = process_barge()
+    cplus_files = set()
+    house_file_count = [0]
+    house_button_count = [0]
+    barge_files = set()
+    def update_cplus_files_and_count():
+        files, count, button_count = process_cplus()
+        cplus_files.update(files)
+        house_file_count[0] = count
+        house_button_count[0] = button_count
+    cplus_thread = threading.Thread(target=update_cplus_files_and_count)
+    barge_thread = threading.Thread(target=lambda: barge_files.update(process_barge()))
+    cplus_thread.start()
+    barge_thread.start()
+    cplus_thread.join()
+    barge_thread.join()
     print("檢查所有下載文件...", flush=True)
     downloaded_files = [f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx'))]
-    expected_file_count = CPLUS_MOVEMENT_COUNT + CPLUS_ONHAND_COUNT + house_button_count + BARGE_COUNT
-    print(f"預期文件數量: {expected_file_count} (Movement: {CPLUS_MOVEMENT_COUNT}, OnHand: {CPLUS_ONHAND_COUNT}, Housekeeping: {house_button_count}, Barge: {BARGE_COUNT})", flush=True)
+    expected_file_count = CPLUS_MOVEMENT_COUNT + CPLUS_ONHAND_COUNT + house_button_count[0] + BARGE_COUNT
+    print(f"預期文件數量: {expected_file_count} (Movement: {CPLUS_MOVEMENT_COUNT}, OnHand: {CPLUS_ONHAND_COUNT}, Housekeeping: {house_button_count[0]}, Barge: {BARGE_COUNT})", flush=True)
     # 檢查 Housekeeping 文件數量是否匹配按鈕數量
-    if house_file_count < house_button_count:
-        print(f"Housekeeping Reports 下載文件數量（{house_file_count}）少於按鈕數量（{house_button_count}），放棄發送郵件", flush=True)
+    if house_file_count[0] < house_button_count[0]:
+        print(f"Housekeeping Reports 下載文件數量（{house_file_count[0]}）少於按鈕數量（{house_button_count[0]}），放棄發送郵件", flush=True)
         return
     if len(downloaded_files) >= expected_file_count:
         print(f"所有下載完成，檔案位於: {download_dir}", flush=True)
