@@ -1,4 +1,3 @@
-```python
 import os
 import time
 import shutil
@@ -630,4 +629,3 @@ def main():
 if __name__ == "__main__":
     setup_environment()
     main()
-```
