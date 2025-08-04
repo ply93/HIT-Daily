@@ -287,7 +287,7 @@ def process_cplus_house(driver, wait, initial_files):
                 time.sleep(1.5)
                 ActionChains(driver).move_to_element(button).pause(0.5).click().perform()
                 print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 ActionChains 點擊成功", flush=True)
-                temp_new = wait_for_new_file(local_initial, timeout=10)
+                temp_new = wait_for_new_file(local_initial, timeout=20)
                 if temp_new:
                     print(f"CPLUS: 第 {idx+1} 個按鈕下載新文件: {', '.join(temp_new)}", flush=True)
                     local_initial.update(temp_new)
