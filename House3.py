@@ -96,7 +96,7 @@ def cplus_login(driver, wait):
     login_button_pre = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
     ActionChains(driver).move_to_element(login_button_pre).click().perform()
     print("CPLUS: 登錄前按鈕點擊成功", flush=True)
-    time.sleep(2)
+    time.sleep(1)
     print("CPLUS: 輸入 COMPANY CODE...", flush=True)
     company_code_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='companyCode']")))
     company_code_field.send_keys("CKL")
@@ -116,7 +116,7 @@ def cplus_login(driver, wait):
     login_button = driver.find_element(By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/div[2]/div/div/form/button/span[1]")
     ActionChains(driver).move_to_element(login_button).click().perform()
     print("CPLUS: LOGIN 按鈕點擊成功", flush=True)
-    time.sleep(2)
+    time.sleep(3)
 
 # CPLUS Container Movement Log
 def process_cplus_movement(driver, wait, initial_files):
