@@ -209,11 +209,12 @@ def process_cplus_movement(driver, wait, initial_files):
 def process_cplus_onhand(driver, wait, initial_files):
     print("CPLUS: 前往 OnHandContainerList 頁面...", flush=True)
     driver.get("https://cplus.hit.com.hk/app/#/enquiry/OnHandContainerList")
+    time.sleep(3)  # 添加 3 秒延遲以確保頁面初次加載
+    print("CPLUS: 等待頁面初次加載完成...", flush=True)
     attempt = 0
     while True:
         attempt += 1
         try:
-            wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
             search_button_onhand = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div[1]/form/div[1]/div[24]/div[2]/button/span[1]")))
             print(f"CPLUS: OnHandContainerList 頁面加載完成，Search 按鈕可點擊 (嘗試 {attempt})", flush=True)
             break
@@ -267,14 +268,14 @@ def process_cplus_house(driver, wait, initial_files):
     table_loaded = False
     for attempt in range(3):
         try:
-            WebDriverWait(driver, 10).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
+            WebDriverWait(driver, 5).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
             print("CPLUS: 表格加載完成", flush=True)
             table_loaded = True
             break
         except TimeoutException:
             print(f"CPLUS: 表格未加載，嘗試刷新頁面 (嘗試 {attempt+1}/3)...", flush=True)
             driver.refresh()
-            time.sleep(1)
+            time.sleep(0.5)  # 縮短刷新等待時間
             wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
             print("CPLUS: 頁面刷新完成", flush=True)
     if not table_loaded:
@@ -302,7 +303,7 @@ def process_cplus_house(driver, wait, initial_files):
         if attempt < 2:
             print("CPLUS: 刷新頁面並重新定位按鈕...", flush=True)
             driver.refresh()
-            time.sleep(1)
+            time.sleep(0.5)  # 縮短刷新等待時間
             wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
             print("CPLUS: 頁面刷新完成", flush=True)
     if not excel_buttons or button_count == 0:
@@ -325,7 +326,7 @@ def process_cplus_house(driver, wait, initial_files):
             print(f"CPLUS: 嘗試 {attempt+1}/{MAX_RETRIES} 點擊第 {idx+1} 個按鈕", flush=True)
             try:
                 button_xpath = f"(//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button[not(@disabled)])[{idx+1}]"
-                button = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, button_xpath)))
+                button = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, button_xpath)))
                 driver.execute_script("arguments[0].scrollIntoView(true);", button)
                 time.sleep(1)
                 try:
@@ -362,7 +363,7 @@ def process_cplus_house(driver, wait, initial_files):
             if attempt < MAX_RETRIES - 1:
                 print(f"CPLUS: 刷新頁面並重新定位第 {idx+1} 個按鈕...", flush=True)
                 driver.refresh()
-                time.sleep(1)
+                time.sleep(0.5)  # 縮短刷新等待時間
                 wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
                 print("CPLUS: 頁面刷新完成", flush=True)
         if success:
@@ -446,11 +447,17 @@ def process_cplus():
                         close_button = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'MuiButtonBase-root') and .//span[contains(text(), 'Close')]]")))
                         ActionChains(driver).move_to_element(close_button).click().perform()
                         print("CPLUS: Close 按鈕點擊成功 (XPath)", flush=True)
-                    except TimeoutException as e:
-                        print(f"CPLUS: Close 按鈕點擊失敗: {str(e)}", flush=True)
-                        driver.save_screenshot("logout_close_failure.png")
-                        with open("logout_close_failure.html", "w", encoding="utf-8") as f:
-                            f.write(driver.page_source)
+                    except TimeoutException:
+                        print("CPLUS: XPath 選擇器未找到 Close 按鈕，嘗試備用定位...", flush=True)
+                        try:
+                            close_button = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Close')]")))
+                            ActionChains(driver).move_to_element(close_button).click().perform()
+                            print("CPLUS: Close 按鈕點擊成功 (備用 XPath)", flush=True)
+                        except TimeoutException as e:
+                            print(f"CPLUS: Close 按鈕點擊失敗: {str(e)}", flush=True)
+                            driver.save_screenshot("logout_close_failure.png")
+                            with open("logout_close_failure.html", "w", encoding="utf-8") as f:
+                                f.write(driver.page_source)
                 time.sleep(2)
                 try:
                     driver.get("https://cplus.hit.com.hk/frontpage/#/")
