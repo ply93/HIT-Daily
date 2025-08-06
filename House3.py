@@ -333,7 +333,9 @@ def process_cplus_house(driver, wait, initial_files):
                     else:
                         print(f"CPLUS: 第 {idx+1} 個按鈕下載文件重複，忽略: {', '.join(temp_new)}", flush=True)
                 else:
-                    print(f"CPLUS: 第 {idx+1} 個按鈕未觸發新文件下載 (嘗試 {attempt+1})", flush=True)
+                    print(f"CPLUS: 第 {idx+1} 個按鈕未觸發新文件下載 (嘗試 {attempt+1})，刷新頁面再試...", flush=True)
+                    driver.refresh()
+                    time.sleep(2)  # 等待刷新後頁面載入
             except Exception as e:
                 print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕點擊失敗 (嘗試 {attempt+1}): {str(e)}", flush=True)
             time.sleep(2)
@@ -606,7 +608,7 @@ def main():
             smtp_port = 587
             sender_email = os.environ.get('ZOHO_EMAIL', 'paklun_ckline@zohomail.com')
             sender_password = os.environ.get('ZOHO_PASSWORD', '@d6G.Pie5UkEPqm')
-            receiver_email = 'ckeqc@ckline.com.hk'
+            receiver_email = 'paklun@ckline.com.hk'
             msg = MIMEMultipart()
             msg['From'] = sender_email
             msg['To'] = receiver_email
