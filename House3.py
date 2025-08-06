@@ -213,38 +213,49 @@ def process_cplus_onhand(driver, wait, initial_files):
     wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
     print("CPLUS: OnHandContainerList 頁面加載完成", flush=True)
     time.sleep(2)  # 增加頁面加載後延遲
-    print("CPLUS: 點擊 Search...", flush=True)
+    print("CPLUS: 檢查 Search 按鈕是否加載完成...", flush=True)
     local_initial = set(f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx')))  # 刷新初始文件列表
     search_button_onhand = None
     for attempt in range(MAX_RETRIES):
         try:
+            # 檢查 Search 按鈕是否可見且可點擊
             search_button_onhand = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div[1]/form/div[1]/div[24]/div[2]/button/span[1]")))
-            print("CPLUS: Search 按鈕點擊成功 (主定位)", flush=True)
+            # 額外檢查按鈕是否完全加載（檢查 disabled 屬性）
+            if driver.execute_script("return arguments[0].hasAttribute('disabled')", search_button_onhand):
+                raise TimeoutException("Search 按鈕仍處於禁用狀態")
+            print("CPLUS: Search 按鈕加載完成且可點擊 (主定位)", flush=True)
             break
         except TimeoutException:
-            print(f"CPLUS: 主 Search 按鈕未找到，嘗試備用定位 (嘗試 {attempt+1}/{MAX_RETRIES})...", flush=True)
+            print(f"CPLUS: 主 Search 按鈕未找到或禁用，嘗試備用定位 (嘗試 {attempt+1}/{MAX_RETRIES})...", flush=True)
             try:
                 search_button_onhand = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Search') or contains(@class, 'MuiButtonBase-root')]")))
-                print("CPLUS: 備用 Search 按鈕點擊成功 (備用 1)", flush=True)
+                if driver.execute_script("return arguments[0].hasAttribute('disabled')", search_button_onhand):
+                    raise TimeoutException("備用 Search 按鈕仍處於禁用狀態")
+                print("CPLUS: 備用 Search 按鈕加載完成且可點擊 (備用 1)", flush=True)
                 break
             except TimeoutException:
-                print(f"CPLUS: 備用 1 Search 按鈕未找到，嘗試更多備用定位 (嘗試 {attempt+1}/{MAX_RETRIES})...", flush=True)
+                print(f"CPLUS: 備用 1 Search 按鈕未找到或禁用，嘗試更多備用定位 (嘗試 {attempt+1}/{MAX_RETRIES})...", flush=True)
                 try:
                     search_button_onhand = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "span.MuiButton-label")))
-                    print("CPLUS: 備用 Search 按鈕點擊成功 (CSS)", flush=True)
+                    if driver.execute_script("return arguments[0].hasAttribute('disabled')", search_button_onhand):
+                        raise TimeoutException("CSS Search 按鈕仍處於禁用狀態")
+                    print("CPLUS: 備用 Search 按鈕加載完成且可點擊 (CSS)", flush=True)
                     break
                 except TimeoutException:
-                    print(f"CPLUS: CSS Search 按鈕未找到，嘗試 outer HTML 定位 (嘗試 {attempt+1}/{MAX_RETRIES})...", flush=True)
+                    print(f"CPLUS: CSS Search 按鈕未找到或禁用，嘗試 outer HTML 定位 (嘗試 {attempt+1}/{MAX_RETRIES})...", flush=True)
                     try:
                         search_button_onhand = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//span[contains(@class, 'MuiButton-label') and contains(text(), 'Search')]/parent::button")))
-                        print("CPLUS: 備用 Search 按鈕點擊成功 (outer HTML)", flush=True)
+                        if driver.execute_script("return arguments[0].hasAttribute('disabled')", search_button_onhand):
+                            raise TimeoutException("outer HTML Search 按鈕仍處於禁用狀態")
+                        print("CPLUS: 備用 Search 按鈕加載完成且可點擊 (outer HTML)", flush=True)
                         break
                     except TimeoutException:
-                        print(f"CPLUS: outer HTML Search 按鈕未找到 (嘗試 {attempt+1}/{MAX_RETRIES})...", flush=True)
+                        print(f"CPLUS: outer HTML Search 按鈕未找到或禁用 (嘗試 {attempt+1}/{MAX_RETRIES})...", flush=True)
                         if attempt == MAX_RETRIES - 1:
                             driver.save_screenshot("onhand_search_failure.png")
                             raise Exception("CPLUS: OnHandContainerList Search 按鈕點擊失敗")
     time.sleep(2)  # 增加延遲等待搜索結果
+    print("CPLUS: 點擊 Search...", flush=True)
     ActionChains(driver).move_to_element(search_button_onhand).click().perform()
     time.sleep(5)  # 加長點擊Search後的等待時間
     print("CPLUS: 點擊 Export...", flush=True)
