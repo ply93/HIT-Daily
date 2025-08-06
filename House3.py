@@ -212,7 +212,7 @@ def process_cplus_onhand(driver, wait, initial_files):
     driver.get("https://cplus.hit.com.hk/app/#/enquiry/OnHandContainerList")
     wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
     print("CPLUS: OnHandContainerList 頁面加載完成", flush=True)
-    time.sleep(2)  # 增加頁面加載延遲
+    time.sleep(2)  # 增加頁面加載後延遲
     print("CPLUS: 點擊 Search...", flush=True)
     local_initial = set(f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx')))  # 刷新初始文件列表
     search_button_onhand = None
@@ -246,11 +246,11 @@ def process_cplus_onhand(driver, wait, initial_files):
                             raise Exception("CPLUS: OnHandContainerList Search 按鈕點擊失敗")
     time.sleep(2)  # 增加延遲等待搜索結果
     ActionChains(driver).move_to_element(search_button_onhand).click().perform()
-    time.sleep(3)  # 增加延遲等待搜索結果加載
+    time.sleep(5)  # 加長點擊Search後的等待時間
     print("CPLUS: 點擊 Export...", flush=True)
     for attempt in range(MAX_RETRIES):
         try:
-            export_button = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div/div[2]/div[1]/div[1]/div/div/div[4]/div/div/span[1]/button")))
+            export_button = WebDriverWait(driver, 1).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div/div[2]/div[1]/div[1]/div/div/div[4]/div/div/span[1]/button")))
             driver.execute_script("arguments[0].scrollIntoView(true);", export_button)
             time.sleep(1)
             ActionChains(driver).move_to_element(export_button).click().perform()
@@ -261,12 +261,12 @@ def process_cplus_onhand(driver, wait, initial_files):
             if attempt == MAX_RETRIES - 1:
                 driver.save_screenshot("onhand_export_failure.png")
                 raise Exception("CPLUS: OnHandContainerList Export 按鈕點擊失敗")
-            time.sleep(3)  # 增加延遲
-    time.sleep(1)  # 增加延遲
+            time.sleep(1)  # 縮短重試間延遲
+    time.sleep(1)  # 縮短延遲
     print("CPLUS: 點擊 Export as CSV...", flush=True)
     for attempt in range(MAX_RETRIES):
         try:
-            export_csv_button = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//li[contains(@class, 'MuiMenuItem-root') and text()='Export as CSV']")))
+            export_csv_button = WebDriverWait(driver, 1).until(EC.element_to_be_clickable((By.XPATH, "//li[contains(@class, 'MuiMenuItem-root') and text()='Export as CSV']")))
             driver.execute_script("arguments[0].scrollIntoView(true);", export_csv_button)
             time.sleep(1)
             ActionChains(driver).move_to_element(export_csv_button).click().perform()
@@ -277,8 +277,8 @@ def process_cplus_onhand(driver, wait, initial_files):
             if attempt == MAX_RETRIES - 1:
                 driver.save_screenshot("onhand_export_csv_failure.png")
                 raise Exception("CPLUS: OnHandContainerList Export as CSV 按鈕點擊失敗")
-            time.sleep(3)  # 增加延遲
-    time.sleep(1)  # 增加延遲
+            time.sleep(1)  # 縮短重試間延遲
+    time.sleep(1)  # 縮短延遲
     new_files = wait_for_new_file(local_initial, timeout=15)  # 增加下載超時
     if new_files:
         print(f"CPLUS: OnHandContainerList 下載完成，檔案位於: {download_dir}", flush=True)
@@ -333,7 +333,7 @@ def process_cplus_house(driver, wait, initial_files):
                 button_xpath = f"(//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button[not(@disabled)])[{idx+1}]"
                 button = WebDriverWait(driver, 1).until(EC.element_to_be_clickable((By.XPATH, button_xpath)))  # 縮短等待時間
                 driver.execute_script("arguments[0].scrollIntoView(true);", button)
-                time.sleep(2)  # 增加延遲
+                time.sleep(1)  # 減少重試間延遲
                 try:
                     report_name = driver.find_element(By.XPATH, f"//table[contains(@class, 'MuiTable-root')]//tbody//tr[{idx+1}]//td[3]").text
                     print(f"CPLUS: 準備點擊第 {idx+1} 個 Excel 按鈕，報告名稱: {report_name}", flush=True)
@@ -341,10 +341,10 @@ def process_cplus_house(driver, wait, initial_files):
                     print(f"CPLUS: 無法獲取第 {idx+1} 個按鈕的報告名稱", flush=True)
                 driver.execute_script("arguments[0].click();", button)
                 print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 JavaScript 點擊成功", flush=True)
-                time.sleep(3)  # 額外延遲
+                time.sleep(2)  # 減少額外延遲
                 ActionChains(driver).move_to_element(button).pause(0.5).click().perform()
                 print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 ActionChains 點擊成功", flush=True)
-                time.sleep(3)  # 額外延遲
+                time.sleep(2)  # 減少額外延遲
                 temp_new = wait_for_new_file(local_initial, timeout=HOUSEKEEPING_DOWNLOAD_TIMEOUT)
                 if temp_new:
                     # 過濾重複文件名（例如 IA17_*.csv 只保留一個）
@@ -370,7 +370,7 @@ def process_cplus_house(driver, wait, initial_files):
                     print(f"CPLUS: 第 {idx+1} 個按鈕未觸發新文件下載 (嘗試 {attempt+1})", flush=True)
             except Exception as e:
                 print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕點擊失敗 (嘗試 {attempt+1}): {str(e)}", flush=True)
-            time.sleep(2)
+            time.sleep(1)  # 減少重試間延遲
         if success:
             print(f"CPLUS: 第 {idx+1} 個按鈕下載成功", flush=True)
         else:
