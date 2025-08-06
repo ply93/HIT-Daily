@@ -20,9 +20,9 @@ from datetime import datetime
 
 # 全局變量
 download_dir = os.path.abspath("downloads")
-CPLUS_MOVEMENT_COUNT = 1 # Container Movement Log
-CPLUS_ONHAND_COUNT = 1 # OnHandContainerList
-BARGE_COUNT = 1 # Barge
+CPLUS_MOVEMENT_COUNT = 1  # Container Movement Log
+CPLUS_ONHAND_COUNT = 1    # OnHandContainerList
+BARGE_COUNT = 1           # Barge
 MAX_RETRIES = 3
 HOUSEKEEPING_DOWNLOAD_TIMEOUT = 5  # 專為 Housekeeping 增加超時
 
@@ -127,7 +127,6 @@ def cplus_login(driver, wait):
         print(f"CPLUS: LOGIN 按鈕點擊失敗: {str(e)}", flush=True)
         driver.save_screenshot("login_button_failure.png")
         raise Exception("CPLUS: LOGIN 按鈕點擊失敗")
-    # 驗證是否成功登入
     time.sleep(2)
     try:
         wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[1]/header")))  # 確認已登入頁面
@@ -215,31 +214,24 @@ def process_cplus_onhand(driver, wait, initial_files):
     print("CPLUS: OnHandContainerList 頁面加載完成", flush=True)
     print("CPLUS: 點擊 Search...", flush=True)
     local_initial = set(f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx')))  # 刷新初始文件列表
-    search_button_onhand = None
-    try:
-        search_button_onhand = WebDriverWait(driver, 15).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div[1]/form/div[1]/div[24]/div[2]/button/span[1]")))
-        print("CPLUS: Search 按鈕點擊成功 (主定位)", flush=True)
-    except TimeoutException:
-        print("CPLUS: 主 Search 按鈕未找到，嘗試備用定位...", flush=True)
+    search_success = False
+    for attempt in range(2):  # 最多嘗試兩次
         try:
-            search_button_onhand = WebDriverWait(driver, 15).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Search') or contains(@class, 'MuiButtonBase-root')]")))
-            print("CPLUS: 備用 Search 按鈕點擊成功 (備用 1)", flush=True)
+            search_button_onhand = WebDriverWait(driver, 15).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div[1]/form/div[1]/div[24]/div[2]/button/span[1]")))
+            ActionChains(driver).move_to_element(search_button_onhand).click().perform()
+            print("CPLUS: Search 按鈕點擊成功 (主定位)", flush=True)
+            search_success = True
+            break
         except TimeoutException:
-            print("CPLUS: 備用 1 Search 按鈕未找到，嘗試更多備用定位...", flush=True)
-            try:
-                search_button_onhand = WebDriverWait(driver, 15).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "span.MuiButton-label")))
-                print("CPLUS: 備用 Search 按鈕點擊成功 (CSS)", flush=True)
-            except TimeoutException:
-                print("CPLUS: CSS Search 按鈕未找到，嘗試 outer HTML 定位...", flush=True)
-                try:
-                    search_button_onhand = WebDriverWait(driver, 15).until(EC.element_to_be_clickable((By.XPATH, "//span[contains(@class, 'MuiButton-label') and contains(text(), 'Search')]/parent::button")))
-                    print("CPLUS: 備用 Search 按鈕點擊成功 (outer HTML)", flush=True)
-                except TimeoutException:
-                    print("CPLUS: outer HTML Search 按鈕未找到，記錄頁面狀態...", flush=True)
-                    driver.save_screenshot("onhand_search_failure.png")
-                    raise Exception("CPLUS: OnHandContainerList Search 按鈕點擊失敗")
-    time.sleep(1)
-    ActionChains(driver).move_to_element(search_button_onhand).click().perform()
+            print(f"CPLUS: 主 Search 按鈕未找到，嘗試刷新頁面 (嘗試 {attempt+1}/2)...", flush=True)
+            driver.refresh()
+            time.sleep(2)
+            wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
+            print("CPLUS: 頁面刷新完成", flush=True)
+    if not search_success:
+        print("CPLUS: Search 按鈕點擊失敗，記錄頁面狀態...", flush=True)
+        driver.save_screenshot("onhand_search_failure.png")
+        raise Exception("CPLUS: OnHandContainerList Search 按鈕點擊失敗")
     time.sleep(1)
     print("CPLUS: 點擊 Export...", flush=True)
     export_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div/div[2]/div[1]/div[1]/div/div/div[4]/div/div/span[1]/button")))
@@ -318,7 +310,6 @@ def process_cplus_house(driver, wait, initial_files):
                 time.sleep(1)  # 額外延遲
                 temp_new = wait_for_new_file(local_initial, timeout=HOUSEKEEPING_DOWNLOAD_TIMEOUT)
                 if temp_new:
-                    # 過濾重複文件名（例如 IA17_*.csv 只保留一個）
                     filtered_new = set()
                     for f in temp_new:
                         base_name = f.split(' (')[0]  # 移除 "(1)" 等後綴
@@ -366,7 +357,6 @@ def process_cplus():
         print("CPLUS WebDriver 初始化成功", flush=True)
         driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
         wait = WebDriverWait(driver, 10)
-        # 只執行一次登入
         cplus_login(driver, wait)
         sections = [
             ('movement', process_cplus_movement),
@@ -407,17 +397,15 @@ def process_cplus():
                 logout_option = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//li[contains(text(), 'Logout')]")))
                 ActionChains(driver).move_to_element(logout_option).click().perform()
                 print("CPLUS: Logout 選項點擊成功", flush=True)
-                time.sleep(2)  # 增加延遲以等待 Close 按鈕彈窗
+                time.sleep(2)
                 print("CPLUS: 點擊 Close 按鈕完成登出...", flush=True)
                 try:
-                    # 優先使用穩定 CSS 選擇器
                     close_button = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button.MuiButtonBase-root span.MuiButton-label")))
                     ActionChains(driver).move_to_element(close_button).click().perform()
                     print("CPLUS: Close 按鈕點擊成功 (CSS)", flush=True)
                 except TimeoutException:
                     print("CPLUS: CSS 選擇器未找到 Close 按鈕，嘗試 XPath...", flush=True)
                     try:
-                        # 備用 XPath
                         close_button = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'MuiButtonBase-root') and .//span[contains(text(), 'Close')]]")))
                         ActionChains(driver).move_to_element(close_button).click().perform()
                         print("CPLUS: Close 按鈕點擊成功 (XPath)", flush=True)
@@ -427,11 +415,10 @@ def process_cplus():
                         with open("logout_close_failure.html", "w", encoding="utf-8") as f:
                             f.write(driver.page_source)
                         raise Exception("CPLUS: Close 按鈕點擊失敗")
-                time.sleep(2)  # 確保登出完成
-                # 驗證登出是否成功
+                time.sleep(2)
                 try:
                     driver.get("https://cplus.hit.com.hk/frontpage/#/")
-                    wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))  # 檢查登入按鈕
+                    wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
                     print("CPLUS: 登出成功，回到登入頁", flush=True)
                 except TimeoutException:
                     print("CPLUS: 登出驗證失敗，可能未完全登出", flush=True)
@@ -595,7 +582,6 @@ def main():
     downloaded_files = [f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx'))]
     expected_file_count = CPLUS_MOVEMENT_COUNT + CPLUS_ONHAND_COUNT + house_button_count[0] + BARGE_COUNT
     print(f"預期文件數量: {expected_file_count} (Movement: {CPLUS_MOVEMENT_COUNT}, OnHand: {CPLUS_ONHAND_COUNT}, Housekeeping: {house_button_count[0]}, Barge: {BARGE_COUNT})", flush=True)
-    # 嚴格要求有齊所有文件才發送郵件
     if len(downloaded_files) == expected_file_count:
         print(f"所有下載完成，檔案位於: {download_dir}", flush=True)
         for file in downloaded_files:
