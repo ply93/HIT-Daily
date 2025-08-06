@@ -209,27 +209,24 @@ def process_cplus_movement(driver, wait, initial_files):
 def process_cplus_onhand(driver, wait, initial_files):
     print("CPLUS: 前往 OnHandContainerList 頁面...", flush=True)
     driver.get("https://cplus.hit.com.hk/app/#/enquiry/OnHandContainerList")
-    time.sleep(1)
-    wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
-    print("CPLUS: OnHandContainerList 頁面加載完成", flush=True)
-    print("CPLUS: 點擊 Search...", flush=True)
-    local_initial = set(f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx')))  # 刷新初始文件列表
-    search_success = False
-    for attempt in range(3):  # 保持 3 次嘗試
+    attempt = 0
+    while True:
+        attempt += 1
         try:
-            search_button_onhand = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div[1]/form/div[1]/div[24]/div[2]/button/span[1]")))
-            ActionChains(driver).move_to_element(search_button_onhand).click().perform()
-            print(f"CPLUS: Search 按鈕點擊成功 (主定位，嘗試 {attempt+1}/3)", flush=True)
-            search_success = True
+            wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
+            search_button_onhand = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div[1]/form/div[1]/div[24]/div[2]/button/span[1]")))
+            print(f"CPLUS: OnHandContainerList 頁面加載完成，Search 按鈕可點擊 (嘗試 {attempt})", flush=True)
             break
         except TimeoutException as e:
-            print(f"CPLUS: 主 Search 按鈕未找到，嘗試刷新頁面 (嘗試 {attempt+1}/3): {str(e)}", flush=True)
+            print(f"CPLUS: Search 按鈕未加載，嘗試刷新頁面 (嘗試 {attempt}): {str(e)}", flush=True)
             driver.refresh()
-            time.sleep(1)  # 縮短刷新後等待時間
-            wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
-            print("CPLUS: 頁面刷新完成", flush=True)
-    if not search_success:
-        print("CPLUS: Search 按鈕點擊失敗，記錄頁面狀態...", flush=True)
+            time.sleep(1)  # 短暫等待頁面刷新
+    print("CPLUS: 點擊 Search...", flush=True)
+    try:
+        ActionChains(driver).move_to_element(search_button_onhand).click().perform()
+        print(f"CPLUS: Search 按鈕點擊成功 (嘗試 {attempt})", flush=True)
+    except Exception as e:
+        print(f"CPLUS: Search 按鈕點擊失敗: {str(e)}", flush=True)
         driver.save_screenshot("onhand_search_failure.png")
         raise Exception("CPLUS: OnHandContainerList Search 按鈕點擊失敗")
     time.sleep(1)
@@ -243,7 +240,7 @@ def process_cplus_onhand(driver, wait, initial_files):
     ActionChains(driver).move_to_element(export_csv_button).click().perform()
     print("CPLUS: Export as CSV 按鈕點擊成功", flush=True)
     time.sleep(1)
-    new_files = wait_for_new_file(local_initial, timeout=10)
+    new_files = wait_for_new_file(initial_files, timeout=10)
     if new_files:
         print(f"CPLUS: OnHandContainerList 下載完成，檔案位於: {download_dir}", flush=True)
         filtered_files = {f for f in new_files if "data_2025" in f}
@@ -268,7 +265,7 @@ def process_cplus_house(driver, wait, initial_files):
     print("CPLUS: Housekeeping Reports 頁面加載完成", flush=True)
     print("CPLUS: 等待表格加載...", flush=True)
     table_loaded = False
-    for attempt in range(3):  # 內部重試 3 次以加快
+    for attempt in range(3):
         try:
             WebDriverWait(driver, 10).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
             print("CPLUS: 表格加載完成", flush=True)
@@ -285,16 +282,35 @@ def process_cplus_house(driver, wait, initial_files):
         driver.save_screenshot("house_table_failure.png")
         raise Exception("CPLUS: Housekeeping Reports 表格加載失敗")
     print("CPLUS: 定位並點擊所有 Excel 下載按鈕...", flush=True)
-    local_initial = set(f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx')))  # 刷新初始文件列表
+    local_initial = set(f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx')))
     new_files = set()
-    excel_buttons = driver.find_elements(By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)]")
-    button_count = len(excel_buttons)
-    print(f"CPLUS: 找到 {button_count} 個 Excel 下載按鈕", flush=True)
-    if button_count == 0:
-        print("CPLUS: 未找到 Excel 按鈕，嘗試原始定位...", flush=True)
-        excel_buttons = driver.find_elements(By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button[not(@disabled)]//svg[@viewBox='0 0 24 24']//path[@fill='#036e11']")
-        button_count = len(excel_buttons)
-        print(f"CPLUS: 原始定位找到 {button_count} 個 Excel 下載按鈕", flush=True)
+    excel_buttons = None
+    for attempt in range(3):
+        try:
+            excel_buttons = driver.find_elements(By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)]")
+            button_count = len(excel_buttons)
+            print(f"CPLUS: 找到 {button_count} 個 Excel 下載按鈕", flush=True)
+            if button_count == 0:
+                print("CPLUS: 未找到 Excel 按鈕，嘗試備用定位...", flush=True)
+                excel_buttons = driver.find_elements(By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button[not(@disabled)]//svg[@viewBox='0 0 24 24']//path[@fill='#036e11']")
+                button_count = len(excel_buttons)
+                print(f"CPLUS: 備用定位找到 {button_count} 個 Excel 下載按鈕", flush=True)
+            if button_count > 0:
+                break
+        except Exception as e:
+            print(f"CPLUS: 定位 Excel 按鈕失敗 (嘗試 {attempt+1}/3): {str(e)}", flush=True)
+        if attempt < 2:
+            print("CPLUS: 刷新頁面並重新定位按鈕...", flush=True)
+            driver.refresh()
+            time.sleep(1)
+            wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
+            print("CPLUS: 頁面刷新完成", flush=True)
+    if not excel_buttons or button_count == 0:
+        print("CPLUS: 無法找到 Excel 下載按鈕，記錄頁面狀態...", flush=True)
+        driver.save_screenshot("house_buttons_failure.png")
+        with open("house_buttons_failure.html", "w", encoding="utf-8") as f:
+            f.write(driver.page_source)
+        raise Exception("CPLUS: Housekeeping Reports 無法找到 Excel 下載按鈕")
     # 定義報告名稱與預期文件名前綴的映射
     report_to_prefix = {
         "CONTAINER DAMAGE REPORT (LINE) ENTRY GATE + EXIT GATE": "DM1C_",
@@ -321,15 +337,14 @@ def process_cplus_house(driver, wait, initial_files):
                     expected_prefix = ""
                 driver.execute_script("arguments[0].click();", button)
                 print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 JavaScript 點擊成功", flush=True)
-                time.sleep(1)  # 額外延遲
+                time.sleep(1)
                 ActionChains(driver).move_to_element(button).pause(0.5).click().perform()
                 print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 ActionChains 點擊成功", flush=True)
-                time.sleep(2)  # 增加延遲以等待下載觸發
+                time.sleep(3)  # 增加等待時間以確保文件生成
                 temp_new = wait_for_new_file(local_initial, timeout=HOUSEKEEPING_DOWNLOAD_TIMEOUT)
                 if temp_new:
                     filtered_new = set()
                     for f in temp_new:
-                        # 檢查文件名是否包含預期前綴且不重複
                         if expected_prefix and expected_prefix in f and not any(f.split(' (')[0] in existing for existing in new_files):
                             filtered_new.add(f)
                     if filtered_new:
@@ -344,7 +359,12 @@ def process_cplus_house(driver, wait, initial_files):
                     print(f"CPLUS: 第 {idx+1} 個按鈕未觸發新文件下載 (嘗試 {attempt+1})", flush=True)
             except Exception as e:
                 print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕點擊失敗 (嘗試 {attempt+1}): {str(e)}", flush=True)
-            time.sleep(1)
+            if attempt < MAX_RETRIES - 1:
+                print(f"CPLUS: 刷新頁面並重新定位第 {idx+1} 個按鈕...", flush=True)
+                driver.refresh()
+                time.sleep(1)
+                wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
+                print("CPLUS: 頁面刷新完成", flush=True)
         if success:
             print(f"CPLUS: 第 {idx+1} 個按鈕下載成功", flush=True)
         else:
@@ -431,7 +451,6 @@ def process_cplus():
                         driver.save_screenshot("logout_close_failure.png")
                         with open("logout_close_failure.html", "w", encoding="utf-8") as f:
                             f.write(driver.page_source)
-                        raise Exception("CPLUS: Close 按鈕點擊失敗")
                 time.sleep(2)
                 try:
                     driver.get("https://cplus.hit.com.hk/frontpage/#/")
@@ -443,8 +462,9 @@ def process_cplus():
             except Exception as e:
                 print(f"CPLUS: 登出失敗: {str(e)}", flush=True)
                 driver.save_screenshot("logout_failure.png")
-            driver.quit()
-            print("CPLUS WebDriver 關閉", flush=True)
+            finally:
+                driver.quit()
+                print("CPLUS WebDriver 關閉", flush=True)
 
 # Barge 登入
 def barge_login(driver, wait):
@@ -491,7 +511,7 @@ def process_barge_download(driver, wait, initial_files):
     print("Barge: Container Detail 點擊成功", flush=True)
     time.sleep(2)
     print("Barge: 點擊 Download...", flush=True)
-    local_initial = set(f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx')))  # 刷新初始文件列表
+    local_initial = set(f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx')))
     download_button_barge = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[span[text()='Download']]")))
     ActionChains(driver).move_to_element(download_button_barge).click().perform()
     print("Barge: Download 按鈕點擊成功", flush=True)
