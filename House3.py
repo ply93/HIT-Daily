@@ -141,29 +141,29 @@ def cplus_login(driver, wait):
 def process_cplus_movement(driver, wait, initial_files):
     print("CPLUS: 直接前往 Container Movement Log...", flush=True)
     driver.get("https://cplus.hit.com.hk/app/#/enquiry/ContainerMovementLog")
-    time.sleep(2)
+    time.sleep(1)
     wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
-    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[2]//form")))
+    WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[2]//form")))
     print("CPLUS: Container Movement Log 頁面加載完成", flush=True)
     print("CPLUS: 點擊 Search...", flush=True)
     local_initial = set(f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx')))  # 刷新初始文件列表
     for attempt in range(2):
         try:
-            search_button = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[1]/div/form/div[2]/div/div[4]/button")))
+            search_button = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[1]/div/form/div[2]/div/div[4]/button")))
             ActionChains(driver).move_to_element(search_button).click().perform()
             print("CPLUS: Search 按鈕點擊成功", flush=True)
             break
         except TimeoutException:
             print(f"CPLUS: Search 按鈕未找到，嘗試備用定位 {attempt+1}/2...", flush=True)
             try:
-                search_button = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'MuiButtonBase-root') and .//span[contains(text(), 'Search')]]")))
+                search_button = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'MuiButtonBase-root') and .//span[contains(text(), 'Search')]]")))
                 ActionChains(driver).move_to_element(search_button).click().perform()
                 print("CPLUS: 備用 Search 按鈕 1 點擊成功", flush=True)
                 break
             except TimeoutException:
                 print(f"CPLUS: 備用 Search 按鈕 1 失敗，嘗試備用定位 2 (嘗試 {attempt+1}/2)...", flush=True)
                 try:
-                    search_button = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Search')]")))
+                    search_button = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Search')]")))
                     ActionChains(driver).move_to_element(search_button).click().perform()
                     print("CPLUS: 備用 Search 按鈕 2 點擊成功", flush=True)
                     break
@@ -216,22 +216,22 @@ def process_cplus_onhand(driver, wait, initial_files):
     local_initial = set(f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx')))  # 刷新初始文件列表
     search_button_onhand = None
     try:
-        search_button_onhand = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div[1]/form/div[1]/div[24]/div[2]/button/span[1]")))
+        search_button_onhand = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div[1]/form/div[1]/div[24]/div[2]/button/span[1]")))
         print("CPLUS: Search 按鈕點擊成功 (主定位)", flush=True)
     except TimeoutException:
         print("CPLUS: 主 Search 按鈕未找到，嘗試備用定位...", flush=True)
         try:
-            search_button_onhand = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Search') or contains(@class, 'MuiButtonBase-root')]")))
+            search_button_onhand = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Search') or contains(@class, 'MuiButtonBase-root')]")))
             print("CPLUS: 備用 Search 按鈕點擊成功 (備用 1)", flush=True)
         except TimeoutException:
             print("CPLUS: 備用 1 Search 按鈕未找到，嘗試更多備用定位...", flush=True)
             try:
-                search_button_onhand = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "span.MuiButton-label")))
+                search_button_onhand = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "span.MuiButton-label")))
                 print("CPLUS: 備用 Search 按鈕點擊成功 (CSS)", flush=True)
             except TimeoutException:
                 print("CPLUS: CSS Search 按鈕未找到，嘗試 outer HTML 定位...", flush=True)
                 try:
-                    search_button_onhand = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//span[contains(@class, 'MuiButton-label') and contains(text(), 'Search')]/parent::button")))
+                    search_button_onhand = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//span[contains(@class, 'MuiButton-label') and contains(text(), 'Search')]/parent::button")))
                     print("CPLUS: 備用 Search 按鈕點擊成功 (outer HTML)", flush=True)
                 except TimeoutException:
                     print("CPLUS: outer HTML Search 按鈕未找到，記錄頁面狀態...", flush=True)
@@ -275,7 +275,7 @@ def process_cplus_house(driver, wait, initial_files):
     print("CPLUS: Housekeeping Reports 頁面加載完成", flush=True)
     print("CPLUS: 等待表格加載...", flush=True)
     try:
-        wait = WebDriverWait(driver, 15)
+        wait = WebDriverWait(driver, 10)
         wait.until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
         print("CPLUS: 表格加載完成", flush=True)
     except TimeoutException:
