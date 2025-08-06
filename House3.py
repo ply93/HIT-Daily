@@ -359,6 +359,7 @@ def process_cplus_house(driver, wait, initial_files):
         print("CPLUS: Housekeeping Reports 未下載任何文件，記錄頁面狀態...", flush=True)
         driver.save_screenshot("house_download_failure.png")
         with open("house_download_failure.html", "w", encoding="utf-8") as f:
+            f.write(driver.page_source)
         raise Exception("CPLUS: Housekeeping Reports 未下載任何文件")
 
 # CPLUS 操作
