@@ -210,14 +210,13 @@ def process_cplus_movement(driver, wait, initial_files):
 def process_cplus_onhand(driver, wait, initial_files):
     print("CPLUS: 前往 OnHandContainerList 頁面...", flush=True)
     driver.get("https://cplus.hit.com.hk/app/#/enquiry/OnHandContainerList")
-    time.sleep(1)
     wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
     print("CPLUS: OnHandContainerList 頁面加載完成", flush=True)
     print("CPLUS: 點擊 Search...", flush=True)
     local_initial = set(f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx')))  # 刷新初始文件列表
     search_button_onhand = None
     try:
-        search_button_onhand = WebDriverWait(driver, 60).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div[1]/form/div[1]/div[24]/div[2]/button/span[1]")))
+        search_button_onhand = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div[1]/form/div[1]/div[24]/div[2]/button/span[1]")))
         print("CPLUS: Search 按鈕點擊成功 (主定位)", flush=True)
     except TimeoutException:
         print("CPLUS: 主 Search 按鈕未找到，嘗試備用定位...", flush=True)
@@ -333,9 +332,7 @@ def process_cplus_house(driver, wait, initial_files):
                     else:
                         print(f"CPLUS: 第 {idx+1} 個按鈕下載文件重複，忽略: {', '.join(temp_new)}", flush=True)
                 else:
-                    print(f"CPLUS: 第 {idx+1} 個按鈕未觸發新文件下載 (嘗試 {attempt+1})，刷新頁面再試...", flush=True)
-                    driver.refresh()
-                    time.sleep(2)  # 等待刷新後頁面載入
+                    print(f"CPLUS: 第 {idx+1} 個按鈕未觸發新文件下載 (嘗試 {attempt+1})", flush=True)
             except Exception as e:
                 print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕點擊失敗 (嘗試 {attempt+1}): {str(e)}", flush=True)
             time.sleep(2)
