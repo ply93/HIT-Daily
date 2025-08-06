@@ -2,7 +2,6 @@ import os
 import time
 import shutil
 import subprocess
-import threading
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
@@ -302,12 +301,6 @@ def process_cplus_house(driver, wait, initial_files):
                     print(f"CPLUS: 準備點擊第 {idx+1} 個 Excel 按鈕，報告名稱: {report_name}", flush=True)
                 except:
                     print(f"CPLUS: 無法獲取第 {idx+1} 個按鈕的報告名稱", flush=True)
-                # 檢查是否在iframe中
-                iframes = driver.find_elements(By.TAG_NAME, "iframe")
-                if iframes:
-                    print(f"CPLUS: 檢測到 iframe，嘗試切換到 iframe...", flush=True)
-                    driver.switch_to.frame(iframes[0])  # 假設第一個iframe，根據實際調整
-                    button = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, button_xpath)))
                 driver.execute_script("arguments[0].click();", button)
                 print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 JavaScript 點擊成功", flush=True)
                 time.sleep(3) # 額外延遲
@@ -337,11 +330,8 @@ def process_cplus_house(driver, wait, initial_files):
                         print(f"CPLUS: 第 {idx+1} 個按鈕下載文件重複，忽略: {', '.join(temp_new)}", flush=True)
                 else:
                     print(f"CPLUS: 第 {idx+1} 個按鈕未觸發新文件下載 (嘗試 {attempt+1})", flush=True)
-                # 切換回主內容
-                driver.switch_to.default_content()
             except Exception as e:
                 print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕點擊失敗 (嘗試 {attempt+1}): {str(e)}", flush=True)
-                driver.switch_to.default_content()  # 確保切換回
             time.sleep(2)
         if success:
             print(f"CPLUS: 第 {idx+1} 個按鈕下載成功", flush=True)
@@ -575,24 +565,20 @@ def process_barge():
 def main():
     clear_download_dir()
     cplus_files = set()
-    house_file_count = [0]
-    house_button_count = [0]
+    house_file_count = 0
+    house_button_count = 0
     barge_files = set()
-    def update_cplus_files_and_count():
-        files, count, button_count = process_cplus()
-        cplus_files.update(files)
-        house_file_count[0] = count
-        house_button_count[0] = button_count
-    cplus_thread = threading.Thread(target=update_cplus_files_and_count)
-    barge_thread = threading.Thread(target=lambda: barge_files.update(process_barge()))
-    cplus_thread.start()
-    barge_thread.start()
-    cplus_thread.join()
-    barge_thread.join()
+    # 先執行 CPLUS
+    files, count, button_count = process_cplus()
+    cplus_files.update(files)
+    house_file_count = count
+    house_button_count = button_count
+    # 再執行 Barge
+    barge_files.update(process_barge())
     print("檢查所有下載文件...", flush=True)
     downloaded_files = [f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx'))]
-    expected_file_count = CPLUS_MOVEMENT_COUNT + CPLUS_ONHAND_COUNT + house_button_count[0] + BARGE_COUNT
-    print(f"預期文件數量: {expected_file_count} (Movement: {CPLUS_MOVEMENT_COUNT}, OnHand: {CPLUS_ONHAND_COUNT}, Housekeeping: {house_button_count[0]}, Barge: {BARGE_COUNT})", flush=True)
+    expected_file_count = CPLUS_MOVEMENT_COUNT + CPLUS_ONHAND_COUNT + house_button_count + BARGE_COUNT
+    print(f"預期文件數量: {expected_file_count} (Movement: {CPLUS_MOVEMENT_COUNT}, OnHand: {CPLUS_ONHAND_COUNT}, Housekeeping: {house_button_count}, Barge: {BARGE_COUNT})", flush=True)
     # 嚴格要求有齊所有文件才發送郵件
     if len(downloaded_files) == expected_file_count:
         print(f"所有下載完成，檔案位於: {download_dir}", flush=True)
