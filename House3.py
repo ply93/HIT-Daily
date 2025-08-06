@@ -13,9 +13,9 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.common.exceptions import TimeoutException, ElementClickInterceptedException, NoSuchElementException
+from selenium.webdriver.chrome.options import Options
 import undetected_chromedriver as uc
 from datetime import datetime
-from selenium.webdriver.chrome.options import Options
 
 # 全局變量
 download_dir = os.path.abspath("downloads")
@@ -35,6 +35,10 @@ def clear_download_dir():
 # 確保環境準備
 def setup_environment():
     try:
+        # 更新 pip 以確保相容性
+        subprocess.run(['pip', 'install', '--upgrade', 'pip'], check=True)
+        print("pip 已更新", flush=True)
+        # 安裝必要依賴
         result = subprocess.run(['which', 'chromium-browser'], capture_output=True, text=True)
         if result.returncode != 0:
             subprocess.run(['sudo', 'apt-get', 'update', '-qq'], check=True)
@@ -48,13 +52,9 @@ def setup_environment():
             print("Selenium 及 WebDriver Manager 已安裝", flush=True)
         else:
             print("Selenium 及 WebDriver Manager 已存在，跳過安裝", flush=True)
-        # 安裝 undetected-chromedriver
-        result = subprocess.run(['pip', 'show', 'undetected-chromedriver'], capture_output=True, text=True)
-        if "undetected-chromedriver" not in result.stdout:
-            subprocess.run(['pip', 'install', 'undetected-chromedriver'], check=True)
-            print("undetected-chromedriver 已安裝", flush=True)
-        else:
-            print("undetected-chromedriver 已存在，跳過安裝", flush=True)
+        # 強制重新安裝 undetected-chromedriver
+        subprocess.run(['pip', 'install', '--force-reinstall', 'undetected-chromedriver'], check=True)
+        print("undetected-chromedriver 已強制重新安裝", flush=True)
     except subprocess.CalledProcessError as e:
         print(f"環境準備失敗: {e}", flush=True)
         raise
@@ -83,7 +83,7 @@ def get_chrome_options():
     return chrome_options
 
 # 檢查新文件出現
-def wait_for_new_file(initial_files, timeout=10):
+def wait_for_new_file(initial_files, timeout=20):
     start_time = time.time()
     while time.time() - start_time < timeout:
         current_files = set(f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx')))
@@ -302,7 +302,7 @@ def process_cplus_house(driver, wait, initial_files):
         for attempt in range(MAX_RETRIES):
             print(f"CPLUS: 嘗試 {attempt+1}/{MAX_RETRIES} 點擊第 {idx+1} 個按鈕", flush=True)
             try:
-                button_xpath = f"(//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button[not(@disabled)])[{idx+1}]"
+                button_xpath = f"(//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)])[{idx+1}]"
                 button = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, button_xpath)))
                 driver.execute_script("arguments[0].scrollIntoView(true);", button)
                 time.sleep(1.5)
@@ -313,7 +313,7 @@ def process_cplus_house(driver, wait, initial_files):
                     print(f"CPLUS: 無法獲取第 {idx+1} 個按鈕的報告名稱", flush=True)
                 driver.execute_script("arguments[0].click();", button)
                 print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 JavaScript 點擊成功", flush=True)
-                time.sleep(3)  # 增加延遲避免率限
+                time.sleep(3)
                 ActionChains(driver).move_to_element(button).pause(0.5).click().perform()
                 print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 ActionChains 點擊成功", flush=True)
                 time.sleep(3)
@@ -450,70 +450,6 @@ def process_cplus():
                 driver.save_screenshot("logout_failure.png")
             driver.quit()
             print("CPLUS WebDriver 關閉", flush=True)
-
-# Barge 登入
-def barge_login(driver, wait):
-    print("Barge: 嘗試打開網站 https://barge.oneport.com/login...", flush=True)
-    driver.get("https://barge.oneport.com/login")
-    print(f"Barge: 網站已成功打開，當前 URL: {driver.current_url}", flush=True)
-    time.sleep(3)
-    print("Barge: 輸入 COMPANY ID...", flush=True)
-    company_id_field = wait.until(EC.presence_of_element_located((By.XPATH, "//input[contains(@id, 'mat-input') and @placeholder='Company ID' or contains(@id, 'mat-input-0')]")))
-    company_id_field.send_keys("CKL")
-    print("Barge: COMPANY ID 輸入完成", flush=True)
-    time.sleep(1)
-    print("Barge: 輸入 USER ID...", flush=True)
-    user_id_field = driver.find_element(By.XPATH, "//input[contains(@id, 'mat-input') and @placeholder='User ID' or contains(@id, 'mat-input-1')]")
-    user_id_field.send_keys("barge")
-    print("Barge: USER ID 輸入完成", flush=True)
-    time.sleep(1)
-    print("Barge: 輸入 PW...", flush=True)
-    password_field = driver.find_element(By.XPATH, "//input[contains(@id, 'mat-input') and @placeholder='Password' or contains(@id, 'mat-input-2')]")
-    password_field.send_keys("123456")
-    print("Barge: PW 輸入完成", flush=True)
-    time.sleep(1)
-    print("Barge: 點擊 LOGIN 按鈕...", flush=True)
-    login_button_barge = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'LOGIN') or contains(@class, 'mat-raised-button')]")))
-    ActionChains(driver).move_to_element(login_button_barge).click().perform()
-    print("Barge: LOGIN 按鈕點擊成功", flush=True)
-    time.sleep(3)
-
-# Barge 下載部分
-def process_barge_download(driver, wait, initial_files):
-    print("Barge: 直接前往 https://barge.oneport.com/downloadReport...", flush=True)
-    driver.get("https://barge.oneport.com/downloadReport")
-    wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
-    print("Barge: downloadReport 頁面加載完成", flush=True)
-    print("Barge: 選擇 Report Type...", flush=True)
-    report_type_trigger = wait.until(EC.element_to_be_clickable((By.XPATH, "//mat-form-field[.//mat-label[contains(text(), 'Report Type')]]//div[contains(@class, 'mat-select-trigger')]")))
-    ActionChains(driver).move_to_element(report_type_trigger).click().perform()
-    print("Barge: Report Type 選擇開始", flush=True)
-    time.sleep(2)
-    print("Barge: 點擊 Container Detail...", flush=True)
-    container_detail_option = wait.until(EC.element_to_be_clickable((By.XPATH, "//mat-option//span[contains(text(), 'Container Detail')]")))
-    ActionChains(driver).move_to_element(container_detail_option).click().perform()
-    print("Barge: Container Detail 點擊成功", flush=True)
-    time.sleep(2)
-    print("Barge: 點擊 Download...", flush=True)
-    local_initial = set(f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx')))
-    download_button_barge = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[span[text()='Download']]")))
-    ActionChains(driver).move_to_element(download_button_barge).click().perform()
-    print("Barge: Download 按鈕點擊成功", flush=True)
-    new_files = wait_for_new_file(local_initial, timeout=10)
-    if new_files:
-        print(f"Barge: Container Detail 下載完成，檔案位於: {download_dir}", flush=True)
-        filtered_files = {f for f in new_files if "ContainerDetailReport" in f}
-        for file in filtered_files:
-            print(f"Barge: 新下載檔案: {file}", flush=True)
-        if not filtered_files:
-            print("Barge: 未下載預期檔案 (ContainerDetailReport*.csv)，記錄頁面狀態...", flush=True)
-            driver.save_screenshot("barge_download_failure.png")
-            raise Exception("Barge: Container Detail 未下載預期檔案")
-        return filtered_files
-    else:
-        print("Barge: Container Detail 未觸發新文件下載，記錄頁面狀態...", flush=True)
-        driver.save_screenshot("barge_download_failure.png")
-        raise Exception("Barge: Container Detail 未觸發新文件下載")
 
 # Barge 操作
 def process_barge():
