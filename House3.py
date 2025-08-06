@@ -24,7 +24,7 @@ CPLUS_MOVEMENT_COUNT = 1  # Container Movement Log
 CPLUS_ONHAND_COUNT = 1    # OnHandContainerList
 BARGE_COUNT = 1           # Barge
 MAX_RETRIES = 3
-HOUSEKEEPING_DOWNLOAD_TIMEOUT = 10  # 增加超時以處理下載延遲
+HOUSEKEEPING_DOWNLOAD_TIMEOUT = 15  # 增加超時以處理下載延遲
 
 # 清空下載目錄
 def clear_download_dir():
@@ -215,17 +215,17 @@ def process_cplus_onhand(driver, wait, initial_files):
     print("CPLUS: 點擊 Search...", flush=True)
     local_initial = set(f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx')))  # 刷新初始文件列表
     search_success = False
-    for attempt in range(3):  # 增加到 3 次
+    for attempt in range(3):  # 保持 3 次嘗試
         try:
-            search_button_onhand = WebDriverWait(driver, 15).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div[1]/form/div[1]/div[24]/div[2]/button/span[1]")))
+            search_button_onhand = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div[1]/form/div[1]/div[24]/div[2]/button/span[1]")))
             ActionChains(driver).move_to_element(search_button_onhand).click().perform()
-            print("CPLUS: Search 按鈕點擊成功 (主定位)", flush=True)
+            print(f"CPLUS: Search 按鈕點擊成功 (主定位，嘗試 {attempt+1}/3)", flush=True)
             search_success = True
             break
-        except TimeoutException:
-            print(f"CPLUS: 主 Search 按鈕未找到，嘗試刷新頁面 (嘗試 {attempt+1}/3)...", flush=True)
+        except TimeoutException as e:
+            print(f"CPLUS: 主 Search 按鈕未找到，嘗試刷新頁面 (嘗試 {attempt+1}/3): {str(e)}", flush=True)
             driver.refresh()
-            time.sleep(2)
+            time.sleep(1)  # 縮短刷新後等待時間
             wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
             print("CPLUS: 頁面刷新完成", flush=True)
     if not search_success:
@@ -295,6 +295,14 @@ def process_cplus_house(driver, wait, initial_files):
         excel_buttons = driver.find_elements(By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button[not(@disabled)]//svg[@viewBox='0 0 24 24']//path[@fill='#036e11']")
         button_count = len(excel_buttons)
         print(f"CPLUS: 原始定位找到 {button_count} 個 Excel 下載按鈕", flush=True)
+    # 定義報告名稱與預期文件名前綴的映射
+    report_to_prefix = {
+        "CONTAINER DAMAGE REPORT (LINE) ENTRY GATE + EXIT GATE": "DM1C_",
+        "CY - GATELOG": "GA1_",
+        "CONTAINER LIST (ON HAND)": "IA15_",
+        "CONTAINER LIST (DAMAGED)": "IA17_",
+        "ACTIVE REEFER CONTAINER ON HAND LIST": "IA5_"
+    }
     for idx in range(button_count):
         success = False
         for attempt in range(MAX_RETRIES):
@@ -306,9 +314,11 @@ def process_cplus_house(driver, wait, initial_files):
                 time.sleep(1)
                 try:
                     report_name = driver.find_element(By.XPATH, f"//table[contains(@class, 'MuiTable-root')]//tbody//tr[{idx+1}]//td[3]").text
-                    print(f"CPLUS: 準備點擊第 {idx+1} 個 Excel 按鈕，報告名稱: {report_name}", flush=True)
+                    expected_prefix = report_to_prefix.get(report_name, "")
+                    print(f"CPLUS: 準備點擊第 {idx+1} 個 Excel 按鈕，報告名稱: {report_name}, 預期前綴: {expected_prefix}", flush=True)
                 except:
                     print(f"CPLUS: 無法獲取第 {idx+1} 個按鈕的報告名稱", flush=True)
+                    expected_prefix = ""
                 driver.execute_script("arguments[0].click();", button)
                 print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 JavaScript 點擊成功", flush=True)
                 time.sleep(1)  # 額外延遲
@@ -319,8 +329,8 @@ def process_cplus_house(driver, wait, initial_files):
                 if temp_new:
                     filtered_new = set()
                     for f in temp_new:
-                        base_name = f.split(' (')[0]  # 移除 "(1)" 等後綴
-                        if not any(base_name in existing for existing in new_files):
+                        # 檢查文件名是否包含預期前綴且不重複
+                        if expected_prefix and expected_prefix in f and not any(f.split(' (')[0] in existing for existing in new_files):
                             filtered_new.add(f)
                     if filtered_new:
                         print(f"CPLUS: 第 {idx+1} 個按鈕下載新文件: {', '.join(filtered_new)}", flush=True)
@@ -329,7 +339,7 @@ def process_cplus_house(driver, wait, initial_files):
                         success = True
                         break
                     else:
-                        print(f"CPLUS: 第 {idx+1} 個按鈕下載文件重複，忽略: {', '.join(temp_new)}", flush=True)
+                        print(f"CPLUS: 第 {idx+1} 個按鈕下載文件無效或重複，忽略: {', '.join(temp_new)}", flush=True)
                 else:
                     print(f"CPLUS: 第 {idx+1} 個按鈕未觸發新文件下載 (嘗試 {attempt+1})", flush=True)
             except Exception as e:
@@ -349,7 +359,6 @@ def process_cplus_house(driver, wait, initial_files):
         print("CPLUS: Housekeeping Reports 未下載任何文件，記錄頁面狀態...", flush=True)
         driver.save_screenshot("house_download_failure.png")
         with open("house_download_failure.html", "w", encoding="utf-8") as f:
-            f.write(driver.page_source)
         raise Exception("CPLUS: Housekeeping Reports 未下載任何文件")
 
 # CPLUS 操作
@@ -587,11 +596,19 @@ def main():
     barge_thread.join()
     print("檢查所有下載文件...", flush=True)
     downloaded_files = [f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx'))]
+    # 移除重複文件（包含 "(1)" 等後綴）
+    unique_files = []
+    seen_bases = set()
+    for f in downloaded_files:
+        base_name = f.split(' (')[0]
+        if base_name not in seen_bases:
+            unique_files.append(f)
+            seen_bases.add(base_name)
     expected_file_count = CPLUS_MOVEMENT_COUNT + CPLUS_ONHAND_COUNT + house_button_count[0] + BARGE_COUNT
     print(f"預期文件數量: {expected_file_count} (Movement: {CPLUS_MOVEMENT_COUNT}, OnHand: {CPLUS_ONHAND_COUNT}, Housekeeping: {house_button_count[0]}, Barge: {BARGE_COUNT})", flush=True)
-    if len(downloaded_files) == expected_file_count:
+    if len(unique_files) == expected_file_count:
         print(f"所有下載完成，檔案位於: {download_dir}", flush=True)
-        for file in downloaded_files:
+        for file in unique_files:
             print(f"找到檔案: {file}", flush=True)
         print("開始發送郵件...", flush=True)
         try:
@@ -606,7 +623,7 @@ def main():
             msg['Subject'] = f"[TESTING] HIT DAILY {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
             body = "Attached are the daily reports downloaded from CPLUS (Container Movement Log, OnHand Container List, and Housekeeping Reports) and Barge (Container Detail)."
             msg.attach(MIMEText(body, 'plain'))
-            for file in downloaded_files:
+            for file in unique_files:
                 file_path = os.path.join(download_dir, file)
                 attachment = MIMEBase('application', 'octet-stream')
                 attachment.set_payload(open(file_path, 'rb').read())
@@ -622,7 +639,9 @@ def main():
         except Exception as e:
             print(f"郵件發送失敗: {str(e)}", flush=True)
     else:
-        print(f"總下載文件數量不足（{len(downloaded_files)}/{expected_file_count}），放棄發送郵件", flush=True)
+        print(f"總下載文件數量不匹配（{len(unique_files)}/{expected_file_count}），放棄發送郵件", flush=True)
+        for file in downloaded_files:
+            print(f"找到檔案（含重複）: {file}", flush=True)
     print("腳本完成", flush=True)
 
 if __name__ == "__main__":
