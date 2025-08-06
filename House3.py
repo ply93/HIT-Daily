@@ -24,6 +24,7 @@ CPLUS_MOVEMENT_COUNT = 1 # Container Movement Log
 CPLUS_ONHAND_COUNT = 1 # OnHandContainerList
 BARGE_COUNT = 1 # Barge
 MAX_RETRIES = 3
+HOUSEKEEPING_DOWNLOAD_TIMEOUT = 5  # 專為 Housekeeping 增加超時
 
 # 清空下載目錄
 def clear_download_dir():
