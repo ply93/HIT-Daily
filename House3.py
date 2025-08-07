@@ -140,10 +140,16 @@ def cplus_login(driver, wait):
 def process_cplus_movement(driver, wait, initial_files):
     print("CPLUS: 直接前往 Container Movement Log...", flush=True)
     driver.get("https://cplus.hit.com.hk/app/#/enquiry/ContainerMovementLog")
-    time.sleep(2)
-    wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
-    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[2]//form")))
-    print("CPLUS: Container Movement Log 頁面加載完成", flush=True)
+    time.sleep(3)  # 添加 3 秒延遲以確保頁面初次加載
+    print("CPLUS: 等待頁面初次加載完成...", flush=True)
+    try:
+        wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
+        WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[2]//form")))
+        print("CPLUS: Container Movement Log 頁面加載完成", flush=True)
+    except TimeoutException as e:
+        print(f"CPLUS: Container Movement Log 頁面加載失敗: {str(e)}", flush=True)
+        driver.save_screenshot("movement_load_failure.png")
+        raise Exception("CPLUS: Container Movement Log 頁面加載失敗")
     print("CPLUS: 點擊 Search...", flush=True)
     local_initial = set(f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx')))  # 刷新初始文件列表
     for attempt in range(2):
@@ -209,13 +215,13 @@ def process_cplus_movement(driver, wait, initial_files):
 def process_cplus_onhand(driver, wait, initial_files):
     print("CPLUS: 前往 OnHandContainerList 頁面...", flush=True)
     driver.get("https://cplus.hit.com.hk/app/#/enquiry/OnHandContainerList")
-    time.sleep(5)  # 添加 3 秒延遲以確保頁面初次加載
+    time.sleep(3)  # 添加 3 秒延遲以確保頁面初次加載
     print("CPLUS: 等待頁面初次加載完成...", flush=True)
     attempt = 0
     while True:
         attempt += 1
         try:
-            search_button_onhand = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div[1]/form/div[1]/div[24]/div[2]/button/span[1]")))
+            search_button_onhand = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div[1]/form/div[1]/div[24]/div[2]/button/span[1]")))
             print(f"CPLUS: OnHandContainerList 頁面加載完成，Search 按鈕可點擊 (嘗試 {attempt})", flush=True)
             break
         except TimeoutException as e:
@@ -261,14 +267,14 @@ def process_cplus_onhand(driver, wait, initial_files):
 def process_cplus_house(driver, wait, initial_files):
     print("CPLUS: 前往 Housekeeping Reports 頁面...", flush=True)
     driver.get("https://cplus.hit.com.hk/app/#/report/housekeepReport")
-    time.sleep(5)
+    time.sleep(1)
     wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
     print("CPLUS: Housekeeping Reports 頁面加載完成", flush=True)
     print("CPLUS: 等待表格加載...", flush=True)
     table_loaded = False
     for attempt in range(3):
         try:
-            WebDriverWait(driver, 5).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
+            WebDriverWait(driver, 10).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
             print("CPLUS: 表格加載完成", flush=True)
             table_loaded = True
             break
@@ -303,7 +309,7 @@ def process_cplus_house(driver, wait, initial_files):
         if attempt < 2:
             print("CPLUS: 刷新頁面並重新定位按鈕...", flush=True)
             driver.refresh()
-            time.sleep(0.5)  # 縮短刷新等待時間
+            time.sleep(0.5)
             wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
             print("CPLUS: 頁面刷新完成", flush=True)
     if not excel_buttons or button_count == 0:
@@ -318,7 +324,8 @@ def process_cplus_house(driver, wait, initial_files):
         "CY - GATELOG": "GA1_",
         "CONTAINER LIST (ON HAND)": "IA15_",
         "CONTAINER LIST (DAMAGED)": "IA17_",
-        "ACTIVE REEFER CONTAINER ON HAND LIST": "IA5_"
+        "ACTIVE REEFER CONTAINER ON HAND LIST": "IA5_",
+        "REEFER CONTAINER MONITOR REPORT": "IE2_"
     }
     for idx in range(button_count):
         success = False
@@ -348,6 +355,8 @@ def process_cplus_house(driver, wait, initial_files):
                     for f in temp_new:
                         if expected_prefix and expected_prefix in f and not any(f.split(' (')[0] in existing for existing in new_files):
                             filtered_new.add(f)
+                        else:
+                            print(f"CPLUS: 文件 {f} 不匹配預期前綴 {expected_prefix} 或已存在，忽略", flush=True)
                     if filtered_new:
                         print(f"CPLUS: 第 {idx+1} 個按鈕下載新文件: {', '.join(filtered_new)}", flush=True)
                         local_initial.update(filtered_new)
@@ -363,7 +372,7 @@ def process_cplus_house(driver, wait, initial_files):
             if attempt < MAX_RETRIES - 1:
                 print(f"CPLUS: 刷新頁面並重新定位第 {idx+1} 個按鈕...", flush=True)
                 driver.refresh()
-                time.sleep(0.5)  # 縮短刷新等待時間
+                time.sleep(0.5)
                 wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
                 print("CPLUS: 頁面刷新完成", flush=True)
         if success:
@@ -624,14 +633,18 @@ def main():
     barge_thread.join()
     print("檢查所有下載文件...", flush=True)
     downloaded_files = [f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx'))]
-    # 移除重複文件（包含 "(1)" 等後綴）
+    # 定義預期文件模式
+    expected_prefixes = {'cntrMoveLog', 'data_2025', 'DM1C_', 'GA1_', 'IA15_', 'IA17_', 'IA5_', 'IE2_', 'ContainerDetailReport'}
+    # 移除重複文件並只保留匹配預期模式的文件
     unique_files = []
     seen_bases = set()
     for f in downloaded_files:
         base_name = f.split(' (')[0]
-        if base_name not in seen_bases:
+        if any(prefix in base_name for prefix in expected_prefixes) and base_name not in seen_bases:
             unique_files.append(f)
             seen_bases.add(base_name)
+        else:
+            print(f"忽略無效或重複文件: {f}", flush=True)
     expected_file_count = CPLUS_MOVEMENT_COUNT + CPLUS_ONHAND_COUNT + house_button_count[0] + BARGE_COUNT
     print(f"預期文件數量: {expected_file_count} (Movement: {CPLUS_MOVEMENT_COUNT}, OnHand: {CPLUS_ONHAND_COUNT}, Housekeeping: {house_button_count[0]}, Barge: {BARGE_COUNT})", flush=True)
     if len(unique_files) == expected_file_count:
