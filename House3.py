@@ -209,7 +209,7 @@ def process_cplus_movement(driver, wait, initial_files):
 def process_cplus_onhand(driver, wait, initial_files):
     print("CPLUS: 前往 OnHandContainerList 頁面...", flush=True)
     driver.get("https://cplus.hit.com.hk/app/#/enquiry/OnHandContainerList")
-    time.sleep(3)  # 添加 3 秒延遲以確保頁面初次加載
+    time.sleep(5)  # 添加 3 秒延遲以確保頁面初次加載
     print("CPLUS: 等待頁面初次加載完成...", flush=True)
     attempt = 0
     while True:
@@ -261,7 +261,7 @@ def process_cplus_onhand(driver, wait, initial_files):
 def process_cplus_house(driver, wait, initial_files):
     print("CPLUS: 前往 Housekeeping Reports 頁面...", flush=True)
     driver.get("https://cplus.hit.com.hk/app/#/report/housekeepReport")
-    time.sleep(1)
+    time.sleep(5)
     wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
     print("CPLUS: Housekeeping Reports 頁面加載完成", flush=True)
     print("CPLUS: 等待表格加載...", flush=True)
