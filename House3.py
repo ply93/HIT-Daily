@@ -354,16 +354,13 @@ def process_cplus():
         driver = webdriver.Chrome(options=get_chrome_options())
         print("CPLUS WebDriver 初始化成功", flush=True)
         driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-        wait = WebDriverWait(driver, 20)
-
+        wait = WebDriverWait(driver, 10)
         cplus_login(driver, wait)
-
         sections = [
             ('movement', process_cplus_movement),
             ('onhand', process_cplus_onhand),
             ('house', process_cplus_house)
         ]
-
         for section_name, section_func in sections:
             success = False
             for attempt in range(MAX_RETRIES):
@@ -381,33 +378,61 @@ def process_cplus():
                 except Exception as e:
                     print(f"CPLUS {section_name} 嘗試 {attempt+1}/{MAX_RETRIES} 失敗: {str(e)}", flush=True)
                     if attempt < MAX_RETRIES - 1:
-                        time.sleep(5)
+                        time.sleep(3)
             if not success:
                 print(f"CPLUS {section_name} 經過 {MAX_RETRIES} 次嘗試失敗", flush=True)
-
         return downloaded_files, house_file_count, house_button_count
-
     except Exception as e:
         print(f"CPLUS 總錯誤: {str(e)}", flush=True)
         return downloaded_files, house_file_count, house_button_count
-
     finally:
         if driver:
             try:
                 print("CPLUS: 嘗試登出...", flush=True)
-                logout_menu_button = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
+                logout_menu_button = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
                 ActionChains(driver).move_to_element(logout_menu_button).click().perform()
                 print("CPLUS: 用戶菜單點擊成功", flush=True)
-
-                logout_option = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//li[contains(text(), 'Logout')]")))
+                logout_option = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//li[contains(text(), 'Logout')]")))
                 ActionChains(driver).move_to_element(logout_option).click().perform()
                 print("CPLUS: Logout 選項點擊成功", flush=True)
                 time.sleep(2)
+                print("CPLUS: 點擊 Close 按鈕完成登出...", flush=True)
+                try:
+                    close_button = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button.MuiButtonBase-root span.MuiButton-label")))
+                    ActionChains(driver).move_to_element(close_button).click().perform()
+                    print("CPLUS: Close 按鈕點擊成功 (CSS)", flush=True)
+                except TimeoutException:
+                    print("CPLUS: CSS 選擇器未找到 Close 按鈕，嘗試 XPath...", flush=True)
+                    try:
+                        close_button = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'MuiButtonBase-root') and .//span[contains(text(), 'Close')]]")))
+                        ActionChains(driver).move_to_element(close_button).click().perform()
+                        print("CPLUS: Close 按鈕點擊成功 (XPath)", flush=True)
+                    except TimeoutException:
+                        print("CPLUS: XPath 選擇器未找到 Close 按鈕，嘗試備用定位...", flush=True)
+                        try:
+                            close_button = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Close')]")))
+                            ActionChains(driver).move_to_element(close_button).click().perform()
+                            print("CPLUS: Close 按鈕點擊成功 (備用 XPath)", flush=True)
+                        except TimeoutException as e:
+                            print(f"CPLUS: Close 按鈕點擊失敗: {str(e)}", flush=True)
+                            driver.save_screenshot("logout_close_failure.png")
+                            with open("logout_close_failure.html", "w", encoding="utf-8") as f:
+                                f.write(driver.page_source)
+                time.sleep(2)
+                try:
+                    driver.get("https://cplus.hit.com.hk/frontpage/#/")
+                    wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
+                    print("CPLUS: 登出成功，回到登入頁", flush=True)
+                except TimeoutException:
+                    print("CPLUS: 登出驗證失敗，可能未完全登出", flush=True)
+                    driver.save_screenshot("logout_verification_failure.png")
             except Exception as e:
                 print(f"CPLUS: 登出失敗: {str(e)}", flush=True)
-            driver.quit()
-            print("CPLUS WebDriver 關閉", flush=True)
-
+                driver.save_screenshot("logout_failure.png")
+            finally:
+                driver.quit()
+                print("CPLUS WebDriver 關閉", flush=True)
+                
 # Barge 登入
 def barge_login(driver, wait):
     print("Barge: 嘗試打開網站 https://barge.oneport.com/login...", flush=True)
