@@ -213,32 +213,80 @@ def process_cplus_onhand(driver, wait, initial_files):
     time.sleep(2)
     wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
     print("CPLUS: OnHandContainerList 頁面加載完成", flush=True)
+    
     print("CPLUS: 點擊 Search...", flush=True)
     local_initial = initial_files.copy()
     start_time = time.time()
+    for attempt in range(2):  # 減少到 2 次重試
+        try:
+            # 優先使用穩定的 XPath
+            search_button_onhand = WebDriverWait(driver, 20).until(
+                EC.element_to_be_clickable((By.XPATH, "//button[@type='submit' and contains(@class, 'MuiButton-containedPrimary') and .//span[contains(text(), 'Search')]]"))
+            )
+            driver.execute_script("arguments[0].scrollIntoView(true);", search_button_onhand)
+            driver.execute_script("arguments[0].click();", search_button_onhand)
+            print("CPLUS: Search 按鈕 JavaScript 點擊成功", flush=True)
+            break
+        except TimeoutException:
+            print(f"CPLUS: Search 按鈕未找到，嘗試備用定位 (嘗試 {attempt+1}/2)...", flush=True)
+            try:
+                search_button_onhand = WebDriverWait(driver, 10).until(
+                    EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Search')]"))
+                )
+                driver.execute_script("arguments[0].scrollIntoView(true);", search_button_onhand)
+                driver.execute_script("arguments[0].click();", search_button_onhand)
+                print("CPLUS: 備用 Search 按鈕 JavaScript 點擊成功", flush=True)
+                break
+            except TimeoutException as e:
+                print(f"CPLUS: 備用 Search 按鈕失敗 (嘗試 {attempt+1}/2): {str(e)}", flush=True)
+                if attempt == 1:
+                    raise Exception("CPLUS: OnHandContainerList Search 按鈕點擊失敗")
+    
+    # 等待結果區域加載
+    print("CPLUS: 等待搜尋結果加載...", flush=True)
     try:
-        search_button_onhand = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div[1]/form/div[1]/div[24]/div[2]/button/span[1]")))
-        driver.execute_script("arguments[0].scrollIntoView(true);", search_button_onhand)
-        driver.execute_script("arguments[0].click();", search_button_onhand)
-        print("CPLUS: Search 按鈕 JavaScript 點擊成功", flush=True)
+        wait.until(EC.presence_of_element_located((By.XPATH, "//div[contains(@class, 'MuiTableContainer-root')]")))
+        print("CPLUS: 搜尋結果區域加載完成", flush=True)
     except TimeoutException:
-        print("CPLUS: Search 按鈕未找到，嘗試備用定位...", flush=True)
-        search_button_onhand = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Search')]")))
-        driver.execute_script("arguments[0].scrollIntoView(true);", search_button_onhand)
-        driver.execute_script("arguments[0].click();", search_button_onhand)
-        print("CPLUS: 備用 Search 按鈕 JavaScript 點擊成功", flush=True)
-    time.sleep(0.5)
+        print("CPLUS: 搜尋結果區域未加載，嘗試刷新頁面...", flush=True)
+        driver.refresh()
+        time.sleep(2)
+        wait.until(EC.presence_of_element_located((By.XPATH, "//div[contains(@class, 'MuiTableContainer-root')]")))
+        print("CPLUS: 搜尋結果區域加載完成 (after refresh)", flush=True)
+    
     print("CPLUS: 點擊 Export...", flush=True)
-    export_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div/div[2]/div[1]/div[1]/div/div/div[4]/div/div/span[1]/button")))
-    driver.execute_script("arguments[0].click();", export_button)
-    print("CPLUS: Export 按鈕 JavaScript 點擊成功", flush=True)
-    time.sleep(0.5)
+    for attempt in range(2):
+        try:
+            export_button = WebDriverWait(driver, 20).until(
+                EC.element_to_be_clickable((By.XPATH, "//button[.//span[contains(text(), 'Export')]]"))
+            )
+            # 檢查按鈕是否禁用
+            if export_button.get_attribute("disabled"):
+                print(f"CPLUS: Export 按鈕被禁用，等待重試 (嘗試 {attempt+1}/2)...", flush=True)
+                time.sleep(2)
+                continue
+            driver.execute_script("arguments[0].scrollIntoView(true);", export_button)
+            driver.execute_script("arguments[0].click();", export_button)
+            print("CPLUS: Export 按鈕 JavaScript 點擊成功", flush=True)
+            break
+        except Exception as e:
+            print(f"CPLUS: Export 按鈕點擊失敗 (嘗試 {attempt+1}/2): {str(e)}", flush=True)
+            if attempt == 1:
+                raise Exception("CPLUS: OnHandContainerList Export 按鈕點擊失敗")
+    
+    time.sleep(0.5)  # 等待下拉菜單渲染
     print("CPLUS: 點擊 Export as CSV...", flush=True)
-    export_csv_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//li[contains(@class, 'MuiMenuItem-root') and text()='Export as CSV']")))
-    driver.execute_script("arguments[0].click();", export_csv_button)
-    print("CPLUS: Export as CSV 按鈕 JavaScript 點擊成功", flush=True)
-    time.sleep(0.5)
-    new_files = wait_for_new_file(local_initial, start_time, timeout=30, expected_pattern=None)
+    try:
+        export_csv_button = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.XPATH, "//li[contains(@class, 'MuiMenuItem-root') and text()='Export as CSV']"))
+        )
+        driver.execute_script("arguments[0].click();", export_csv_button)
+        print("CPLUS: Export as CSV 按鈕 JavaScript 點擊成功", flush=True)
+    except TimeoutException as e:
+        print(f"CPLUS: Export as CSV 按鈕點擊失敗: {str(e)}", flush=True)
+        raise Exception("CPLUS: OnHandContainerList Export as CSV 按鈕點擊失敗")
+    
+    new_files = wait_for_new_file(local_initial, start_time, timeout=20, expected_pattern=None)  # 縮短超時時間
     filtered_files = {f for f in new_files if "ContainerDetailReport" not in f}
     if len(filtered_files) == CPLUS_ONHAND_COUNT:
         print(f"CPLUS: OnHandContainerList 下載完成，檔案位於: {download_dir}", flush=True)
