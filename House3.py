@@ -20,7 +20,6 @@ from webdriver_manager.chrome import ChromeDriverManager
 import logging
 from functools import wraps
 from concurrent.futures import ThreadPoolExecutor
-import tenacity
 
 # 配置 logging
 logging.basicConfig(
@@ -341,10 +340,8 @@ def process_barge():
             driver.quit()
             logger.info("Barge WebDriver 關閉")
 
-# 郵件發送函數（使用 tenacity 添加重試）
-@tenacity.retry(stop=tenacity.stop_after_attempt(3), wait=tenacity.wait_fixed(5))
+# 郵件發送函數
 def send_email(downloaded_files):
-    max_attachment_size = 25 * 1024 * 1024  # 25MB
     smtp_server = 'smtp.zoho.com'
     smtp_port = 587
     sender_email = os.environ.get('ZOHO_EMAIL', 'paklun_ckline@zohomail.com')
@@ -358,9 +355,6 @@ def send_email(downloaded_files):
     msg.attach(MIMEText(body, 'plain'))
     for file in downloaded_files:
         file_path = os.path.join(download_dir, file)
-        if os.path.getsize(file_path) > max_attachment_size:
-            logger.error(f"文件 {file} 超過 25MB，無法附加")
-            continue
         attachment = MIMEBase('application', 'octet-stream')
         attachment.set_payload(open(file_path, 'rb').read())
         encoders.encode_base64(attachment)
