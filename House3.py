@@ -137,7 +137,7 @@ def logout(driver, wait, platform):
     logger.info(f"{platform}: 開始登出...")
     if platform == "CPLUS":
         locators = [
-            (By.CSS_SELECTOR, "button.MuiButtonBase-root span.MuiButton-label"),
+            (By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button"),
             (By.XPATH, "//button[contains(@class, 'MuiButtonBase-root') and .//span[contains(text(), 'Logout')]]"),
             (By.XPATH, "//li[contains(text(), 'Logout')]")
         ]
@@ -150,7 +150,7 @@ def logout(driver, wait, platform):
                 if "Logout" in locator:
                     # 點擊 Close 按鈕
                     try:
-                        close_button = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button.MuiButtonBase-root span.MuiButton-label")))
+                        close_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'MuiButtonBase-root') and .//span[contains(text(), 'Close')]]")))
                         ActionChains(driver).move_to_element(close_button).click().perform()
                         logger.info(f"{platform}: Close 按鈕點擊成功")
                     except TimeoutException:
@@ -164,8 +164,8 @@ def logout(driver, wait, platform):
         logger.info(f"{platform}: 登出成功，回到登入頁")
     elif platform == "Barge":
         locators = [
-            (By.XPATH, "//*[@id='main-toolbar']/button[4]/span[1]"),
-            (By.XPATH, "//div[contains(@class, 'mat-menu-panel')]//button//span[contains(text(), 'Logout')]"),
+            (By.XPATH, "//*[@id='main-toolbar']/button[4]"),
+            (By.XPATH, "//div[contains(@class, 'mat-menu-panel')]//button[.//span[contains(text(), 'Logout')]]"),
             (By.XPATH, "//button[.//span[contains(text(), 'Logout')]]")
         ]
         for locator_type, locator in locators:
@@ -188,9 +188,10 @@ def cplus_login(driver, wait):
     logger.info("CPLUS: 嘗試打開網站 https://cplus.hit.com.hk/frontpage/#/")
     driver.get("https://cplus.hit.com.hk/frontpage/#/")
     wait.until(EC.url_contains("frontpage"))
+    wait.until(EC.presence_of_element_located((By.ID, "root")))  # 等待頁面結構加載
     logger.info(f"CPLUS: 網站已成功打開，當前 URL: {driver.current_url}")
     logger.info("CPLUS: 點擊登錄前按鈕...")
-    login_button_pre = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button.MuiButtonBase-root span.MuiButton-label")))
+    login_button_pre = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button")))
     ActionChains(driver).move_to_element(login_button_pre).click().perform()
     logger.info("CPLUS: 登錄前按鈕點擊成功")
     logger.info("CPLUS: 輸入 COMPANY CODE...")
@@ -206,7 +207,7 @@ def cplus_login(driver, wait):
     password_field.send_keys(os.environ.get('SITE_PASSWORD'))
     logger.info("CPLUS: PASSWORD 輸入完成")
     logger.info("CPLUS: 點擊 LOGIN 按鈕...")
-    login_button = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button.MuiButtonBase-root span.MuiButton-label")))
+    login_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/div[2]/div/div/form/button")))
     ActionChains(driver).move_to_element(login_button).click().perform()
     logger.info("CPLUS: LOGIN 按鈕點擊成功")
     wait.until(EC.presence_of_element_located((By.ID, "root")))
@@ -223,7 +224,6 @@ def process_cplus_movement(driver, wait, initial_files):
     local_initial = initial_files.copy()
     start_time = time.time()
     locators = [
-        (By.CSS_SELECTOR, "button.MuiButtonBase-root span.MuiButton-label"),
         (By.XPATH, "//button[contains(@class, 'MuiButtonBase-root') and .//span[contains(text(), 'Search')]]"),
         (By.XPATH, "//button[contains(text(), 'Search')]")
     ]
@@ -238,7 +238,7 @@ def process_cplus_movement(driver, wait, initial_files):
     else:
         raise Exception("CPLUS: Container Movement Log Search 按鈕點擊失敗")
     logger.info("CPLUS: 點擊 Download...")
-    download_button = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button.MuiButtonBase-root[aria-label*='download']")))
+    download_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[2]/div/div[2]/div/div[1]/div[1]/button")))
     driver.execute_script("arguments[0].scrollIntoView(true);", download_button)
     ActionChains(driver).move_to_element(download_button).click().perform()
     logger.info("CPLUS: Download 按鈕點擊成功")
@@ -263,7 +263,7 @@ def process_cplus_onhand(driver, wait, initial_files):
     local_initial = initial_files.copy()
     start_time = time.time()
     locators = [
-        (By.CSS_SELECTOR, "button.MuiButtonBase-root span.MuiButton-label"),
+        (By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div[1]/form/div[1]/div[24]/div[2]/button"),
         (By.XPATH, "//button[contains(text(), 'Search')]")
     ]
     for locator_type, locator in locators:
@@ -277,7 +277,7 @@ def process_cplus_onhand(driver, wait, initial_files):
     else:
         raise Exception("CPLUS: OnHandContainerList Search 按鈕點擊失敗")
     logger.info("CPLUS: 點擊 Export...")
-    export_button = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button.MuiButtonBase-root[aria-label*='export']")))
+    export_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div/div[2]/div[1]/div[1]/div/div/div[4]/div/div/span[1]/button")))
     ActionChains(driver).move_to_element(export_button).click().perform()
     logger.info("CPLUS: Export 按鈕點擊成功")
     logger.info("CPLUS: 點擊 Export as CSV...")
@@ -369,7 +369,7 @@ def process_cplus():
         driver = webdriver.Chrome(options=get_chrome_options())
         logger.info("CPLUS WebDriver 初始化成功")
         driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-        wait = WebDriverWait(driver, 10)
+        wait = WebDriverWait(driver, 20)  # 增加到20秒
         cplus_login(driver, wait)
         sections = [
             ('movement', process_cplus_movement),
@@ -418,6 +418,7 @@ def barge_login(driver, wait):
     logger.info("Barge: 嘗試打開網站 https://barge.oneport.com/login...")
     driver.get("https://barge.oneport.com/login")
     wait.until(EC.url_contains("login"))
+    wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "mat-form-field")))  # 等待表單加載
     logger.info(f"Barge: 網站已成功打開，當前 URL: {driver.current_url}")
     logger.info("Barge: 輸入 COMPANY ID...")
     company_id_field = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[placeholder='Company ID']")))
@@ -476,7 +477,7 @@ def process_barge():
         driver = webdriver.Chrome(options=get_chrome_options())
         logger.info("Barge WebDriver 初始化成功")
         driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-        wait = WebDriverWait(driver, 10)
+        wait = WebDriverWait(driver, 20)  # 增加到20秒
         barge_login(driver, wait)
         success = False
         for attempt in range(MAX_RETRIES):
