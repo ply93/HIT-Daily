@@ -15,10 +15,9 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.action_chains import ActionChains
-from selenium.common.exceptions import TimeoutException, ElementClickInterceptedException, NoSuchElementException, StaleElementReferenceException
+from selenium.common.exceptions import TimeoutException, ElementClickInterceptedException, NoSuchElementException
 from webdriver_manager.chrome import ChromeDriverManager
 import logging
-import traceback
 from functools import wraps
 
 # 配置 logging
@@ -34,9 +33,9 @@ logger = logging.getLogger(__name__)
 
 # 全局變量
 download_dir = os.path.abspath("downloads")
-CPLUS_MOVEMENT_COUNT = 1  # Container Movement Log
-CPLUS_ONHAND_COUNT = 1    # OnHandContainerList
-BARGE_COUNT = 1           # Barge
+CPLUS_MOVEMENT_COUNT = 1 # Container Movement Log
+CPLUS_ONHAND_COUNT = 1 # OnHandContainerList
+BARGE_COUNT = 1 # Barge
 MAX_RETRIES = 3
 
 # 重試裝飾器
@@ -47,13 +46,14 @@ def retry_on_failure(max_retries=3, delay=5):
             for attempt in range(max_retries):
                 try:
                     return func(*args, **kwargs)
-                except (TimeoutException, ElementClickInterceptedException, NoSuchElementException, StaleElementReferenceException) as e:
-                    logger.warning(f"{func.__name__} 失敗 (嘗試 {attempt+1}/{max_retries}): {str(e)}")
-                    if attempt < max_retries - 1:
-                        time.sleep(delay)
+                except TimeoutException as e:
+                    logger.warning(f"{func.__name__} 時間超時 (嘗試 {attempt+1}/{max_retries}): {str(e)}")
+                except ElementClickInterceptedException as e:
+                    logger.warning(f"{func.__name__} 元素點擊被攔截 (嘗試 {attempt+1}/{max_retries}): {str(e)}")
+                except NoSuchElementException as e:
+                    logger.warning(f"{func.__name__} 元素未找到 (嘗試 {attempt+1}/{max_retries}): {str(e)}")
                 except Exception as e:
-                    logger.error(f"{func.__name__} 未知錯誤 (嘗試 {attempt+1}/{max_retries}): {str(e)}")
-                    traceback.print_exc()  # 記錄詳細堆棧
+                    logger.error(f"{func.__name__} 嘗試 {attempt+1}/{max_retries} 失敗: {str(e)}")
                     if attempt < max_retries - 1:
                         time.sleep(delay)
             raise Exception(f"{func.__name__} 經過 {max_retries} 次嘗試失敗")
@@ -110,88 +110,34 @@ def get_chrome_options():
     chrome_options.binary_location = '/usr/bin/chromium-browser'
     return chrome_options
 
-# 檢查新文件出現並驗證完整性
+# 檢查新文件出現
 def wait_for_new_file(initial_files, start_time, timeout=30, expected_pattern=None):
     end_time = time.time() + timeout
     while time.time() < end_time:
         current_files = set(f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx')))
         new_files = current_files - initial_files
-        for file in new_files:
-            file_path = os.path.join(download_dir, file)
-            if os.path.getmtime(file_path) >= start_time:
-                # 檢查文件是否仍在寫入
-                size1 = os.path.getsize(file_path)
-                time.sleep(0.5)
-                size2 = os.path.getsize(file_path)
-                if size1 == size2 and size1 > 1024:  # 確保文件穩定且大小合理（>1KB）
+        if new_files:
+            # 過濾文件：只保留在 start_time 之後創建且匹配預期模式的文件
+            filtered_files = set()
+            for file in new_files:
+                file_path = os.path.join(download_dir, file)
+                if os.path.getmtime(file_path) >= start_time:
                     if expected_pattern is None or expected_pattern in file:
-                        logger.info(f"文件 {file} 下載完成，大小: {size1} 字節")
-                        return {file}
+                        filtered_files.add(file)
+            if filtered_files:
+                return filtered_files
         time.sleep(0.5)
-    logger.warning("未檢測到新文件或文件無效")
     return set()
-
-# 通用登出函數
-@retry_on_failure(max_retries=MAX_RETRIES)
-def logout(driver, wait, platform):
-    logger.info(f"{platform}: 開始登出...")
-    if platform == "CPLUS":
-        locators = [
-            (By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button"),
-            (By.XPATH, "//button[contains(@class, 'MuiButtonBase-root') and .//span[contains(text(), 'Logout')]]"),
-            (By.XPATH, "//li[contains(text(), 'Logout')]")
-        ]
-        for locator_type, locator in locators:
-            try:
-                element = wait.until(EC.element_to_be_clickable((locator_type, locator)))
-                driver.execute_script("arguments[0].scrollIntoView(true);", element)
-                ActionChains(driver).move_to_element(element).click().perform()
-                logger.info(f"{platform}: 點擊登出元素成功 ({locator_type})")
-                if "Logout" in locator:
-                    # 點擊 Close 按鈕
-                    try:
-                        close_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'MuiButtonBase-root') and .//span[contains(text(), 'Close')]]")))
-                        ActionChains(driver).move_to_element(close_button).click().perform()
-                        logger.info(f"{platform}: Close 按鈕點擊成功")
-                    except TimeoutException:
-                        logger.warning(f"{platform}: Close 按鈕未找到")
-                break
-            except (TimeoutException, NoSuchElementException) as e:
-                logger.warning(f"{platform}: 定位器 {locator} 失敗: {str(e)}")
-        else:
-            raise Exception(f"{platform}: 所有登出定位器均失敗")
-        wait.until(EC.url_contains("frontpage"))
-        logger.info(f"{platform}: 登出成功，回到登入頁")
-    elif platform == "Barge":
-        locators = [
-            (By.XPATH, "//*[@id='main-toolbar']/button[4]"),
-            (By.XPATH, "//div[contains(@class, 'mat-menu-panel')]//button[.//span[contains(text(), 'Logout')]]"),
-            (By.XPATH, "//button[.//span[contains(text(), 'Logout')]]")
-        ]
-        for locator_type, locator in locators:
-            try:
-                element = wait.until(EC.element_to_be_clickable((locator_type, locator)))
-                driver.execute_script("arguments[0].scrollIntoView(true);", element)
-                ActionChains(driver).move_to_element(element).click().perform()
-                logger.info(f"{platform}: 點擊登出元素成功 ({locator_type})")
-                break
-            except (TimeoutException, NoSuchElementException) as e:
-                logger.warning(f"{platform}: 定位器 {locator} 失敗: {str(e)}")
-        else:
-            raise Exception(f"{platform}: 所有登出定位器均失敗")
-        wait.until(EC.url_contains("login"))
-        logger.info(f"{platform}: 登出成功，回到登入頁")
 
 # CPLUS 登入
 @retry_on_failure(max_retries=MAX_RETRIES)
 def cplus_login(driver, wait):
     logger.info("CPLUS: 嘗試打開網站 https://cplus.hit.com.hk/frontpage/#/")
     driver.get("https://cplus.hit.com.hk/frontpage/#/")
-    wait.until(EC.url_contains("frontpage"))
-    wait.until(EC.presence_of_element_located((By.ID, "root")))  # 等待頁面結構加載
+    wait.until(EC.presence_of_element_located((By.ID, "root")))
     logger.info(f"CPLUS: 網站已成功打開，當前 URL: {driver.current_url}")
     logger.info("CPLUS: 點擊登錄前按鈕...")
-    login_button_pre = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button")))
+    login_button_pre = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
     ActionChains(driver).move_to_element(login_button_pre).click().perform()
     logger.info("CPLUS: 登錄前按鈕點擊成功")
     logger.info("CPLUS: 輸入 COMPANY CODE...")
@@ -199,19 +145,18 @@ def cplus_login(driver, wait):
     company_code_field.send_keys("CKL")
     logger.info("CPLUS: COMPANY CODE 輸入完成")
     logger.info("CPLUS: 輸入 USER ID...")
-    user_id_field = wait.until(EC.presence_of_element_located((By.ID, "userId")))
+    user_id_field = driver.find_element(By.ID, "userId")
     user_id_field.send_keys("KEN")
     logger.info("CPLUS: USER ID 輸入完成")
     logger.info("CPLUS: 輸入 PASSWORD...")
-    password_field = wait.until(EC.presence_of_element_located((By.ID, "passwd")))
+    password_field = driver.find_element(By.ID, "passwd")
     password_field.send_keys(os.environ.get('SITE_PASSWORD'))
     logger.info("CPLUS: PASSWORD 輸入完成")
     logger.info("CPLUS: 點擊 LOGIN 按鈕...")
-    login_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/div[2]/div/div/form/button")))
+    login_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/div[2]/div/div/form/button/span[1]")))
     ActionChains(driver).move_to_element(login_button).click().perform()
     logger.info("CPLUS: LOGIN 按鈕點擊成功")
     wait.until(EC.presence_of_element_located((By.ID, "root")))
-    logger.info("CPLUS: 登錄頁面加載完成")
 
 # CPLUS Container Movement Log
 @retry_on_failure(max_retries=MAX_RETRIES)
@@ -219,29 +164,48 @@ def process_cplus_movement(driver, wait, initial_files):
     logger.info("CPLUS: 直接前往 Container Movement Log...")
     driver.get("https://cplus.hit.com.hk/app/#/enquiry/ContainerMovementLog")
     wait.until(EC.presence_of_element_located((By.ID, "root")))
+    WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[2]//form")))
     logger.info("CPLUS: Container Movement Log 頁面加載完成")
     logger.info("CPLUS: 點擊 Search...")
     local_initial = initial_files.copy()
     start_time = time.time()
-    locators = [
-        (By.XPATH, "//button[contains(@class, 'MuiButtonBase-root') and .//span[contains(text(), 'Search')]]"),
-        (By.XPATH, "//button[contains(text(), 'Search')]")
-    ]
-    for locator_type, locator in locators:
+    for attempt in range(2):
         try:
-            search_button = wait.until(EC.element_to_be_clickable((locator_type, locator)))
+            search_button = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[1]/div/form/div[2]/div/div[4]/button")))
             ActionChains(driver).move_to_element(search_button).click().perform()
-            logger.info(f"CPLUS: Search 按鈕點擊成功 ({locator_type})")
+            logger.info("CPLUS: Search 按鈕點擊成功")
             break
         except TimeoutException:
-            logger.warning(f"CPLUS: Search 按鈕定位失敗 ({locator_type})")
+            logger.warning(f"CPLUS: Search 按鈕未找到，嘗試備用定位 {attempt+1}/2...")
+            try:
+                search_button = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'MuiButtonBase-root') and .//span[contains(text(), 'Search')]]")))
+                ActionChains(driver).move_to_element(search_button).click().perform()
+                logger.info("CPLUS: 備用 Search 按鈕 1 點擊成功")
+                break
+            except TimeoutException:
+                logger.warning(f"CPLUS: 備用 Search 按鈕 1 失敗，嘗試備用定位 2 (嘗試 {attempt+1}/2)...")
+                try:
+                    search_button = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Search')]")))
+                    ActionChains(driver).move_to_element(search_button).click().perform()
+                    logger.info("CPLUS: 備用 Search 按鈕 2 點擊成功")
+                    break
+                except TimeoutException:
+                    logger.warning(f"CPLUS: 備用 Search 按鈕 2 失敗 (嘗試 {attempt+1}/2)")
     else:
         raise Exception("CPLUS: Container Movement Log Search 按鈕點擊失敗")
     logger.info("CPLUS: 點擊 Download...")
-    download_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[2]/div/div[2]/div/div[1]/div[1]/button")))
-    driver.execute_script("arguments[0].scrollIntoView(true);", download_button)
-    ActionChains(driver).move_to_element(download_button).click().perform()
-    logger.info("CPLUS: Download 按鈕點擊成功")
+    for attempt in range(2):
+        try:
+            download_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[2]/div/div[2]/div/div[1]/div[1]/button")))
+            ActionChains(driver).move_to_element(download_button).click().perform()
+            logger.info("CPLUS: Download 按鈕點擊成功")
+            driver.execute_script("arguments[0].click();", download_button)
+            logger.info("CPLUS: Download 按鈕 JavaScript 點擊成功")
+            break
+        except Exception as e:
+            logger.warning(f"CPLUS: Download 按鈕點擊失敗 (嘗試 {attempt+1}/2): {str(e)}")
+    else:
+        raise Exception("CPLUS: Container Movement Log Download 按鈕點擊失敗")
     new_files = wait_for_new_file(local_initial, start_time, timeout=30, expected_pattern=None)
     filtered_files = {f for f in new_files if "ContainerDetailReport" not in f}
     if len(filtered_files) >= CPLUS_MOVEMENT_COUNT:
@@ -262,20 +226,15 @@ def process_cplus_onhand(driver, wait, initial_files):
     logger.info("CPLUS: 點擊 Search...")
     local_initial = initial_files.copy()
     start_time = time.time()
-    locators = [
-        (By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div[1]/form/div[1]/div[24]/div[2]/button"),
-        (By.XPATH, "//button[contains(text(), 'Search')]")
-    ]
-    for locator_type, locator in locators:
-        try:
-            search_button = wait.until(EC.element_to_be_clickable((locator_type, locator)))
-            ActionChains(driver).move_to_element(search_button).click().perform()
-            logger.info(f"CPLUS: Search 按鈕點擊成功 ({locator_type})")
-            break
-        except TimeoutException:
-            logger.warning(f"CPLUS: Search 按鈕定位失敗 ({locator_type})")
-    else:
-        raise Exception("CPLUS: OnHandContainerList Search 按鈕點擊失敗")
+    try:
+        search_button_onhand = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div[1]/form/div[1]/div[24]/div[2]/button/span[1]")))
+        ActionChains(driver).move_to_element(search_button_onhand).click().perform()
+        logger.info("CPLUS: Search 按鈕點擊成功")
+    except TimeoutException:
+        logger.warning("CPLUS: Search 按鈕未找到，嘗試備用定位...")
+        search_button_onhand = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Search')]")))
+        ActionChains(driver).move_to_element(search_button_onhand).click().perform()
+        logger.info("CPLUS: 備用 Search 按鈕點擊成功")
     logger.info("CPLUS: 點擊 Export...")
     export_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div/div[2]/div[1]/div[1]/div/div/div[4]/div/div/span[1]/button")))
     ActionChains(driver).move_to_element(export_button).click().perform()
@@ -304,58 +263,74 @@ def process_cplus_house(driver, wait, initial_files):
     logger.info("CPLUS: 等待表格加載...")
     for attempt in range(3):
         try:
-            wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "table.MuiTable-root tbody tr")))
+            WebDriverWait(driver, 20).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
             logger.info("CPLUS: 表格加載完成")
             break
         except TimeoutException:
             logger.warning(f"CPLUS: 表格未加載，嘗試刷新頁面 (嘗試 {attempt+1}/3)...")
             driver.refresh()
-            wait.until(EC.presence_of_element_located((By.ID, "root")))
     else:
         raise Exception("CPLUS: Housekeeping Reports 表格加載失敗")
     logger.info("CPLUS: 定位並點擊所有 Excel 下載按鈕...")
     local_initial = initial_files.copy()
     start_time = time.time()
-    locators = [
-        (By.CSS_SELECTOR, "table.MuiTable-root tbody tr td button:not([disabled])[aria-label*='download']"),
-        (By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)]"),
-        (By.XPATH, "//button[contains(@class, 'MuiButtonBase-root') and not(@disabled)]//svg[@data-testid='DownloadIcon']")
+    xpath_attempts = [
+        "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button[not(@disabled)]//svg[@viewBox='0 0 24 24']//path[@fill='#036e11']",
+        "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)]",
+        "//table//tbody//tr//td//button[.//span[contains(text(), 'Download')]]",
+        "//button[contains(@class, 'MuiButtonBase-root') and not(@disabled)]//svg[@data-testid='DownloadIcon']",
+        "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button"
     ]
     excel_buttons = []
-    for locator_type, locator in locators:
+    for xpath in xpath_attempts:
         try:
-            excel_buttons = driver.find_elements(locator_type, locator)
+            excel_buttons = driver.find_elements(By.XPATH, xpath)
             if excel_buttons:
-                logger.info(f"CPLUS: 使用 {locator_type} 找到 {len(excel_buttons)} 個 Excel 下載按鈕")
+                logger.info(f"CPLUS: 使用 XPath '{xpath}' 找到 {len(excel_buttons)} 個 Excel 下載按鈕")
                 break
         except Exception as e:
-            logger.warning(f"CPLUS: 定位器 {locator_type} 失敗: {str(e)}")
+            logger.warning(f"CPLUS: XPath '{xpath}' 定位失敗: {str(e)}")
     button_count = len(excel_buttons)
     logger.info(f"CPLUS: 最終找到 {button_count} 個 Excel 下載按鈕")
+    if button_count == 0:
+        logger.info("CPLUS: 未找到任何 Excel 下載按鈕")
+        return set(), 0, 0
     new_files = set()
-    for idx, button in enumerate(excel_buttons, 1):
+    for idx in range(button_count):
         success = False
         for button_attempt in range(3):
             try:
+                button_xpath = f"(//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button[not(@disabled)])[{idx+1}]"
+                button = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, button_xpath)))
                 driver.execute_script("arguments[0].scrollIntoView(true);", button)
-                wait.until(EC.element_to_be_clickable(button))
                 ActionChains(driver).move_to_element(button).pause(0.5).click().perform()
-                logger.info(f"CPLUS: 第 {idx} 個 Excel 下載按鈕點擊成功 (嘗試 {button_attempt+1}/3)")
+                logger.info(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕點擊成功 (嘗試 {button_attempt+1}/3)")
                 temp_new = wait_for_new_file(local_initial, start_time, timeout=30, expected_pattern=None)
                 filtered_files = {f for f in temp_new if "ContainerDetailReport" not in f}
                 if filtered_files:
-                    logger.info(f"CPLUS: 第 {idx} 個按鈕下載新文件: {', '.join(filtered_files)}")
+                    logger.info(f"CPLUS: 第 {idx+1} 個按鈕下載新文件: {', '.join(filtered_files)} (嘗試 {button_attempt+1}/3)")
+                    local_initial.update(filtered_files)
+                    new_files.update(filtered_files)
+                    success = True
+                    break
+                driver.execute_script("arguments[0].click();", button)
+                logger.info(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 JavaScript 點擊成功 (嘗試 {button_attempt+1}/3)")
+                temp_new = wait_for_new_file(local_initial, start_time, timeout=30, expected_pattern=None)
+                filtered_files = {f for f in temp_new if "ContainerDetailReport" not in f}
+                if filtered_files:
+                    logger.info(f"CPLUS: 第 {idx+1} 個按鈕下載新文件 (JavaScript): {', '.join(filtered_files)} (嘗試 {button_attempt+1}/3)")
                     local_initial.update(filtered_files)
                     new_files.update(filtered_files)
                     success = True
                     break
             except Exception as e:
-                logger.warning(f"CPLUS: 第 {idx} 個 Excel 下載按鈕點擊失敗 (嘗試 {button_attempt+1}/3): {str(e)}")
+                logger.warning(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕點擊失敗 (嘗試 {button_attempt+1}/3): {str(e)}")
         if not success:
-            logger.warning(f"CPLUS: 第 {idx} 個 Excel 下載按鈕經過 3 次嘗試失敗")
-    logger.info(f"CPLUS: Housekeeping Reports 下載完成，共 {len(new_files)} 個文件，預期 {button_count} 個")
+            logger.warning(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕經過 3 次嘗試失敗")
     if len(new_files) != button_count:
         logger.warning(f"CPLUS: Housekeeping Reports 下載文件數量 ({len(new_files)}) 不等於按鈕數量 ({button_count})")
+        # 不再拋出異常
+    logger.info(f"CPLUS: Housekeeping Reports 下載完成，共 {len(new_files)} 個文件，預期 {button_count} 個")
     return new_files, len(new_files), button_count
 
 # CPLUS 操作
@@ -369,7 +344,7 @@ def process_cplus():
         driver = webdriver.Chrome(options=get_chrome_options())
         logger.info("CPLUS WebDriver 初始化成功")
         driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-        wait = WebDriverWait(driver, 20)  # 增加到20秒
+        wait = WebDriverWait(driver, 20)
         cplus_login(driver, wait)
         sections = [
             ('movement', process_cplus_movement),
@@ -405,7 +380,34 @@ def process_cplus():
     finally:
         if driver:
             try:
-                logout(driver, wait, "CPLUS")
+                logger.info("CPLUS: 嘗試登出...")
+                logout_menu_button = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
+                ActionChains(driver).move_to_element(logout_menu_button).click().perform()
+                logger.info("CPLUS: 用戶菜單點擊成功")
+                logout_option = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//li[contains(text(), 'Logout')]")))
+                ActionChains(driver).move_to_element(logout_option).click().perform()
+                logger.info("CPLUS: Logout 選項點擊成功")
+                try:
+                    close_button = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button.MuiButtonBase-root span.MuiButton-label")))
+                    ActionChains(driver).move_to_element(close_button).click().perform()
+                    logger.info("CPLUS: Close 按鈕點擊成功 (CSS)")
+                except TimeoutException:
+                    logger.warning("CPLUS: CSS 選擇器未找到 Close 按鈕，嘗試 XPath...")
+                    try:
+                        close_button = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'MuiButtonBase-root') and .//span[contains(text(), 'Close')]]")))
+                        ActionChains(driver).move_to_element(close_button).click().perform()
+                        logger.info("CPLUS: Close 按鈕點擊成功 (XPath)")
+                    except TimeoutException:
+                        logger.warning("CPLUS: XPath 選擇器未找到 Close 按鈕，嘗試備用定位...")
+                        try:
+                            close_button = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Close')]")))
+                            ActionChains(driver).move_to_element(close_button).click().perform()
+                            logger.info("CPLUS: Close 按鈕點擊成功 (備用 XPath)")
+                        except TimeoutException as e:
+                            logger.warning(f"CPLUS: Close 按鈕點擊失敗: {str(e)}")
+                driver.get("https://cplus.hit.com.hk/frontpage/#/")
+                wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
+                logger.info("CPLUS: 登出成功，回到登入頁")
             except Exception as e:
                 logger.error(f"CPLUS: 登出失敗: {str(e)}")
             finally:
@@ -417,27 +419,25 @@ def process_cplus():
 def barge_login(driver, wait):
     logger.info("Barge: 嘗試打開網站 https://barge.oneport.com/login...")
     driver.get("https://barge.oneport.com/login")
-    wait.until(EC.url_contains("login"))
-    wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "mat-form-field")))  # 等待表單加載
+    wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
     logger.info(f"Barge: 網站已成功打開，當前 URL: {driver.current_url}")
     logger.info("Barge: 輸入 COMPANY ID...")
-    company_id_field = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[placeholder='Company ID']")))
+    company_id_field = wait.until(EC.presence_of_element_located((By.XPATH, "//input[contains(@id, 'mat-input') and @placeholder='Company ID' or contains(@id, 'mat-input-0')]")))
     company_id_field.send_keys("CKL")
     logger.info("Barge: COMPANY ID 輸入完成")
     logger.info("Barge: 輸入 USER ID...")
-    user_id_field = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[placeholder='User ID']")))
+    user_id_field = driver.find_element(By.XPATH, "//input[contains(@id, 'mat-input') and @placeholder='User ID' or contains(@id, 'mat-input-1')]")
     user_id_field.send_keys("barge")
     logger.info("Barge: USER ID 輸入完成")
     logger.info("Barge: 輸入 PW...")
-    password_field = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[placeholder='Password']")))
-    password_field.send_keys("123456")  # 待改為 os.environ['BARGE_PASSWORD']
+    password_field = driver.find_element(By.XPATH, "//input[contains(@id, 'mat-input') and @placeholder='Password' or contains(@id, 'mat-input-2')]")
+    password_field.send_keys("123456")
     logger.info("Barge: PW 輸入完成")
     logger.info("Barge: 點擊 LOGIN 按鈕...")
-    login_button_barge = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button.mat-raised-button")))
+    login_button_barge = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'LOGIN') or contains(@class, 'mat-raised-button')]")))
     ActionChains(driver).move_to_element(login_button_barge).click().perform()
     logger.info("Barge: LOGIN 按鈕點擊成功")
     wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
-    logger.info("Barge: 登錄頁面加載完成")
 
 # Barge 下載部分
 @retry_on_failure(max_retries=MAX_RETRIES)
@@ -448,7 +448,7 @@ def process_barge_download(driver, wait, initial_files):
     logger.info("Barge: downloadReport 頁面加載完成")
     logger.info("Barge: 選擇 Report Type...")
     start_time = time.time()
-    report_type_trigger = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "mat-form-field .mat-select-trigger")))
+    report_type_trigger = wait.until(EC.element_to_be_clickable((By.XPATH, "//mat-form-field[.//mat-label[contains(text(), 'Report Type')]]//div[contains(@class, 'mat-select-trigger')]")))
     ActionChains(driver).move_to_element(report_type_trigger).click().perform()
     logger.info("Barge: Report Type 選擇開始")
     container_detail_option = wait.until(EC.element_to_be_clickable((By.XPATH, "//mat-option//span[contains(text(), 'Container Detail')]")))
@@ -456,7 +456,7 @@ def process_barge_download(driver, wait, initial_files):
     logger.info("Barge: Container Detail 點擊成功")
     logger.info("Barge: 點擊 Download...")
     local_initial = initial_files.copy()
-    download_button_barge = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button[aria-label*='download']")))
+    download_button_barge = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[span[text()='Download']]")))
     ActionChains(driver).move_to_element(download_button_barge).click().perform()
     logger.info("Barge: Download 按鈕點擊成功")
     new_files = wait_for_new_file(local_initial, start_time, timeout=30, expected_pattern="ContainerDetailReport")
@@ -477,7 +477,7 @@ def process_barge():
         driver = webdriver.Chrome(options=get_chrome_options())
         logger.info("Barge WebDriver 初始化成功")
         driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-        wait = WebDriverWait(driver, 20)  # 增加到20秒
+        wait = WebDriverWait(driver, 20)
         barge_login(driver, wait)
         success = False
         for attempt in range(MAX_RETRIES):
@@ -497,14 +497,28 @@ def process_barge():
         logger.error(f"Barge 總錯誤: {str(e)}")
         return downloaded_files
     finally:
+        try:
+            if driver:
+                logger.info("Barge: 點擊工具欄進行登出...")
+                try:
+                    logout_toolbar_barge = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='main-toolbar']/button[4]/span[1]")))
+                    driver.execute_script("arguments[0].scrollIntoView(true);", logout_toolbar_barge)
+                    driver.execute_script("arguments[0].click();", logout_toolbar_barge)
+                    logger.info("Barge: 工具欄點擊成功")
+                except TimeoutException:
+                    logger.warning("Barge: 主工具欄登出按鈕未找到，嘗試備用定位...")
+                    raise
+                logout_span_xpath = "//div[contains(@class, 'mat-menu-panel')]//button//span[contains(text(), 'Logout')]"
+                logout_button_barge = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, logout_span_xpath)))
+                driver.execute_script("arguments[0].scrollIntoView(true);", logout_button_barge)
+                driver.execute_script("arguments[0].click();", logout_button_barge)
+                logger.info("Barge: Logout 選項點擊成功")
+            time.sleep(5)
+        except Exception as e:
+            logger.error(f"Barge: 登出失敗: {str(e)}")
         if driver:
-            try:
-                logout(driver, wait, "Barge")
-            except Exception as e:
-                logger.error(f"Barge: 登出失敗: {str(e)}")
-            finally:
-                driver.quit()
-                logger.info("Barge WebDriver 關閉")
+            driver.quit()
+            logger.info("Barge WebDriver 關閉")
 
 # 主函數
 def main():
@@ -528,13 +542,16 @@ def main():
     downloaded_files = [f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx'))]
     expected_file_count = CPLUS_MOVEMENT_COUNT + CPLUS_ONHAND_COUNT + house_button_count[0] + BARGE_COUNT
     logger.info(f"預期文件數量: {expected_file_count} (Movement: {CPLUS_MOVEMENT_COUNT}, OnHand: {CPLUS_ONHAND_COUNT}, Housekeeping: {house_button_count[0]}, Barge: {BARGE_COUNT})")
+    # 檢查 Housekeeping 文件數量是否匹配按鈕數量
     if house_file_count[0] != house_button_count[0]:
-        logger.warning(f"Housekeeping Reports 下載文件數量（{house_file_count[0]}）不等於按鈕數量（{house_button_count[0]}），繼續執行但不發送郵件")
+        logger.error(f"Housekeeping Reports 下載文件數量（{house_file_count[0]}）不等於按鈕數量（{house_button_count[0]}），放棄發送郵件")
         logger.info("下載文件列表：" + str(downloaded_files))
         return
+    # 檢查所有文件數量
     logger.info(f"總共下載 {len(downloaded_files)} 個文件:")
     for file in downloaded_files:
         logger.info(f"找到檔案: {file}")
+    # 檢查 CPLUS 和 Barge 文件數量
     cplus_file_count = len([f for f in downloaded_files if "ContainerDetailReport" not in f])
     barge_file_count = len([f for f in downloaded_files if "ContainerDetailReport" in f])
     if cplus_file_count < (CPLUS_MOVEMENT_COUNT + CPLUS_ONHAND_COUNT + house_button_count[0]) or barge_file_count < BARGE_COUNT:
