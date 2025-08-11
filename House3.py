@@ -2,7 +2,6 @@ import os
 import time
 import shutil
 import subprocess
-import threading  # 新增：導入 threading 模塊
 from datetime import datetime
 import smtplib
 from email.mime.multipart import MIMEMultipart
@@ -37,7 +36,6 @@ CPLUS_MOVEMENT_COUNT = 1 # Container Movement Log
 CPLUS_ONHAND_COUNT = 1 # OnHandContainerList
 BARGE_COUNT = 1 # Barge
 MAX_RETRIES = 3
-lock = threading.Lock()  # 新增：創建全局鎖定物件
 
 # 重試裝飾器
 def retry_on_failure(max_retries=3, delay=5):
@@ -173,24 +171,21 @@ def process_cplus_movement(driver, wait, initial_files):
     for attempt in range(2):
         try:
             search_button = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[1]/div/form/div[2]/div/div[4]/button")))
-            with lock:  # 新增：鎖定敏感點擊動作
-                ActionChains(driver).move_to_element(search_button).click().perform()
+            ActionChains(driver).move_to_element(search_button).click().perform()
             logger.info("CPLUS: Search 按鈕點擊成功")
             break
         except TimeoutException:
             logger.warning(f"CPLUS: Search 按鈕未找到，嘗試備用定位 {attempt+1}/2...")
             try:
                 search_button = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'MuiButtonBase-root') and .//span[contains(text(), 'Search')]]")))
-                with lock:  # 新增：鎖定敏感點擊動作
-                    ActionChains(driver).move_to_element(search_button).click().perform()
+                ActionChains(driver).move_to_element(search_button).click().perform()
                 logger.info("CPLUS: 備用 Search 按鈕 1 點擊成功")
                 break
             except TimeoutException:
                 logger.warning(f"CPLUS: 備用 Search 按鈕 1 失敗，嘗試備用定位 2 (嘗試 {attempt+1}/2)...")
                 try:
                     search_button = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Search')]")))
-                    with lock:  # 新增：鎖定敏感點擊動作
-                        ActionChains(driver).move_to_element(search_button).click().perform()
+                    ActionChains(driver).move_to_element(search_button).click().perform()
                     logger.info("CPLUS: 備用 Search 按鈕 2 點擊成功")
                     break
                 except TimeoutException:
@@ -201,8 +196,7 @@ def process_cplus_movement(driver, wait, initial_files):
     for attempt in range(2):
         try:
             download_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[2]/div/div[2]/div/div[1]/div[1]/button")))
-            with lock:  # 新增：鎖定敏感點擊動作
-                ActionChains(driver).move_to_element(download_button).click().perform()
+            ActionChains(driver).move_to_element(download_button).click().perform()
             logger.info("CPLUS: Download 按鈕點擊成功")
             driver.execute_script("arguments[0].click();", download_button)
             logger.info("CPLUS: Download 按鈕 JavaScript 點擊成功")
@@ -233,24 +227,20 @@ def process_cplus_onhand(driver, wait, initial_files):
     start_time = time.time()
     try:
         search_button_onhand = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div[1]/form/div[1]/div[24]/div[2]/button/span[1]")))
-        with lock:  # 新增：鎖定敏感點擊動作
-            ActionChains(driver).move_to_element(search_button_onhand).click().perform()
+        ActionChains(driver).move_to_element(search_button_onhand).click().perform()
         logger.info("CPLUS: Search 按鈕點擊成功")
     except TimeoutException:
         logger.warning("CPLUS: Search 按鈕未找到，嘗試備用定位...")
         search_button_onhand = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Search')]")))
-        with lock:  # 新增：鎖定敏感點擊動作
-            ActionChains(driver).move_to_element(search_button_onhand).click().perform()
+        ActionChains(driver).move_to_element(search_button_onhand).click().perform()
         logger.info("CPLUS: 備用 Search 按鈕點擊成功")
     logger.info("CPLUS: 點擊 Export...")
     export_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div/div[2]/div[1]/div[1]/div/div/div[4]/div/div/span[1]/button")))
-    with lock:  # 新增：鎖定敏感點擊動作
-        ActionChains(driver).move_to_element(export_button).click().perform()
+    ActionChains(driver).move_to_element(export_button).click().perform()
     logger.info("CPLUS: Export 按鈕點擊成功")
     logger.info("CPLUS: 點擊 Export as CSV...")
     export_csv_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//li[contains(@class, 'MuiMenuItem-root') and text()='Export as CSV']")))
-    with lock:  # 新增：鎖定敏感點擊動作
-        ActionChains(driver).move_to_element(export_csv_button).click().perform()
+    ActionChains(driver).move_to_element(export_csv_button).click().perform()
     logger.info("CPLUS: Export as CSV 按鈕點擊成功")
     new_files = wait_for_new_file(local_initial, start_time, timeout=30, expected_pattern=None)
     filtered_files = {f for f in new_files if "ContainerDetailReport" not in f}
@@ -312,8 +302,7 @@ def process_cplus_house(driver, wait, initial_files):
                 button_xpath = f"(//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button[not(@disabled)])[{idx+1}]"
                 button = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, button_xpath)))
                 driver.execute_script("arguments[0].scrollIntoView(true);", button)
-                with lock:  # 新增：鎖定敏感點擊動作
-                    ActionChains(driver).move_to_element(button).pause(0.5).click().perform()
+                ActionChains(driver).move_to_element(button).pause(0.5).click().perform()
                 logger.info(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕點擊成功 (嘗試 {button_attempt+1}/3)")
                 temp_new = wait_for_new_file(local_initial, start_time, timeout=30, expected_pattern=None)
                 filtered_files = {f for f in temp_new if "ContainerDetailReport" not in f}
@@ -527,8 +516,7 @@ def process_barge():
         except Exception as e:
             logger.error(f"Barge: 登出失敗: {str(e)}")
         if driver:
-            with lock:  # 新增：鎖定 driver.quit()，確保關閉時不影響 CPLUS
-                driver.quit()
+            driver.quit()
             logger.info("Barge WebDriver 關閉")
 
 # 主函數
@@ -536,26 +524,25 @@ def main():
     clear_download_dir()
     cplus_files = set()
     barge_files = set()
-    house_file_count = [0]
-    house_button_count = [0]
-    def update_cplus_files_and_count(result):
-        files, count, button_count = result
-        cplus_files.update(files)
-        house_file_count[0] = count
-        house_button_count[0] = button_count
-    cplus_thread = threading.Thread(target=lambda: update_cplus_files_and_count(process_cplus()))
-    barge_thread = threading.Thread(target=lambda: barge_files.update(process_barge()))
-    cplus_thread.start()
-    barge_thread.start()
-    cplus_thread.join()
-    barge_thread.join()
+    house_file_count = 0
+    house_button_count = 0
+
+    # 先執行 CPLUS
+    cplus_result = process_cplus()
+    cplus_files.update(cplus_result[0])
+    house_file_count = cplus_result[1]
+    house_button_count = cplus_result[2]
+
+    # 再執行 Barge
+    barge_files.update(process_barge())
+
     logger.info("檢查所有下載文件...")
     downloaded_files = [f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx'))]
-    expected_file_count = CPLUS_MOVEMENT_COUNT + CPLUS_ONHAND_COUNT + house_button_count[0] + BARGE_COUNT
-    logger.info(f"預期文件數量: {expected_file_count} (Movement: {CPLUS_MOVEMENT_COUNT}, OnHand: {CPLUS_ONHAND_COUNT}, Housekeeping: {house_button_count[0]}, Barge: {BARGE_COUNT})")
+    expected_file_count = CPLUS_MOVEMENT_COUNT + CPLUS_ONHAND_COUNT + house_button_count + BARGE_COUNT
+    logger.info(f"預期文件數量: {expected_file_count} (Movement: {CPLUS_MOVEMENT_COUNT}, OnHand: {CPLUS_ONHAND_COUNT}, Housekeeping: {house_button_count}, Barge: {BARGE_COUNT})")
     # 檢查 Housekeeping 文件數量是否匹配按鈕數量
-    if house_file_count[0] != house_button_count[0]:
-        logger.error(f"Housekeeping Reports 下載文件數量（{house_file_count[0]}）不等於按鈕數量（{house_button_count[0]}），放棄發送郵件")
+    if house_file_count != house_button_count:
+        logger.error(f"Housekeeping Reports 下載文件數量（{house_file_count}）不等於按鈕數量（{house_button_count}），放棄發送郵件")
         logger.info("下載文件列表：" + str(downloaded_files))
         return
     # 檢查所有文件數量
@@ -565,8 +552,8 @@ def main():
     # 檢查 CPLUS 和 Barge 文件數量
     cplus_file_count = len([f for f in downloaded_files if "ContainerDetailReport" not in f])
     barge_file_count = len([f for f in downloaded_files if "ContainerDetailReport" in f])
-    if cplus_file_count < (CPLUS_MOVEMENT_COUNT + CPLUS_ONHAND_COUNT + house_button_count[0]) or barge_file_count < BARGE_COUNT:
-        logger.error(f"CPLUS 文件數量（{cplus_file_count}）或 Barge 文件數量（{barge_file_count}）不足，預期 CPLUS: {CPLUS_MOVEMENT_COUNT + CPLUS_ONHAND_COUNT + house_button_count[0]}，Barge: {BARGE_COUNT}")
+    if cplus_file_count < (CPLUS_MOVEMENT_COUNT + CPLUS_ONHAND_COUNT + house_button_count) or barge_file_count < BARGE_COUNT:
+        logger.error(f"CPLUS 文件數量（{cplus_file_count}）或 Barge 文件數量（{barge_file_count}）不足，預期 CPLUS: {CPLUS_MOVEMENT_COUNT + CPLUS_ONHAND_COUNT + house_button_count}，Barge: {BARGE_COUNT}")
         logger.info("下載文件列表：" + str(downloaded_files))
         return
     if len(downloaded_files) == expected_file_count:
