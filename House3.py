@@ -2,7 +2,6 @@ import os
 import time
 import shutil
 import subprocess
-import threading
 from datetime import datetime
 import smtplib
 from email.mime.multipart import MIMEMultipart
@@ -33,9 +32,10 @@ logger = logging.getLogger(__name__)
 
 # 全局變量
 download_dir = os.path.abspath("downloads")
-CPLUS_MOVEMENT_COUNT = 1 # Container Movement Log
-CPLUS_ONHAND_COUNT = 1 # OnHandContainerList
-BARGE_COUNT = 1 # Barge
+CPLUS_MOVEMENT_COUNT = 1  # Container Movement Log
+CPLUS_ONHAND_COUNT = 1  # OnHandContainerList
+BARGE_COUNT = 1  # Barge
+MIN_HOUSE_BUTTONS = 6  # 最小預期 Housekeeping buttons，如果少於此，不 send email
 MAX_RETRIES = 3
 
 # 重試裝飾器
@@ -110,18 +110,17 @@ def get_chrome_options():
     chrome_options.binary_location = '/usr/bin/chromium-browser'
     return chrome_options
 
-# 檢查新文件出現
-def wait_for_new_file(initial_files, start_time, timeout=10, expected_pattern=None):
+# 檢查新文件出現，並過濾 size > 0
+def wait_for_new_file(initial_files, start_time, timeout=30, expected_pattern=None):  # 增加 timeout 到 30s
     end_time = time.time() + timeout
     while time.time() < end_time:
         current_files = set(f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx')))
         new_files = current_files - initial_files
         if new_files:
-            # 過濾文件：只保留在 start_time 之後創建且匹配預期模式的文件
             filtered_files = set()
             for file in new_files:
                 file_path = os.path.join(download_dir, file)
-                if os.path.getmtime(file_path) >= start_time:
+                if os.path.getmtime(file_path) >= start_time and os.path.getsize(file_path) > 0:  # 加 size check
                     if expected_pattern is None or expected_pattern in file:
                         filtered_files.add(file)
             if filtered_files:
@@ -153,7 +152,7 @@ def cplus_login(driver, wait):
     time.sleep(1)
     logger.info("CPLUS: 輸入 PASSWORD...")
     password_field = driver.find_element(By.XPATH, "//*[@id='passwd']")
-    password_field.send_keys(os.environ.get('SITE_PASSWORD'))
+    password_field.send_keys(os.environ.get('SITE_PASSWORD'))  # 移除 fallback，強制用 env
     logger.info("CPLUS: PASSWORD 輸入完成")
     time.sleep(1)
     logger.info("CPLUS: 點擊 LOGIN 按鈕...")
@@ -217,8 +216,7 @@ def process_cplus_movement(driver, wait, initial_files):
             time.sleep(0.5)
     else:
         raise Exception("CPLUS: Container Movement Log Download 按鈕點擊失敗")
-    new_files = wait_for_new_file(local_initial, start_time, timeout=10, expected_pattern=None)
-    # 過濾只包含 CPLUS 相關文件
+    new_files = wait_for_new_file(local_initial, start_time, timeout=30, expected_pattern=None)  # 增加 timeout
     filtered_files = {f for f in new_files if "ContainerDetailReport" not in f}
     if len(filtered_files) >= CPLUS_MOVEMENT_COUNT:
         logger.info(f"CPLUS: Container Movement Log 下載完成，檔案位於: {download_dir}")
@@ -240,12 +238,12 @@ def process_cplus_onhand(driver, wait, initial_files):
     local_initial = initial_files.copy()
     start_time = time.time()
     try:
-        search_button_onhand = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div[1]/form/div[1]/div[24]/div[2]/button/span[1]")))
+        search_button_onhand = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div[1]/form/div[1]/div[24]/div[2]/button/span[1]")))  # 增加 wait 到 20s
         ActionChains(driver).move_to_element(search_button_onhand).click().perform()
         logger.info("CPLUS: Search 按鈕點擊成功")
     except TimeoutException:
         logger.warning("CPLUS: Search 按鈕未找到，嘗試備用定位...")
-        search_button_onhand = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Search')]")))
+        search_button_onhand = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Search')]")))
         ActionChains(driver).move_to_element(search_button_onhand).click().perform()
         logger.info("CPLUS: 備用 Search 按鈕點擊成功")
     time.sleep(0.5)
@@ -259,8 +257,7 @@ def process_cplus_onhand(driver, wait, initial_files):
     ActionChains(driver).move_to_element(export_csv_button).click().perform()
     logger.info("CPLUS: Export as CSV 按鈕點擊成功")
     time.sleep(0.5)
-    new_files = wait_for_new_file(local_initial, start_time, timeout=10, expected_pattern=None)
-    # 過濾只包含 CPLUS 相關文件
+    new_files = wait_for_new_file(local_initial, start_time, timeout=30, expected_pattern=None)
     filtered_files = {f for f in new_files if "ContainerDetailReport" not in f}
     if len(filtered_files) >= CPLUS_ONHAND_COUNT:
         logger.info(f"CPLUS: OnHandContainerList 下載完成，檔案位於: {download_dir}")
@@ -281,9 +278,9 @@ def process_cplus_house(driver, wait, initial_files):
     logger.info("CPLUS: 等待表格加載...")
     for attempt in range(3):
         try:
-            wait = WebDriverWait(driver, 15)
-            wait.until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
-            logger.info("CPLUS: 表格加載完成")
+            wait = WebDriverWait(driver, 20)  # 增加到 20s
+            rows = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
+            logger.info(f"CPLUS: 表格加載完成，找到 {len(rows)} 行")
             break
         except TimeoutException:
             logger.warning(f"CPLUS: 表格未加載，嘗試刷新頁面 (嘗試 {attempt+1}/3)...")
@@ -295,11 +292,13 @@ def process_cplus_house(driver, wait, initial_files):
     local_initial = initial_files.copy()
     start_time = time.time()
     xpath_attempts = [
+        "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button[not(@disabled)]//svg//path[contains(@d, 'M20 12l')]",  # 新加: 用 download icon path d
         "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button[not(@disabled)]//svg[@viewBox='0 0 24 24']//path[@fill='#036e11']",
         "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)]",
         "//table//tbody//tr//td//button[.//span[contains(text(), 'Download')]]",
         "//button[contains(@class, 'MuiButtonBase-root') and not(@disabled)]//svg[@data-testid='DownloadIcon']",
-        "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button"
+        "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button",
+        "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td//button[contains(@aria-label, 'download') or contains(@title, 'download')]"  # 新加: aria-label or title
     ]
     excel_buttons = []
     for xpath in xpath_attempts:
@@ -313,7 +312,10 @@ def process_cplus_house(driver, wait, initial_files):
     button_count = len(excel_buttons)
     logger.info(f"CPLUS: 最終找到 {button_count} 個 Excel 下載按鈕")
     if button_count == 0:
-        logger.info("CPLUS: 未找到任何 Excel 下載按鈕")
+        logger.warning("CPLUS: 未找到任何 Excel 下載按鈕，記錄 page source 以 debug")
+        with open("housekeep_page_source.html", "w") as f:
+            f.write(driver.page_source)
+        logger.info("CPLUS: page source 保存到 housekeep_page_source.html")
         return set(), 0, 0
     new_files = set()
     for idx in range(button_count):
@@ -331,7 +333,8 @@ def process_cplus_house(driver, wait, initial_files):
                     logger.warning(f"CPLUS: 無法獲取第 {idx+1} 個按鈕的報告名稱 (嘗試 {button_attempt+1}/3)")
                 ActionChains(driver).move_to_element(button).pause(0.5).click().perform()
                 logger.info(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕點擊成功 (嘗試 {button_attempt+1}/3)")
-                temp_new = wait_for_new_file(local_initial, start_time, timeout=10, expected_pattern=None)
+                time.sleep(2)  # 加等 2s 確保下載
+                temp_new = wait_for_new_file(local_initial, start_time, timeout=30)
                 filtered_files = {f for f in temp_new if "ContainerDetailReport" not in f}
                 if filtered_files:
                     logger.info(f"CPLUS: 第 {idx+1} 個按鈕下載新文件: {', '.join(filtered_files)} (嘗試 {button_attempt+1}/3)")
@@ -343,7 +346,8 @@ def process_cplus_house(driver, wait, initial_files):
                     logger.warning(f"CPLUS: 第 {idx+1} 個按鈕未觸發新文件下載 (嘗試 {button_attempt+1}/3)")
                 driver.execute_script("arguments[0].click();", button)
                 logger.info(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 JavaScript 點擊成功 (嘗試 {button_attempt+1}/3)")
-                temp_new = wait_for_new_file(local_initial, start_time, timeout=10, expected_pattern=None)
+                time.sleep(2)
+                temp_new = wait_for_new_file(local_initial, start_time, timeout=30)
                 filtered_files = {f for f in temp_new if "ContainerDetailReport" not in f}
                 if filtered_files:
                     logger.info(f"CPLUS: 第 {idx+1} 個按鈕下載新文件 (JavaScript): {', '.join(filtered_files)} (嘗試 {button_attempt+1}/3)")
@@ -403,10 +407,11 @@ def process_cplus():
                         time.sleep(5)
             if not success:
                 logger.error(f"CPLUS: {section_name} 經過 {MAX_RETRIES} 次嘗試失敗")
+                return set(), 0, 0  # 如果 any fail，返回 empty
         return downloaded_files, house_file_count, house_button_count
     except Exception as e:
         logger.error(f"CPLUS 總錯誤: {str(e)}")
-        return downloaded_files, house_file_count, house_button_count
+        return set(), 0, 0
     finally:
         if driver:
             try:
@@ -469,7 +474,7 @@ def barge_login(driver, wait):
     time.sleep(1)
     logger.info("Barge: 輸入 PW...")
     password_field = driver.find_element(By.XPATH, "//input[contains(@id, 'mat-input') and @placeholder='Password' or contains(@id, 'mat-input-2')]")
-    password_field.send_keys("123456")
+    password_field.send_keys(os.environ.get('BARGE_PASSWORD', '123456'))  # 如果有 env，用 env，否則 fallback (但建議 set env)
     logger.info("Barge: PW 輸入完成")
     time.sleep(1)
     logger.info("Barge: 點擊 LOGIN 按鈕...")
@@ -502,8 +507,7 @@ def process_barge_download(driver, wait, initial_files):
     download_button_barge = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[span[text()='Download']]")))
     ActionChains(driver).move_to_element(download_button_barge).click().perform()
     logger.info("Barge: Download 按鈕點擊成功")
-    new_files = wait_for_new_file(local_initial, start_time, timeout=10, expected_pattern="ContainerDetailReport")
-    # 過濾只包含 Barge 相關文件
+    new_files = wait_for_new_file(local_initial, start_time, timeout=30, expected_pattern="ContainerDetailReport")
     filtered_files = {f for f in new_files if "ContainerDetailReport" in f}
     if len(filtered_files) >= BARGE_COUNT:
         logger.info(f"Barge: Container Detail 下載完成，檔案位於: {download_dir}")
@@ -536,10 +540,11 @@ def process_barge():
                     time.sleep(5)
         if not success:
             logger.error(f"Barge 下載經過 {MAX_RETRIES} 次嘗試失敗")
+            return set()  # fail 返回 empty
         return downloaded_files
     except Exception as e:
         logger.error(f"Barge 總錯誤: {str(e)}")
-        return downloaded_files
+        return set()
     finally:
         try:
             if driver:
@@ -580,28 +585,15 @@ def process_barge():
 # 主函數
 def main():
     clear_download_dir()
-    cplus_files = set()
-    barge_files = set()
-    house_file_count = [0]
-    house_button_count = [0]
-    def update_cplus_files_and_count(result):
-        files, count, button_count = result
-        cplus_files.update(files)
-        house_file_count[0] = count
-        house_button_count[0] = button_count
-    cplus_thread = threading.Thread(target=lambda: update_cplus_files_and_count(process_cplus()))
-    barge_thread = threading.Thread(target=lambda: barge_files.update(process_barge()))
-    cplus_thread.start()
-    barge_thread.start()
-    cplus_thread.join()
-    barge_thread.join()
+    cplus_files, house_file_count, house_button_count = process_cplus()  # 先 CPLUS
+    barge_files = process_barge()  # 再 Barge，sequential
     logger.info("檢查所有下載文件...")
     downloaded_files = [f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx'))]
-    expected_file_count = CPLUS_MOVEMENT_COUNT + CPLUS_ONHAND_COUNT + house_button_count[0] + BARGE_COUNT
-    logger.info(f"預期文件數量: {expected_file_count} (Movement: {CPLUS_MOVEMENT_COUNT}, OnHand: {CPLUS_ONHAND_COUNT}, Housekeeping: {house_button_count[0]}, Barge: {BARGE_COUNT})")
-    # 檢查 Housekeeping 文件數量是否匹配按鈕數量
-    if house_file_count[0] != house_button_count[0]:
-        logger.error(f"Housekeeping Reports 下載文件數量（{house_file_count[0]}）不等於按鈕數量（{house_button_count[0]}），放棄發送郵件")
+    expected_file_count = CPLUS_MOVEMENT_COUNT + CPLUS_ONHAND_COUNT + house_button_count + BARGE_COUNT
+    logger.info(f"預期文件數量: {expected_file_count} (Movement: {CPLUS_MOVEMENT_COUNT}, OnHand: {CPLUS_ONHAND_COUNT}, Housekeeping: {house_button_count}, Barge: {BARGE_COUNT})")
+    # 檢查 Housekeeping 文件數量是否匹配按鈕數量，且 >= MIN_HOUSE_BUTTONS
+    if house_file_count != house_button_count or house_button_count < MIN_HOUSE_BUTTONS:
+        logger.error(f"Housekeeping Reports 下載文件數量（{house_file_count}）不等於按鈕數量（{house_button_count}），或少於最小預期 {MIN_HOUSE_BUTTONS}，放棄發送郵件")
         logger.info("下載文件列表：" + str(downloaded_files))
         return
     # 檢查所有文件數量
@@ -611,8 +603,8 @@ def main():
     # 檢查 CPLUS 和 Barge 文件數量
     cplus_file_count = len([f for f in downloaded_files if "ContainerDetailReport" not in f])
     barge_file_count = len([f for f in downloaded_files if "ContainerDetailReport" in f])
-    if cplus_file_count < (CPLUS_MOVEMENT_COUNT + CPLUS_ONHAND_COUNT + house_button_count[0]) or barge_file_count < BARGE_COUNT:
-        logger.error(f"CPLUS 文件數量（{cplus_file_count}）或 Barge 文件數量（{barge_file_count}）不足，預期 CPLUS: {CPLUS_MOVEMENT_COUNT + CPLUS_ONHAND_COUNT + house_button_count[0]}，Barge: {BARGE_COUNT}")
+    if cplus_file_count < (CPLUS_MOVEMENT_COUNT + CPLUS_ONHAND_COUNT + house_button_count) or barge_file_count < BARGE_COUNT:
+        logger.error(f"CPLUS 文件數量（{cplus_file_count}）或 Barge 文件數量（{barge_file_count}）不足，預期 CPLUS: {CPLUS_MOVEMENT_COUNT + CPLUS_ONHAND_COUNT + house_button_count}，Barge: {BARGE_COUNT}")
         logger.info("下載文件列表：" + str(downloaded_files))
         return
     if len(downloaded_files) == expected_file_count:
@@ -621,8 +613,10 @@ def main():
         try:
             smtp_server = 'smtp.zoho.com'
             smtp_port = 587
-            sender_email = os.environ.get('ZOHO_EMAIL', 'paklun_ckline@zohomail.com')
-            sender_password = os.environ.get('ZOHO_PASSWORD', '@d6G.Pie5UkEPqm')
+            sender_email = os.environ.get('ZOHO_EMAIL')
+            sender_password = os.environ.get('ZOHO_PASSWORD')
+            if not sender_email or not sender_password:
+                raise ValueError("ZOHO_EMAIL 或 ZOHO_PASSWORD env var 未 set")
             receiver_email = 'paklun@ckline.com.hk'
             msg = MIMEMultipart()
             msg['From'] = sender_email
