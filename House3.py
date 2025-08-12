@@ -35,9 +35,9 @@ download_dir = os.path.abspath("downloads")
 CPLUS_MOVEMENT_COUNT = 1  # Container Movement Log
 CPLUS_ONHAND_COUNT = 1  # OnHandContainerList
 BARGE_COUNT = 1  # Barge
-MIN_HOUSE_BUTTONS = 1  # 最小預期 Housekeeping buttons，如果少於此，不 send email (改為1，因為可能有1-6)
+MIN_HOUSE_BUTTONS = 0  # 最小預期 Housekeeping buttons，如果少於此，不 send email
 MAX_RETRIES = 3
-WAIT_TIMEOUT = 20 
+WAIT_TIMEOUT = 20  # 用戶改為20
 DOWNLOAD_TIMEOUT = 15  # 減低 file wait 到 15s
 
 # 重試裝飾器
@@ -301,9 +301,12 @@ def process_cplus_house(driver, wait, initial_files):
     logger.info("CPLUS: 等待表格加載...")
     for attempt in range(3):
         try:
-            wait = WebDriverWait(driver, WAIT_TIMEOUT * 2)  # 20s for table
+            wait = WebDriverWait(driver, WAIT_TIMEOUT * 2)  # 40s for table since WAIT=20
             rows = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
             logger.info(f"CPLUS: 表格加載完成，找到 {len(rows)} 行")
+            if len(rows) <= 1:  # 新加: if only header or no data
+                logger.info("CPLUS: Housekeeping 表格無數據行，跳過下載")
+                return set(), 0, 0
             break
         except TimeoutException:
             logger.warning(f"CPLUS: 表格未加載，嘗試刷新頁面 (嘗試 {attempt+1}/3)...")
@@ -321,7 +324,9 @@ def process_cplus_house(driver, wait, initial_files):
         "//table//tbody//tr//td//button[.//span[contains(text(), 'Download')]]",
         "//button[contains(@class, 'MuiButtonBase-root') and not(@disabled)]//svg[@data-testid='DownloadIcon']",
         "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button",
-        "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td//button[contains(@aria-label, 'download') or contains(@title, 'download')]"
+        "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td//button[contains(@aria-label, 'download') or contains(@title, 'download')]",
+        "//td[4]//button[not(@disabled)]",  # 新加 more general
+        "//button//svg[contains(@xmlns, 'w3.org/2000/svg') and contains(@viewBox, '24 24')]//path[contains(@d, 'arrow_downward')]"  # for download icon
     ]
     excel_buttons = []
     for xpath in xpath_attempts:
@@ -335,7 +340,8 @@ def process_cplus_house(driver, wait, initial_files):
     button_count = len(excel_buttons)
     logger.info(f"CPLUS: 最終找到 {button_count} 個 Excel 下載按鈕")
     if button_count == 0:
-        logger.warning("CPLUS: 未找到任何 Excel 下載按鈕，記錄 page source 以 debug")
+        logger.warning("CPLUS: 未找到任何 Excel 下載按鈕，記錄 page source 和 screenshot 以 debug")
+        driver.save_screenshot("house_error.png")
         with open("housekeep_page_source.html", "w") as f:
             f.write(driver.page_source)
         logger.info("CPLUS: page source 保存到 housekeep_page_source.html")
@@ -616,8 +622,8 @@ def main():
     downloaded_files = [f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx'))]
     expected_file_count = CPLUS_MOVEMENT_COUNT + CPLUS_ONHAND_COUNT + house_button_count + BARGE_COUNT
     logger.info(f"預期文件數量: {expected_file_count} (Movement: {CPLUS_MOVEMENT_COUNT}, OnHand: {CPLUS_ONHAND_COUNT}, Housekeeping: {house_button_count}, Barge: {BARGE_COUNT})")
-    if house_file_count != house_button_count or house_button_count < MIN_HOUSE_BUTTONS:
-        logger.error(f"Housekeeping Reports 下載文件數量（{house_file_count}）不等於按鈕數量（{house_button_count}），或少於最小預期 {MIN_HOUSE_BUTTONS}，放棄發送郵件")
+    if house_file_count != house_button_count:
+        logger.error(f"Housekeeping Reports 下載文件數量（{house_file_count}）不等於按鈕數量（{house_button_count}），放棄發送郵件")
         logger.info("下載文件列表：" + str(downloaded_files))
         return
     logger.info(f"總共下載 {len(downloaded_files)} 個文件:")
