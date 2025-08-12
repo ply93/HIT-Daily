@@ -35,7 +35,7 @@ download_dir = os.path.abspath("downloads")
 CPLUS_MOVEMENT_COUNT = 1  # Container Movement Log
 CPLUS_ONHAND_COUNT = 1  # OnHandContainerList
 BARGE_COUNT = 1  # Barge
-MIN_HOUSE_BUTTONS = 6  # 最小預期 Housekeeping buttons，如果少於此，不 send email
+MIN_HOUSE_BUTTONS = 1  # 最小預期 Housekeeping buttons，如果少於此，不 send email (改為1，因為可能有1-6)
 MAX_RETRIES = 3
 WAIT_TIMEOUT = 10  # 減低 general wait 到 10s
 DOWNLOAD_TIMEOUT = 15  # 減低 file wait 到 15s
@@ -321,7 +321,8 @@ def process_cplus_house(driver, wait, initial_files):
         "//table//tbody//tr//td//button[.//span[contains(text(), 'Download')]]",
         "//button[contains(@class, 'MuiButtonBase-root') and not(@disabled)]//svg[@data-testid='DownloadIcon']",
         "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button",
-        "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td//button[contains(@aria-label, 'download') or contains(@title, 'download')]"
+        "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td//button[contains(@aria-label, 'download') or contains(@title, 'download')]",
+        "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button[not(@disabled)]"  # 加更多 general
     ]
     excel_buttons = []
     for xpath in xpath_attempts:
