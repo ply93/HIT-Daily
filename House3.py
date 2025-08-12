@@ -380,15 +380,15 @@ def process_cplus():
             if not success:
                 print(f"CPLUS {section_name} 經過 {MAX_RETRIES} 次嘗試失敗", flush=True)
 
-        return downloaded_files, house_file_count, house_button_count
+        return downloaded_files, house_file_count, house_button_count, driver
 
     except Exception as e:
         print(f"CPLUS 總錯誤: {str(e)}", flush=True)
-        return downloaded_files, house_file_count, house_button_count
+        return downloaded_files, house_file_count, house_button_count, driver
 
     finally:
-        if driver:
-            try:
+        try:
+            if driver:
                 print("CPLUS: 嘗試登出...", flush=True)
                 logout_menu_button = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
                 ActionChains(driver).move_to_element(logout_menu_button).click().perform()
@@ -398,10 +398,8 @@ def process_cplus():
                 ActionChains(driver).move_to_element(logout_option).click().perform()
                 print("CPLUS: Logout 選項點擊成功", flush=True)
                 time.sleep(2)
-            except Exception as e:
-                print(f"CPLUS: 登出失敗: {str(e)}", flush=True)
-            driver.quit()
-            print("CPLUS WebDriver 關閉", flush=True)
+        except Exception as e:
+            print(f"CPLUS: 登出失敗: {str(e)}", flush=True)
 
 # Barge 登入
 def barge_login(driver, wait):
@@ -504,11 +502,11 @@ def process_barge():
         if not success:
             print(f"Barge 下載經過 {MAX_RETRIES} 次嘗試失敗", flush=True)
 
-        return downloaded_files
+        return downloaded_files, driver
 
     except Exception as e:
         print(f"Barge 總錯誤: {str(e)}", flush=True)
-        return downloaded_files
+        return downloaded_files, driver
 
     finally:
         try:
@@ -548,35 +546,6 @@ def process_barge():
         except Exception as e:
             print(f"Barge: 登出失敗: {str(e)}", flush=True)
 
-        if driver:
-            driver.quit()
-            print("Barge WebDriver 關閉", flush=True)
-
-# 發送失敗郵件
-def send_fail_email(error_msg):
-    try:
-        smtp_server = 'smtp.zoho.com'
-        smtp_port = 587
-        sender_email = os.environ.get('ZOHO_EMAIL', 'paklun_ckline@zohomail.com')
-        sender_password = os.environ.get('ZOHO_PASSWORD', '@d6G.Pie5UkEPqm')
-        receiver_email = 'paklun@ckline.com.hk'
-
-        msg = MIMEMultipart()
-        msg['From'] = sender_email
-        msg['To'] = receiver_email
-        msg['Subject'] = f"[TESTING] HIT DAILY FAIL {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-        body = f"下載失敗: {error_msg}"
-        msg.attach(MIMEText(body, 'plain'))
-
-        server = smtplib.SMTP(smtp_server, smtp_port)
-        server.starttls()
-        server.login(sender_email, sender_password)
-        server.sendmail(sender_email, receiver_email, msg.as_string())
-        server.quit()
-        print("Fail郵件發送成功!", flush=True)
-    except Exception as e:
-        print(f"Fail郵件發送失敗: {str(e)}", flush=True)
-
 # 主函數
 def main():
     clear_download_dirs()
@@ -585,15 +554,25 @@ def main():
     house_file_count = [0]
     house_button_count = [0]
     barge_files = set()
+    cplus_driver = None
+    barge_driver = None
 
-    def update_cplus_files_and_count(result):
-        files, count, button_count = result
+    def update_cplus(result):
+        files, count, button_count, drv = result
         cplus_files.update(files)
         house_file_count[0] = count
         house_button_count[0] = button_count
+        nonlocal cplus_driver
+        cplus_driver = drv
 
-    cplus_thread = threading.Thread(target=lambda: update_cplus_files_and_count(process_cplus()))
-    barge_thread = threading.Thread(target=lambda: barge_files.update(process_barge()))
+    def update_barge(result):
+        files, drv = result
+        barge_files.update(files)
+        nonlocal barge_driver
+        barge_driver = drv
+
+    cplus_thread = threading.Thread(target=lambda: update_cplus(process_cplus()))
+    barge_thread = threading.Thread(target=lambda: update_barge(process_barge()))
 
     cplus_thread.start()
     barge_thread.start()
@@ -662,11 +641,17 @@ def main():
             print("郵件發送成功!", flush=True)
         except Exception as e:
             print(f"郵件發送失敗: {str(e)}", flush=True)
-            send_fail_email(f"郵件發送錯誤: {str(e)}")
     else:
         error_msg = f"文件不齊全: 缺少必須文件 (has_required={has_required}) 或 House文件不足 (download={house_download_count}, button={house_button_count[0]})"
         print(error_msg, flush=True)
-        send_fail_email(error_msg)
+
+    # 關閉兩個WebDriver
+    if cplus_driver:
+        cplus_driver.quit()
+        print("CPLUS WebDriver 關閉", flush=True)
+    if barge_driver:
+        barge_driver.quit()
+        print("Barge WebDriver 關閉", flush=True)
 
     print("腳本完成", flush=True)
 
