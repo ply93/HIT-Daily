@@ -321,8 +321,7 @@ def process_cplus_house(driver, wait, initial_files):
         "//table//tbody//tr//td//button[.//span[contains(text(), 'Download')]]",
         "//button[contains(@class, 'MuiButtonBase-root') and not(@disabled)]//svg[@data-testid='DownloadIcon']",
         "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button",
-        "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td//button[contains(@aria-label, 'download') or contains(@title, 'download')]",
-        "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button[not(@disabled)]"  # 加更多 general
+        "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td//button[contains(@aria-label, 'download') or contains(@title, 'download')]"
     ]
     excel_buttons = []
     for xpath in xpath_attempts:
