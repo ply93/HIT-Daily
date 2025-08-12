@@ -50,4 +50,5 @@ jobs:
           SITE_PASSWORD: ${{ secrets.SITE_PASSWORD }}
           ZOHO_EMAIL: ${{ secrets.ZOHO_EMAIL }}
           ZOHO_PASSWORD: ${{ secrets.ZOHO_PASSWORD }}
+          BARGE_PASSWORD: ${{ secrets.BARGE_PASSWORD }}
         run: python House3.py
