@@ -37,7 +37,7 @@ CPLUS_ONHAND_COUNT = 1  # OnHandContainerList
 BARGE_COUNT = 1  # Barge
 MIN_HOUSE_BUTTONS = 1  # 最小預期 Housekeeping buttons，如果少於此，不 send email (改為1，因為可能有1-6)
 MAX_RETRIES = 3
-WAIT_TIMEOUT = 10  # 減低 general wait 到 10s
+WAIT_TIMEOUT = 20 
 DOWNLOAD_TIMEOUT = 15  # 減低 file wait 到 15s
 
 # 重試裝飾器
