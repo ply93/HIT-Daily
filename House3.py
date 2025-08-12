@@ -25,6 +25,7 @@ CPLUS_ONHAND_COUNT = 1  # OnHandContainerList
 BARGE_COUNT = 1  # Barge
 MAX_RETRIES = 3
 DOWNLOAD_TIMEOUT = 15  # 加長下載等待
+BUTTON_RETRY = 2  # House button fail時重試次數
 
 # 清空下載目錄
 def clear_download_dir():
@@ -291,49 +292,51 @@ def process_cplus_house(driver, wait, initial_files):
 
     for idx in range(button_count):
         success = False
-        try:
-            button_xpath = f"(//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button[not(@disabled)])[{idx+1}]"
-            button = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, button_xpath)))
-            driver.execute_script("arguments[0].scrollIntoView(true);", button)
-            time.sleep(1.5)
-
+        for retry in range(BUTTON_RETRY):
             try:
-                report_name = driver.find_element(By.XPATH, f"//table[contains(@class, 'MuiTable-root')]//tbody//tr[{idx+1}]//td[3]").text
-                print(f"CPLUS: 準備點擊第 {idx+1} 個 Excel 按鈕，報告名稱: {report_name}", flush=True)
-            except:
-                print(f"CPLUS: 無法獲取第 {idx+1} 個按鈕的報告名稱", flush=True)
+                button_xpath = f"(//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button[not(@disabled)])[{idx+1}]"
+                button = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, button_xpath)))
+                driver.execute_script("arguments[0].scrollIntoView(true);", button)
+                time.sleep(2)  # 加長sleep
 
-            driver.execute_script("arguments[0].click();", button)
-            print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 JavaScript 點擊成功", flush=True)
-            time.sleep(1.5)
+                try:
+                    report_name = driver.find_element(By.XPATH, f"//table[contains(@class, 'MuiTable-root')]//tbody//tr[{idx+1}]//td[3]").text
+                    print(f"CPLUS: 準備點擊第 {idx+1} 個 Excel 按鈕 (retry {retry+1})，報告名稱: {report_name}", flush=True)
+                except:
+                    print(f"CPLUS: 無法獲取第 {idx+1} 個按鈕的報告名稱", flush=True)
 
-            ActionChains(driver).move_to_element(button).pause(0.5).click().perform()
-            print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 ActionChains 點擊成功", flush=True)
+                driver.execute_script("arguments[0].click();", button)
+                print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 JavaScript 點擊成功", flush=True)
+                time.sleep(2)
 
-            temp_new = wait_for_new_file(local_initial, timeout=DOWNLOAD_TIMEOUT)
-            if temp_new:
-                filtered_temp = {f for f in temp_new if short_today in f and "_CKL.csv" in f}
-                if filtered_temp:
-                    print(f"CPLUS: 第 {idx+1} 個按鈕下載新文件: {', '.join(filtered_temp)}", flush=True)
-                    local_initial.update(temp_new)  # 更新initial以避免重複
-                    new_files.update(filtered_temp)
-                    success = True
+                ActionChains(driver).move_to_element(button).pause(0.5).click().perform()
+                print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 ActionChains 點擊成功", flush=True)
+
+                temp_new = wait_for_new_file(local_initial, timeout=DOWNLOAD_TIMEOUT)
+                if temp_new:
+                    filtered_temp = {f for f in temp_new if short_today in f and "_CKL.csv" in f}
+                    if filtered_temp:
+                        print(f"CPLUS: 第 {idx+1} 個按鈕下載新文件: {', '.join(filtered_temp)}", flush=True)
+                        local_initial.update(temp_new)  # 更新initial以避免重複
+                        new_files.update(filtered_temp)
+                        success = True
+                        break
+                    else:
+                        print(f"CPLUS: 第 {idx+1} 個按鈕下載文件但無匹配pattern (retry {retry+1})", flush=True)
                 else:
-                    print(f"CPLUS: 第 {idx+1} 個按鈕下載文件但無匹配pattern", flush=True)
-            else:
-                print(f"CPLUS: 第 {idx+1} 個按鈕未觸發新文件下載", flush=True)
-                driver.save_screenshot(f"house_button_{idx+1}_failure.png")
-                with open(f"house_button_{idx+1}_failure.html", "w", encoding="utf-8") as f:
+                    print(f"CPLUS: 第 {idx+1} 個按鈕未觸發新文件下載 (retry {retry+1})", flush=True)
+                    driver.save_screenshot(f"house_button_{idx+1}_retry_{retry+1}_failure.png")
+                    with open(f"house_button_{idx+1}_retry_{retry+1}_failure.html", "w", encoding="utf-8") as f:
+                        f.write(driver.page_source)
+
+            except Exception as e:
+                print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕點擊失敗 (retry {retry+1}): {str(e)}", flush=True)
+                driver.save_screenshot(f"house_button_{idx+1}_retry_{retry+1}_failure.png")
+                with open(f"house_button_{idx+1}_retry_{retry+1}_failure.html", "w", encoding="utf-8") as f:
                     f.write(driver.page_source)
 
-        except Exception as e:
-            print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕點擊失敗: {str(e)}", flush=True)
-            driver.save_screenshot(f"house_button_{idx+1}_failure.png")
-            with open(f"house_button_{idx+1}_failure.html", "w", encoding="utf-8") as f:
-                f.write(driver.page_source)
-
         if not success:
-            print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕失敗", flush=True)
+            print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕經過 {BUTTON_RETRY} 次重試失敗", flush=True)
 
     if new_files:
         print(f"CPLUS: Housekeeping Reports 下載完成，共 {len(new_files)} 個文件，預期 {button_count} 個", flush=True)
@@ -405,6 +408,16 @@ def process_cplus():
                 ActionChains(driver).move_to_element(logout_option).click().perform()
                 print("CPLUS: Logout 選項點擊成功", flush=True)
                 time.sleep(2)
+
+                # 加點擊Close
+                try:
+                    close_button = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='logout']/div[3]/div/div[3]/button/span[1]")))
+                    ActionChains(driver).move_to_element(close_button).click().perform()
+                    print("CPLUS: Close 按鈕點擊成功", flush=True)
+                    time.sleep(3)  # 等頁面
+                except Exception as e:
+                    print(f"CPLUS: Close 按鈕點擊失敗: {str(e)}", flush=True)
+
             except Exception as e:
                 print(f"CPLUS: 登出失敗: {str(e)}", flush=True)
             driver.quit()
@@ -530,7 +543,12 @@ def process_barge():
                     print("Barge: 工具欄點擊成功", flush=True)
                 except TimeoutException:
                     print("Barge: 主工具欄登出按鈕未找到，嘗試備用定位...", flush=True)
-                    raise
+                    try:
+                        logout_toolbar_barge = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'mat-icon-button') and contains(@aria-label, 'User')]")))
+                        driver.execute_script("arguments[0].click();", logout_toolbar_barge)
+                        print("Barge: 備用工具欄點擊成功", flush=True)
+                    except Exception as e:
+                        print(f"Barge: 備用登出失敗: {str(e)}", flush=True)
 
                 time.sleep(2)
 
@@ -559,31 +577,6 @@ def process_barge():
         if driver:
             driver.quit()
             print("Barge WebDriver 關閉", flush=True)
-
-# Fail email
-def send_fail_email(error_msg):
-    try:
-        smtp_server = 'smtp.zoho.com'
-        smtp_port = 587
-        sender_email = os.environ.get('ZOHO_EMAIL', 'paklun_ckline@zohomail.com')
-        sender_password = os.environ.get('ZOHO_PASSWORD', '@d6G.Pie5UkEPqm')
-        receiver_email = 'paklun@ckline.com.hk'
-
-        msg = MIMEMultipart()
-        msg['From'] = sender_email
-        msg['To'] = receiver_email
-        msg['Subject'] = f"[TESTING] HIT DAILY FAIL {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-        body = f"下載失敗: {error_msg}"
-        msg.attach(MIMEText(body, 'plain'))
-
-        server = smtplib.SMTP(smtp_server, smtp_port)
-        server.starttls()
-        server.login(sender_email, sender_password)
-        server.sendmail(sender_email, receiver_email, msg.as_string())
-        server.quit()
-        print("Fail郵件發送成功!", flush=True)
-    except Exception as e:
-        print(f"Fail郵件發送失敗: {str(e)}", flush=True)
 
 # 主函數
 def main():
@@ -653,11 +646,9 @@ def main():
             print("郵件發送成功!", flush=True)
         except Exception as e:
             print(f"郵件發送失敗: {str(e)}", flush=True)
-            send_fail_email(f"郵件發送錯誤: {str(e)}")
     else:
         error_msg = f"文件數不足或不匹配（總: {len(all_files)}/{expected_file_count}，House: {house_file_count[0]}/{house_button_count[0]}），放棄發送郵件"
         print(error_msg, flush=True)
-        send_fail_email(error_msg)
 
     print("腳本完成", flush=True)
 
