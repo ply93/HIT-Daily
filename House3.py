@@ -17,6 +17,10 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.common.exceptions import TimeoutException, ElementClickInterceptedException, NoSuchElementException
 from webdriver_manager.chrome import ChromeDriverManager
+import logging  # 新增
+from dotenv import load_dotenv  # 新增，需pip install python-dotenv；用於載入.env文件
+
+logging.basicConfig(level=logging.INFO)  # 配置logging
 
 # 全局變量
 cplus_download_dir = os.path.abspath("downloads_cplus")
@@ -546,8 +550,9 @@ def process_barge():
         except Exception as e:
             print(f"Barge: 登出失敗: {str(e)}", flush=True)
 
-# 主函數
+# 主函數 (修正版)
 def main():
+    load_dotenv()  # 載入環境變量
     clear_download_dirs()
 
     cplus_files = set()
@@ -605,92 +610,116 @@ def main():
     # 如果=0，則無需House文件
     house_ok = (house_button_count[0] == 0) or (house_download_count >= house_button_count[0])
 
-if has_required and house_ok:
-    logging.info("所有必須文件齊全，開始發送郵件...")
-    try:
-        # ... (配置部分不變，如 smtp_server 等)
+    if has_required and house_ok:
+        logging.info("所有必須文件齊全，開始發送郵件...")
+        try:
+            smtp_server = os.environ.get('SMTP_SERVER', 'smtp.zoho.com')
+            smtp_port = int(os.environ.get('SMTP_PORT', 587))
+            sender_email = os.environ['ZOHO_EMAIL']
+            sender_password = os.environ['ZOHO_PASSWORD']
+            receiver_emails = os.environ.get('RECEIVER_EMAILS', 'paklun@ckline.com.hk').split(',')
+            cc_emails = os.environ.get('CC_EMAILS', '').split(',') if os.environ.get('CC_EMAILS') else []
 
-        # 動態生成 HTML 表格
-        body_html = f"""
-        <html>
-        <body>
-        <p>Attached are the daily reports downloaded from CPLUS and Barge. Generated at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
-        <table border="1" style="border-collapse: collapse; width: 100%;">
-            <thead>
-                <tr>
-                    <th>Category</th>
-                    <th>Status</th>
-                    <th>File Names</th>
-                    <th>Count</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td>Container Movement Log (CPLUS)</td>
-                    <td>{'有' if any('cntrMoveLog' in f for f in downloaded_files) else '無'}</td>
-                    <td>{', '.join([f for f in downloaded_files if 'cntrMoveLog' in f]) or 'N/A'}</td>
-                    <td>{len([f for f in downloaded_files if 'cntrMoveLog' in f])}</td>
-                </tr>
-                <tr>
-                    <td>OnHand Container List (CPLUS)</td>
-                    <td>{'有' if any('data_' in f for f in downloaded_files) else '無'}</td>
-                    <td>{', '.join([f for f in downloaded_files if 'data_' in f]) or 'N/A'}</td>
-                    <td>{len([f for f in downloaded_files if 'data_' in f])}</td>
-                </tr>
-                <tr>
-                    <td>Housekeeping Reports (CPLUS)</td>
-                    <td>{'有 ({house_download_count}/{house_button_count[0]})' if house_download_count > 0 else '無'}</td>
-                    <td>{', '.join(house_files) or 'N/A'}</td>
-                    <td>{house_download_count}</td>
-                </tr>
-                <tr>
-                    <td>Barge Container Detail</td>
-                    <td>{'有' if any('ContainerDetailReport' in f for f in downloaded_files) else '無'}</td>
-                    <td>{', '.join([f for f in downloaded_files if 'ContainerDetailReport' in f]) or 'N/A'}</td>
-                    <td>{len([f for f in downloaded_files if 'ContainerDetailReport' in f])}</td>
-                </tr>
-                <tr>
-                    <td><strong>Total Files</strong></td>
-                    <td colspan="2"><strong>{len(downloaded_files)} files attached (in ZIP)</strong></td>
-                    <td><strong>{len(downloaded_files)}</strong></td>
-                </tr>
-            </tbody>
-        </table>
-        </body>
-        </html>
-        """
+            dry_run = os.environ.get('DRY_RUN', 'False').lower() == 'true'
+            if dry_run:
+                logging.info("Dry run 模式：只打印郵件內容，不發送。")
 
-        msg = MIMEMultipart('alternative')
-        msg['From'] = sender_email
-        msg['To'] = ', '.join(receiver_emails)
-        if cc_emails:
-            msg['Cc'] = ', '.join(cc_emails)
-        msg['Subject'] = f"[TESTING] HIT DAILY {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+            body_html = f"""
+            <html>
+            <body>
+            <p>Attached are the daily reports downloaded from CPLUS and Barge. Generated at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+            <table border="1" style="border-collapse: collapse; width: 100%;">
+                <thead>
+                    <tr>
+                        <th>Category</th>
+                        <th>Status</th>
+                        <th>File Names</th>
+                        <th>Count</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Container Movement Log (CPLUS)</td>
+                        <td>{'有' if any('cntrMoveLog' in f for f in downloaded_files) else '無'}</td>
+                        <td>{', '.join([f for f in downloaded_files if 'cntrMoveLog' in f]) or 'N/A'}</td>
+                        <td>{len([f for f in downloaded_files if 'cntrMoveLog' in f])}</td>
+                    </tr>
+                    <tr>
+                        <td>OnHand Container List (CPLUS)</td>
+                        <td>{'有' if any('data_' in f for f in downloaded_files) else '無'}</td>
+                        <td>{', '.join([f for f in downloaded_files if 'data_' in f]) or 'N/A'}</td>
+                        <td>{len([f for f in downloaded_files if 'data_' in f])}</td>
+                    </tr>
+                    <tr>
+                        <td>Housekeeping Reports (CPLUS)</td>
+                        <td>{'有 ({house_download_count}/{house_button_count[0]})' if house_download_count > 0 else '無'}</td>
+                        <td>{', '.join(house_files) or 'N/A'}</td>
+                        <td>{house_download_count}</td>
+                    </tr>
+                    <tr>
+                        <td>Barge Container Detail</td>
+                        <td>{'有' if any('ContainerDetailReport' in f for f in downloaded_files) else '無'}</td>
+                        <td>{', '.join([f for f in downloaded_files if 'ContainerDetailReport' in f]) or 'N/A'}</td>
+                        <td>{len([f for f in downloaded_files if 'ContainerDetailReport' in f])}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Total Files</strong></td>
+                        <td colspan="2"><strong>{len(downloaded_files)} files attached</strong></td>
+                        <td><strong>{len(downloaded_files)}</strong></td>
+                    </tr>
+                </tbody>
+            </table>
+            </body>
+            </html>
+            """
 
-        # 附加 HTML 正文（fallback 到 plain text）
-        msg.attach(MIMEText(body_html, 'html'))
-        plain_text = body_html.replace('<br>', '\n').replace('<table>', '').replace('</table>', '').replace('<tr>', '\n').replace('<td>', ' | ').replace('</td>', '').replace('<th>', ' | ').replace('</th>', '').strip()  # 簡單轉 plain text
-        msg.attach(MIMEText(plain_text, 'plain'))
+            msg = MIMEMultipart('alternative')
+            msg['From'] = sender_email
+            msg['To'] = ', '.join(receiver_emails)
+            if cc_emails:
+                msg['Cc'] = ', '.join(cc_emails)
+            msg['Subject'] = f"[TESTING] HIT DAILY {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
 
-        for file in downloaded_files:
-            if file in os.listdir(cplus_download_dir):
-                file_path = os.path.join(cplus_download_dir, file)
+            msg.attach(MIMEText(body_html, 'html'))
+            plain_text = body_html.replace('<br>', '\n').replace('<table>', '').replace('</table>', '').replace('<tr>', '\n').replace('<td>', ' | ').replace('</td>', '').replace('<th>', ' | ').replace('</th>', '').strip()
+            msg.attach(MIMEText(plain_text, 'plain'))
+
+            # 添加所有附件
+            for file in downloaded_files:
+                if file in os.listdir(cplus_download_dir):
+                    file_path = os.path.join(cplus_download_dir, file)
+                else:
+                    file_path = os.path.join(barge_download_dir, file)
+                if os.path.exists(file_path):
+                    attachment = MIMEBase('application', 'octet-stream')
+                    attachment.set_payload(open(file_path, 'rb').read())
+                    encoders.encode_base64(attachment)
+                    attachment.add_header('Content-Disposition', f'attachment; filename={file}')
+                    msg.attach(attachment)
+                else:
+                    logging.warning(f"附件不存在: {file_path}")
+
+            # 發送郵件
+            if not dry_run:
+                server = smtplib.SMTP(smtp_server, smtp_port)
+                server.starttls()
+                server.login(sender_email, sender_password)
+                all_receivers = receiver_emails + cc_emails
+                server.sendmail(sender_email, all_receivers, msg.as_string())
+                server.quit()
+                print("郵件發送成功!", flush=True)
             else:
-                file_path = os.path.join(barge_download_dir, file)
-            attachment = MIMEBase('application', 'octet-stream')
-            attachment.set_payload(open(file_path, 'rb').read())
-            encoders.encode_base64(attachment)
-            attachment.add_header('Content-Disposition', f'attachment; filename={file}')
-            msg.attach(attachment)
+                logging.info(f"模擬發送郵件：\nFrom: {sender_email}\nTo: {msg['To']}\nCc: {msg.get('Cc', '')}\nSubject: {msg['Subject']}\nBody: {body_html}")
 
-            server = smtplib.SMTP(smtp_server, smtp_port)
-            server.starttls()
-            server.login(sender_email, sender_password)
-            server.sendmail(sender_email, receiver_email, msg.as_string())
-            server.quit()
-            print("郵件發送成功!", flush=True)
-    except Exception as e:
-            print(f"郵件發送失敗: {str(e)}", flush=True)
+        except KeyError as ke:
+            logging.error(f"缺少環境變量: {ke}")
+        except smtplib.SMTPAuthenticationError:
+            logging.error("SMTP 認證失敗：檢查用戶名/密碼")
+        except smtplib.SMTPConnectError:
+            logging.error("SMTP 連接失敗：檢查伺服器/端口")
+        except Exception as e:
+            logging.error(f"郵件發送失敗: {str(e)}")
+
     else:
         error_msg = f"文件不齊全: 缺少必須文件 (has_required={has_required}) 或 House文件不足 (download={house_download_count}, button={house_button_count[0]})"
         print(error_msg, flush=True)
