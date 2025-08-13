@@ -624,14 +624,14 @@ def main():
             if dry_run:
                 logging.info("Dry run 模式：只打印郵件內容，不發送。")
 
-# 定義報告對應（基於housekeep_prefixes映射到名稱；假設順序匹配，你可調整）
-        house_report_names = [
-            "CONTAINER DAMAGE REPORT (LINE) ENTRY GATE + EXIT GATE",  # e.g. DM1C_
-            "CY - GATELOG",  # e.g. GA1_
-            "CONTAINER LIST (ON HAND)",  # e.g. IA17_
-            "CONTAINER LIST (DAMAGED)",  # e.g. IA5_
-            "ACTIVE REEFER CONTAINER ON HAND LIST",  # e.g. IA15_
-            "REEFER CONTAINER MONITOR REPORT"  # e.g. IE2_
+        # 定義報告對應（基於housekeep_prefixes映射到名稱；假設順序匹配，你可調整）
+                house_report_names = [
+                    "CONTAINER DAMAGE REPORT (LINE) ENTRY GATE + EXIT GATE",  # e.g. DM1C_
+                    "CY - GATELOG",  # e.g. GA1_
+                    "CONTAINER LIST (ON HAND)",  # e.g. IA17_
+                    "CONTAINER LIST (DAMAGED)",  # e.g. IA5_
+                    "ACTIVE REEFER CONTAINER ON HAND LIST",  # e.g. IA15_
+                    "REEFER CONTAINER MONITOR REPORT"  # e.g. IE2_
         ]
         # 假設house_files順序對應report names；實際可基於prefix匹配
         house_status = []
