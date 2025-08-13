@@ -162,6 +162,9 @@ def process_cplus_movement(driver, wait, initial_files):
                 except TimeoutException:
                     print(f"CPLUS: 備用 Search 按鈕 2 失敗 (嘗試 {attempt+1}/2)", flush=True)
     else:
+        driver.save_screenshot("movement_search_failure.png")
+        with open("movement_search_failure.html", "w", encoding="utf-8") as f:
+            f.write(driver.page_source)
         raise Exception("CPLUS: Container Movement Log Search 按鈕點擊失敗")
 
     print("CPLUS: 點擊 Download...", flush=True)
@@ -182,6 +185,9 @@ def process_cplus_movement(driver, wait, initial_files):
             print(f"CPLUS: Download 按鈕點擊失敗 (嘗試 {attempt+1}/2): {str(e)}", flush=True)
             time.sleep(0.5)
     else:
+        driver.save_screenshot("movement_download_failure.png")
+        with open("movement_download_failure.html", "w", encoding="utf-8") as f:
+            f.write(driver.page_source)
         raise Exception("CPLUS: Container Movement Log Download 按鈕點擊失敗")
 
     new_files = wait_for_new_file(cplus_download_dir, local_initial)
@@ -193,11 +199,15 @@ def process_cplus_movement(driver, wait, initial_files):
         if not filtered_files:
             print("CPLUS: 未下載預期檔案 (cntrMoveLog.xlsx)，記錄頁面狀態...", flush=True)
             driver.save_screenshot("movement_download_failure.png")
+            with open("movement_download_failure.html", "w", encoding="utf-8") as f:
+                f.write(driver.page_source)
             raise Exception("CPLUS: Container Movement Log 未下載預期檔案")
         return filtered_files
     else:
         print("CPLUS: Container Movement Log 未觸發新文件下載，記錄頁面狀態...", flush=True)
         driver.save_screenshot("movement_download_failure.png")
+        with open("movement_download_failure.html", "w", encoding="utf-8") as f:
+            f.write(driver.page_source)
         raise Exception("CPLUS: Container Movement Log 未觸發新文件下載")
 
 # CPLUS OnHandContainerList
@@ -225,21 +235,9 @@ def process_cplus_onhand(driver, wait, initial_files):
         except TimeoutException:
             print("CPLUS: 備用 Search 按鈕未找到，記錄頁面狀態...", flush=True)
             driver.save_screenshot("onhand_search_failure.png")
+            with open("onhand_search_failure.html", "w", encoding="utf-8") as f:
+                f.write(driver.page_source)
             raise Exception("CPLUS: OnHandContainerList Search 按鈕點擊失敗")
-    except Exception as e:
-        print(f"CPLUS: Search 完全失敗: {str(e)}", flush=True)
-        driver.save_screenshot("onhand_search_failure.png")  # 已存在
-        # 新加：保存 Page Source HTML
-        with open("onhand_search_failure.html", "w", encoding="utf-8") as f:
-            f.write(driver.page_source)
-        # 新加：保存 Browser Console Logs
-        try:
-            browser_logs = driver.get_log('browser')
-            with open("onhand_browser_logs.txt", "w", encoding="utf-8") as f:
-                f.write("\n".join([str(log) for log in browser_logs]))
-        except Exception as log_e:
-            print(f"無法獲取 Browser Logs: {str(log_e)}", flush=True)
-        raise Exception("CPLUS: OnHandContainerList Search 按鈕點擊失敗")
     time.sleep(0.5)
 
     print("CPLUS: 點擊 Export...", flush=True)
@@ -263,11 +261,15 @@ def process_cplus_onhand(driver, wait, initial_files):
         if not filtered_files:
             print("CPLUS: 未下載預期檔案 (data_*.csv)，記錄頁面狀態...", flush=True)
             driver.save_screenshot("onhand_download_failure.png")
+            with open("onhand_download_failure.html", "w", encoding="utf-8") as f:
+                f.write(driver.page_source)
             raise Exception("CPLUS: OnHandContainerList 未下載預期檔案")
         return filtered_files
     else:
         print("CPLUS: OnHandContainerList 未觸發新文件下載，記錄頁面狀態...", flush=True)
         driver.save_screenshot("onhand_download_failure.png")
+        with open("onhand_download_failure.html", "w", encoding="utf-8") as f:
+            f.write(driver.page_source)
         raise Exception("CPLUS: OnHandContainerList 未觸發新文件下載")
 
 # CPLUS Housekeeping Reports
