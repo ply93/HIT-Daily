@@ -672,16 +672,16 @@ if has_required and house_ok:
         plain_text = body_html.replace('<br>', '\n').replace('<table>', '').replace('</table>', '').replace('<tr>', '\n').replace('<td>', ' | ').replace('</td>', '').replace('<th>', ' | ').replace('</th>', '').strip()  # 簡單轉 plain text
         msg.attach(MIMEText(plain_text, 'plain'))
 
-            for file in downloaded_files:
-                if file in os.listdir(cplus_download_dir):
-                    file_path = os.path.join(cplus_download_dir, file)
-                else:
-                    file_path = os.path.join(barge_download_dir, file)
-                attachment = MIMEBase('application', 'octet-stream')
-                attachment.set_payload(open(file_path, 'rb').read())
-                encoders.encode_base64(attachment)
-                attachment.add_header('Content-Disposition', f'attachment; filename={file}')
-                msg.attach(attachment)
+        for file in downloaded_files:
+            if file in os.listdir(cplus_download_dir):
+                file_path = os.path.join(cplus_download_dir, file)
+            else:
+                file_path = os.path.join(barge_download_dir, file)
+            attachment = MIMEBase('application', 'octet-stream')
+            attachment.set_payload(open(file_path, 'rb').read())
+            encoders.encode_base64(attachment)
+            attachment.add_header('Content-Disposition', f'attachment; filename={file}')
+            msg.attach(attachment)
 
             server = smtplib.SMTP(smtp_server, smtp_port)
             server.starttls()
