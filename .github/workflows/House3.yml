@@ -52,3 +52,13 @@ jobs:
           ZOHO_PASSWORD: ${{ secrets.ZOHO_PASSWORD }}
           BARGE_PASSWORD: ${{ secrets.BARGE_PASSWORD }}
         run: python House3.py
+
+      - name: Upload artifacts  # 新加步驟
+        if: always()  # 即使失敗都上傳
+        uses: actions/upload-artifact@v3
+        with:
+          name: debug-files
+          path: |
+            *.png
+            *.html
+            *.txt  # 上傳 screenshot, html, logs
