@@ -1,17 +1,14 @@
 name: Combine 3
-
 on:
   workflow_dispatch:
-
 jobs:
   download:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
       - name: Cache dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cache/pip
@@ -20,12 +17,10 @@ jobs:
           key: ${{ runner.os }}-pip-chromium-wdm-${{ hashFiles('**/requirements.txt') }}
           restore-keys: |
             ${{ runner.os }}-pip-chromium-wdm-
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.9'
-
       - name: Install dependencies
         run: |
           pip install --no-cache-dir selenium webdriver-manager pytz
@@ -36,15 +31,12 @@ jobs:
             sudo cp /usr/bin/chromium-browser ~/chromium-bin/ || cp /usr/bin/chromium-browser ~/chromium-bin/
             sudo cp /usr/bin/chromedriver ~/chromium-bin/ || cp /usr/bin/chromedriver ~/chromium-bin/
           fi
-
       - name: Set timezone to HKT
         run: |
           sudo ln -sf /usr/share/zoneinfo/Asia/Hong_Kong /etc/localtime
           sudo sh -c 'echo "Asia/Hong_Kong" > /etc/timezone'
-
       - name: Verify timezone
         run: date
-
       - name: Run Download Script
         env:
           SITE_PASSWORD: ${{ secrets.SITE_PASSWORD }}
@@ -52,13 +44,12 @@ jobs:
           ZOHO_PASSWORD: ${{ secrets.ZOHO_PASSWORD }}
           BARGE_PASSWORD: ${{ secrets.BARGE_PASSWORD }}
         run: python House3.py
-
-      - name: Upload artifacts  # 新加步驟
-        if: always()  # 即使失敗都上傳
-        uses: actions/upload-artifact@v3
+      - name: Upload artifacts # 新加步驟
+        if: always() # 即使失敗都上傳
+        uses: actions/upload-artifact@v4
         with:
           name: debug-files
           path: |
             *.png
             *.html
-            *.txt  # 上傳 screenshot, html, logs
+            *.txt # 上傳 screenshot, html, logs
