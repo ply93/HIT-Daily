@@ -605,22 +605,72 @@ def main():
     # 如果=0，則無需House文件
     house_ok = (house_button_count[0] == 0) or (house_download_count >= house_button_count[0])
 
-    if has_required and house_ok:
-        print("所有必須文件齊全，開始發送郵件...", flush=True)
-        try:
-            smtp_server = 'smtp.zoho.com'
-            smtp_port = 587
-            sender_email = os.environ.get('ZOHO_EMAIL', 'paklun_ckline@zohomail.com')
-            sender_password = os.environ.get('ZOHO_PASSWORD', '@d6G.Pie5UkEPqm')
-            receiver_email = 'paklun@ckline.com.hk'
+if has_required and house_ok:
+    logging.info("所有必須文件齊全，開始發送郵件...")
+    try:
+        # ... (配置部分不變，如 smtp_server 等)
 
-            msg = MIMEMultipart()
-            msg['From'] = sender_email
-            msg['To'] = receiver_email
-            msg['Subject'] = f"[TESTING] HIT DAILY {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        # 動態生成 HTML 表格
+        body_html = f"""
+        <html>
+        <body>
+        <p>Attached are the daily reports downloaded from CPLUS and Barge. Generated at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+        <table border="1" style="border-collapse: collapse; width: 100%;">
+            <thead>
+                <tr>
+                    <th>Category</th>
+                    <th>Status</th>
+                    <th>File Names</th>
+                    <th>Count</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Container Movement Log (CPLUS)</td>
+                    <td>{'有' if any('cntrMoveLog' in f for f in downloaded_files) else '無'}</td>
+                    <td>{', '.join([f for f in downloaded_files if 'cntrMoveLog' in f]) or 'N/A'}</td>
+                    <td>{len([f for f in downloaded_files if 'cntrMoveLog' in f])}</td>
+                </tr>
+                <tr>
+                    <td>OnHand Container List (CPLUS)</td>
+                    <td>{'有' if any('data_' in f for f in downloaded_files) else '無'}</td>
+                    <td>{', '.join([f for f in downloaded_files if 'data_' in f]) or 'N/A'}</td>
+                    <td>{len([f for f in downloaded_files if 'data_' in f])}</td>
+                </tr>
+                <tr>
+                    <td>Housekeeping Reports (CPLUS)</td>
+                    <td>{'有 ({house_download_count}/{house_button_count[0]})' if house_download_count > 0 else '無'}</td>
+                    <td>{', '.join(house_files) or 'N/A'}</td>
+                    <td>{house_download_count}</td>
+                </tr>
+                <tr>
+                    <td>Barge Container Detail</td>
+                    <td>{'有' if any('ContainerDetailReport' in f for f in downloaded_files) else '無'}</td>
+                    <td>{', '.join([f for f in downloaded_files if 'ContainerDetailReport' in f]) or 'N/A'}</td>
+                    <td>{len([f for f in downloaded_files if 'ContainerDetailReport' in f])}</td>
+                </tr>
+                <tr>
+                    <td><strong>Total Files</strong></td>
+                    <td colspan="2"><strong>{len(downloaded_files)} files attached (in ZIP)</strong></td>
+                    <td><strong>{len(downloaded_files)}</strong></td>
+                </tr>
+            </tbody>
+        </table>
+        </body>
+        </html>
+        """
 
-            body = "Attached are the daily reports downloaded from CPLUS (Container Movement Log, OnHand Container List, and Housekeeping Reports) and Barge (Container Detail)."
-            msg.attach(MIMEText(body, 'plain'))
+        msg = MIMEMultipart('alternative')
+        msg['From'] = sender_email
+        msg['To'] = ', '.join(receiver_emails)
+        if cc_emails:
+            msg['Cc'] = ', '.join(cc_emails)
+        msg['Subject'] = f"[TESTING] HIT DAILY {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+
+        # 附加 HTML 正文（fallback 到 plain text）
+        msg.attach(MIMEText(body_html, 'html'))
+        plain_text = body_html.replace('<br>', '\n').replace('<table>', '').replace('</table>', '').replace('<tr>', '\n').replace('<td>', ' | ').replace('</td>', '').replace('<th>', ' | ').replace('</th>', '').strip()  # 簡單轉 plain text
+        msg.attach(MIMEText(plain_text, 'plain'))
 
             for file in downloaded_files:
                 if file in os.listdir(cplus_download_dir):
