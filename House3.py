@@ -624,65 +624,109 @@ def main():
             if dry_run:
                 logging.info("Dry run 模式：只打印郵件內容，不發送。")
 
-            body_html = f"""
-            <html>
-            <body>
-            <p>Attached are the daily reports downloaded from CPLUS and Barge. Generated at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
-            <table border="1" style="border-collapse: collapse; width: 100%;">
-                <thead>
-                    <tr>
-                        <th>Category</th>
-                        <th>Status</th>
-                        <th>File Names</th>
-                        <th>Count</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td>Container Movement Log (CPLUS)</td>
-                        <td>{'有' if any('cntrMoveLog' in f for f in downloaded_files) else '無'}</td>
-                        <td>{', '.join([f for f in downloaded_files if 'cntrMoveLog' in f]) or 'N/A'}</td>
-                        <td>{len([f for f in downloaded_files if 'cntrMoveLog' in f])}</td>
-                    </tr>
-                    <tr>
-                        <td>OnHand Container List (CPLUS)</td>
-                        <td>{'有' if any('data_' in f for f in downloaded_files) else '無'}</td>
-                        <td>{', '.join([f for f in downloaded_files if 'data_' in f]) or 'N/A'}</td>
-                        <td>{len([f for f in downloaded_files if 'data_' in f])}</td>
-                    </tr>
-                    <tr>
-                        <td>Housekeeping Reports (CPLUS)</td>
-                        <td>{'有 ({house_download_count}/{house_button_count[0]})' if house_download_count > 0 else '無'}</td>
-                        <td>{', '.join(house_files) or 'N/A'}</td>
-                        <td>{house_download_count}</td>
-                    </tr>
-                    <tr>
-                        <td>Barge Container Detail</td>
-                        <td>{'有' if any('ContainerDetailReport' in f for f in downloaded_files) else '無'}</td>
-                        <td>{', '.join([f for f in downloaded_files if 'ContainerDetailReport' in f]) or 'N/A'}</td>
-                        <td>{len([f for f in downloaded_files if 'ContainerDetailReport' in f])}</td>
-                    </tr>
-                    <tr>
-                        <td><strong>Total Files</strong></td>
-                        <td colspan="2"><strong>{len(downloaded_files)} files attached</strong></td>
-                        <td><strong>{len(downloaded_files)}</strong></td>
-                    </tr>
-                </tbody>
-            </table>
-            </body>
-            </html>
-            """
+# 定義報告對應（基於housekeep_prefixes映射到名稱；假設順序匹配，你可調整）
+        house_report_names = [
+            "CONTAINER DAMAGE REPORT (LINE) ENTRY GATE + EXIT GATE",  # e.g. DM1C_
+            "CY - GATELOG",  # e.g. GA1_
+            "CONTAINER LIST (ON HAND)",  # e.g. IA17_
+            "CONTAINER LIST (DAMAGED)",  # e.g. IA5_
+            "ACTIVE REEFER CONTAINER ON HAND LIST",  # e.g. IA15_
+            "REEFER CONTAINER MONITOR REPORT"  # e.g. IE2_
+        ]
+        # 假設house_files順序對應report names；實際可基於prefix匹配
+        house_status = []
+        house_file_names = []
+        for i, prefix in enumerate(housekeep_prefixes):
+            matching_files = [f for f in house_files if prefix in f]
+            status = '✓' if matching_files else '-'
+            file_name = ', '.join(matching_files) if matching_files else 'N/A'
+            house_status.append(status)
+            house_file_names.append(file_name)
 
-            msg = MIMEMultipart('alternative')
-            msg['From'] = sender_email
-            msg['To'] = ', '.join(receiver_emails)
-            if cc_emails:
-                msg['Cc'] = ', '.join(cc_emails)
-            msg['Subject'] = f"[TESTING] HIT DAILY {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        # 動態生成 HTML 表格（多層結構，用rowspan for CPLUS/BARGE）
+        body_html = f"""
+        <html>
+        <body>
+        <p>Attached are the daily reports downloaded from CPLUS and Barge. Generated at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+        <table border="1" style="border-collapse: collapse; width: 100%;">
+            <thead>
+                <tr>
+                    <th>Category</th>
+                    <th>Report</th>
+                    <th>File Names</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td rowspan="8">CPLUS</td>  <!-- rowspan=2 (main) + 6 (house) =8，但調整為實際 -->
+                    <td>Container Movement</td>
+                    <td>{', '.join([f for f in downloaded_files if 'cntrMoveLog' in f]) or 'N/A'}</td>
+                    <td>{'✓' if any('cntrMoveLog' in f for f in downloaded_files) else '-'}</td>
+                </tr>
+                <tr>
+                    <td>OnHandContainerList</td>
+                    <td>{', '.join([f for f in downloaded_files if 'data_' in f]) or 'N/A'}</td>
+                    <td>{'✓' if any('data_' in f for f in downloaded_files) else '-'}</td>
+                </tr>
+                <tr>
+                    <td>CONTAINER DAMAGE REPORT (LINE) ENTRY GATE + EXIT GATE</td>
+                    <td>{house_file_names[0] if len(house_file_names) > 0 else 'N/A'}</td>
+                    <td>{house_status[0] if len(house_status) > 0 else '-'}</td>
+                </tr>
+                <tr>
+                    <td>CY - GATELOG</td>
+                    <td>{house_file_names[1] if len(house_file_names) > 1 else 'N/A'}</td>
+                    <td>{house_status[1] if len(house_status) > 1 else '-'}</td>
+                </tr>
+                <tr>
+                    <td>CONTAINER LIST (ON HAND)</td>
+                    <td>{house_file_names[2] if len(house_file_names) > 2 else 'N/A'}</td>
+                    <td>{house_status[2] if len(house_status) > 2 else '-'}</td>
+                </tr>
+                <tr>
+                    <td>CONTAINER LIST (DAMAGED)</td>
+                    <td>{house_file_names[3] if len(house_file_names) > 3 else 'N/A'}</td>
+                    <td>{house_status[3] if len(house_status) > 3 else '-'}</td>
+                </tr>
+                <tr>
+                    <td>ACTIVE REEFER CONTAINER ON HAND LIST</td>
+                    <td>{house_file_names[4] if len(house_file_names) > 4 else 'N/A'}</td>
+                    <td>{house_status[4] if len(house_status) > 4 else '-'}</td>
+                </tr>
+                <tr>
+                    <td>REEFER CONTAINER MONITOR REPORT</td>
+                    <td>{house_file_names[5] if len(house_file_names) > 5 else 'N/A'}</td>
+                    <td>{house_status[5] if len(house_status) > 5 else '-'}</td>
+                </tr>
+                <tr>
+                    <td rowspan="1">BARGE</td>
+                    <td>Container Detail</td>
+                    <td>{', '.join([f for f in downloaded_files if 'ContainerDetailReport' in f]) or 'N/A'}</td>
+                    <td>{'✓' if any('ContainerDetailReport' in f for f in downloaded_files) else '-'}</td>
+                </tr>
+                <tr>
+                    <td colspan="2"><strong>TOTAL</strong></td>
+                    <td><strong>{len(downloaded_files)} files attached</strong></td>
+                    <td><strong>{sum(1 for f in downloaded_files)}</strong></td>
+                </tr>
+            </tbody>
+        </table>
+        </body>
+        </html>
+        """
 
-            msg.attach(MIMEText(body_html, 'html'))
-            plain_text = body_html.replace('<br>', '\n').replace('<table>', '').replace('</table>', '').replace('<tr>', '\n').replace('<td>', ' | ').replace('</td>', '').replace('<th>', ' | ').replace('</th>', '').strip()
-            msg.attach(MIMEText(plain_text, 'plain'))
+        msg = MIMEMultipart('alternative')
+        msg['From'] = sender_email
+        msg['To'] = ', '.join(receiver_emails)
+        if cc_emails:
+            msg['Cc'] = ', '.join(cc_emails)
+        msg['Subject'] = f"[TESTING] HIT DAILY {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+
+        # 附加 HTML 正文（fallback 到 plain text）
+        msg.attach(MIMEText(body_html, 'html'))
+        plain_text = body_html.replace('<br>', '\n').replace('<table>', '').replace('</table>', '').replace('<tr>', '\n').replace('<td>', ' | ').replace('</td>', '').replace('<th>', ' | ').replace('</th>', '').strip()  # 簡單轉 plain text
+        msg.attach(MIMEText(plain_text, 'plain'))
 
             # 添加所有附件
             for file in downloaded_files:
