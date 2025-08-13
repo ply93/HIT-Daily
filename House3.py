@@ -689,7 +689,7 @@ if has_required and house_ok:
             server.sendmail(sender_email, receiver_email, msg.as_string())
             server.quit()
             print("郵件發送成功!", flush=True)
-        except Exception as e:
+    except Exception as e:
             print(f"郵件發送失敗: {str(e)}", flush=True)
     else:
         error_msg = f"文件不齊全: 缺少必須文件 (has_required={has_required}) 或 House文件不足 (download={house_download_count}, button={house_button_count[0]})"
