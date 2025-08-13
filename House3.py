@@ -128,6 +128,22 @@ def cplus_login(driver, wait):
     print("CPLUS: LOGIN 按鈕點擊成功", flush=True)
     time.sleep(2)
 
+# 處理 popup 函數
+def handle_popup(driver, wait):
+    try:
+        # 等待 error popup 出現 (基於 HTML div)
+        error_div = wait.until(EC.presence_of_element_located((By.XPATH, "//div[contains(text(), 'System Error')]")))
+        print("檢測到 System Error popup", flush=True)
+        # 點擊 Close 按鈕
+        close_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Close')]")))
+        ActionChains(driver).move_to_element(close_button).click().perform()
+        print("已點擊 Close 按鈕", flush=True)
+        # 等待 popup 消失
+        wait.until(EC.invisibility_of_element_located((By.XPATH, "//div[contains(text(), 'System Error')]")))
+        print("Popup 已消失", flush=True)
+    except TimeoutException:
+        print("無 popup 檢測到", flush=True)
+
 # CPLUS Container Movement Log
 def process_cplus_movement(driver, wait, initial_files):
     print("CPLUS: 直接前往 Container Movement Log...", flush=True)
@@ -162,9 +178,6 @@ def process_cplus_movement(driver, wait, initial_files):
                 except TimeoutException:
                     print(f"CPLUS: 備用 Search 按鈕 2 失敗 (嘗試 {attempt+1}/2)", flush=True)
     else:
-        driver.save_screenshot("movement_search_failure.png")
-        with open("movement_search_failure.html", "w", encoding="utf-8") as f:
-            f.write(driver.page_source)
         raise Exception("CPLUS: Container Movement Log Search 按鈕點擊失敗")
 
     print("CPLUS: 點擊 Download...", flush=True)
@@ -185,9 +198,6 @@ def process_cplus_movement(driver, wait, initial_files):
             print(f"CPLUS: Download 按鈕點擊失敗 (嘗試 {attempt+1}/2): {str(e)}", flush=True)
             time.sleep(0.5)
     else:
-        driver.save_screenshot("movement_download_failure.png")
-        with open("movement_download_failure.html", "w", encoding="utf-8") as f:
-            f.write(driver.page_source)
         raise Exception("CPLUS: Container Movement Log Download 按鈕點擊失敗")
 
     new_files = wait_for_new_file(cplus_download_dir, local_initial)
@@ -199,15 +209,11 @@ def process_cplus_movement(driver, wait, initial_files):
         if not filtered_files:
             print("CPLUS: 未下載預期檔案 (cntrMoveLog.xlsx)，記錄頁面狀態...", flush=True)
             driver.save_screenshot("movement_download_failure.png")
-            with open("movement_download_failure.html", "w", encoding="utf-8") as f:
-                f.write(driver.page_source)
             raise Exception("CPLUS: Container Movement Log 未下載預期檔案")
         return filtered_files
     else:
         print("CPLUS: Container Movement Log 未觸發新文件下載，記錄頁面狀態...", flush=True)
         driver.save_screenshot("movement_download_failure.png")
-        with open("movement_download_failure.html", "w", encoding="utf-8") as f:
-            f.write(driver.page_source)
         raise Exception("CPLUS: Container Movement Log 未觸發新文件下載")
 
 # CPLUS OnHandContainerList
@@ -235,8 +241,6 @@ def process_cplus_onhand(driver, wait, initial_files):
         except TimeoutException:
             print("CPLUS: 備用 Search 按鈕未找到，記錄頁面狀態...", flush=True)
             driver.save_screenshot("onhand_search_failure.png")
-            with open("onhand_search_failure.html", "w", encoding="utf-8") as f:
-                f.write(driver.page_source)
             raise Exception("CPLUS: OnHandContainerList Search 按鈕點擊失敗")
     time.sleep(0.5)
 
@@ -261,15 +265,11 @@ def process_cplus_onhand(driver, wait, initial_files):
         if not filtered_files:
             print("CPLUS: 未下載預期檔案 (data_*.csv)，記錄頁面狀態...", flush=True)
             driver.save_screenshot("onhand_download_failure.png")
-            with open("onhand_download_failure.html", "w", encoding="utf-8") as f:
-                f.write(driver.page_source)
             raise Exception("CPLUS: OnHandContainerList 未下載預期檔案")
         return filtered_files
     else:
         print("CPLUS: OnHandContainerList 未觸發新文件下載，記錄頁面狀態...", flush=True)
         driver.save_screenshot("onhand_download_failure.png")
-        with open("onhand_download_failure.html", "w", encoding="utf-8") as f:
-            f.write(driver.page_source)
         raise Exception("CPLUS: OnHandContainerList 未觸發新文件下載")
 
 # CPLUS Housekeeping Reports
@@ -323,9 +323,15 @@ def process_cplus_house(driver, wait, initial_files):
             print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 JavaScript 點擊成功", flush=True)
             time.sleep(1.5)
 
+            # 处理 popup
+            handle_popup(driver, wait)
+
             ActionChains(driver).move_to_element(button).pause(0.5).click().perform()
             print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 ActionChains 點擊成功", flush=True)
             time.sleep(2)  # 加等確保trigger
+
+            # 处理 popup
+            handle_popup(driver, wait)
 
             temp_new = wait_for_new_file(cplus_download_dir, local_initial)
             if temp_new:
