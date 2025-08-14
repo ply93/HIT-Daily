@@ -15,7 +15,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.action_chains import ActionChains
-from selenium.common.exceptions import TimeoutException, ElementClickInterceptedException, NoSuchElementException
+from selenium.common.exceptions import TimeoutException, ElementClickInterceptedException, NoSuchElementException, AlertPresentException
 from webdriver_manager.chrome import ChromeDriverManager
 import logging  # 新增
 from dotenv import load_dotenv  # 新增，需pip install python-dotenv；用於載入.env文件
@@ -92,18 +92,23 @@ def wait_for_new_file(download_dir, initial_files, timeout=DOWNLOAD_TIMEOUT):
         time.sleep(1)
     return set()
 
-# 處理 popup 函數 (timeout 改 5s)
+# 處理 popup 函數 (timeout 改 5s, 改 XPath 匹配 substring)
 def handle_popup(driver, wait):
     try:
-        error_div = WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.XPATH, "//div[contains(text(), 'System Error')]")))
+        # 更寬鬆 XPath
+        error_div = WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.XPATH, "//div[contains(., 'System Error')]")))
         logging.info("檢測到 System Error popup")
-        close_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Close')]")))
+        # 點擊 Close (加 fallback if button text vary)
+        close_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(., 'Close')]")))
         ActionChains(driver).move_to_element(close_button).click().perform()
         logging.info("已點擊 Close 按鈕")
-        WebDriverWait(driver, 5).until(EC.invisibility_of_element_located((By.XPATH, "//div[contains(text(), 'System Error')]")))
+        WebDriverWait(driver, 5).until(EC.invisibility_of_element_located((By.XPATH, "//div[contains(., 'System Error')]")))
         logging.info("Popup 已消失")
     except TimeoutException:
         logging.debug("無 popup 檢測到")
+    except AlertPresentException:
+        driver.switch_to.alert.accept()
+        logging.info("處理 Alert popup")
 
 # CPLUS 登入
 def cplus_login(driver, wait):
@@ -176,6 +181,9 @@ def process_cplus_movement(driver, wait, initial_files):
                 except TimeoutException:
                     logging.debug(f"CPLUS: 備用 Search 按鈕 2 失敗 (嘗試 {attempt+1}/2)")
     else:
+        driver.save_screenshot("movement_search_failure.png")
+        with open("movement_search_failure.html", "w", encoding="utf-8") as f:
+            f.write(driver.page_source)
         raise Exception("CPLUS: Container Movement Log Search 按鈕點擊失敗")
 
     logging.info("CPLUS: 點擊 Download...")
@@ -196,6 +204,9 @@ def process_cplus_movement(driver, wait, initial_files):
             logging.debug(f"CPLUS: Download 按鈕點擊失敗 (嘗試 {attempt+1}/2): {str(e)}")
             time.sleep(0.5)
     else:
+        driver.save_screenshot("movement_download_failure.png")
+        with open("movement_download_failure.html", "w", encoding="utf-8") as f:
+            f.write(driver.page_source)
         raise Exception("CPLUS: Container Movement Log Download 按鈕點擊失敗")
 
     new_files = wait_for_new_file(cplus_download_dir, local_initial)
@@ -207,11 +218,15 @@ def process_cplus_movement(driver, wait, initial_files):
         if not filtered_files:
             logging.warning("CPLUS: 未下載預期檔案 (cntrMoveLog.xlsx)，記錄頁面狀態...")
             driver.save_screenshot("movement_download_failure.png")
+            with open("movement_download_failure.html", "w", encoding="utf-8") as f:
+                f.write(driver.page_source)
             raise Exception("CPLUS: Container Movement Log 未下載預期檔案")
         return filtered_files
     else:
         logging.warning("CPLUS: Container Movement Log 未觸發新文件下載，記錄頁面狀態...")
         driver.save_screenshot("movement_download_failure.png")
+        with open("movement_download_failure.html", "w", encoding="utf-8") as f:
+            f.write(driver.page_source)
         raise Exception("CPLUS: Container Movement Log 未觸發新文件下載")
 
 # CPLUS OnHandContainerList (加 fallback 定位)
@@ -241,6 +256,8 @@ def process_cplus_onhand(driver, wait, initial_files):
         except TimeoutException:
             logging.debug("CPLUS: 備用 Search 按鈕未找到，記錄頁面狀態...")
             driver.save_screenshot("onhand_search_failure.png")
+            with open("onhand_search_failure.html", "w", encoding="utf-8") as f:
+                f.write(driver.page_source)
             raise Exception("CPLUS: OnHandContainerList Search 按鈕點擊失敗")
     time.sleep(0.5)
 
@@ -265,11 +282,15 @@ def process_cplus_onhand(driver, wait, initial_files):
         if not filtered_files:
             logging.warning("CPLUS: 未下載預期檔案 (data_*.csv)，記錄頁面狀態...")
             driver.save_screenshot("onhand_download_failure.png")
+            with open("onhand_download_failure.html", "w", encoding="utf-8") as f:
+                f.write(driver.page_source)
             raise Exception("CPLUS: OnHandContainerList 未下載預期檔案")
         return filtered_files
     else:
         logging.warning("CPLUS: OnHandContainerList 未觸發新文件下載，記錄頁面狀態...")
         driver.save_screenshot("onhand_download_failure.png")
+        with open("onhand_download_failure.html", "w", encoding="utf-8") as f:
+            f.write(driver.page_source)
         raise Exception("CPLUS: OnHandContainerList 未觸發新文件下載")
 
 # CPLUS Housekeeping Reports (加數據檢查)
