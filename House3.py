@@ -365,16 +365,13 @@ def process_cplus_house(driver, wait, initial_files):
                 driver.save_screenshot(f"house_button_{idx+1}_failure.png")
                 with open(f"house_button_{idx+1}_failure.html", "w", encoding="utf-8") as f:
                     f.write(driver.page_source)
-
         except Exception as e:
             logging.error(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕點擊失敗: {str(e)}")
             driver.save_screenshot(f"house_button_{idx+1}_failure.png")
             with open(f"house_button_{idx+1}_failure.html", "w", encoding="utf-8") as f:
                 f.write(driver.page_source)
-
         if not success:
             logging.warning(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕失敗")
-
     if new_files:
         logging.info(f"CPLUS: Housekeeping Reports 下載完成，共 {len(new_files)} 個文件，預期 {button_count} 個")
         return new_files, len(new_files), button_count
@@ -384,7 +381,6 @@ def process_cplus_house(driver, wait, initial_files):
         with open("house_download_failure.html", "w", encoding="utf-8") as f:
             f.write(driver.page_source)
         raise Exception("CPLUS: Housekeeping Reports 未下載任何文件")
-
 def process_cplus():
     driver = None
     downloaded_files = set()
@@ -396,15 +392,12 @@ def process_cplus():
         logging.info("CPLUS WebDriver 初始化成功")
         driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
         wait = WebDriverWait(driver, 20)
-
         cplus_login(driver, wait)
-
         sections = [
             ('movement', process_cplus_movement),
             ('onhand', process_cplus_onhand),
             ('house', process_cplus_house)
         ]
-
         for section_name, section_func in sections:
             success = False
             for attempt in range(MAX_RETRIES):
@@ -425,13 +418,10 @@ def process_cplus():
                         time.sleep(5)
             if not success:
                 logging.error(f"CPLUS {section_name} 經過 {MAX_RETRIES} 次嘗試失敗")
-
         return downloaded_files, house_file_count, house_button_count, driver
-
     except Exception as e:
         logging.error(f"CPLUS 總錯誤: {str(e)}")
         return downloaded_files, house_file_count, house_button_count, driver
-
     finally:
         try:
             if driver:
@@ -439,69 +429,58 @@ def process_cplus():
                 logout_menu_button = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
                 ActionChains(driver).move_to_element(logout_menu_button).click().perform()
                 logging.info("CPLUS: 用戶菜單點擊成功")
-
                 logout_option = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//li[contains(text(), 'Logout')]")))
                 ActionChains(driver).move_to_element(logout_option).click().perform()
                 logging.info("CPLUS: Logout 選項點擊成功")
                 time.sleep(2)
         except Exception as e:
             logging.error(f"CPLUS: 登出失敗: {str(e)}")
-
 def barge_login(driver, wait):
     logging.info("Barge: 嘗試打開網站 https://barge.oneport.com/login...")
     driver.get("https://barge.oneport.com/login")
     logging.info(f"Barge: 網站已成功打開，當前 URL: {driver.current_url}")
     time.sleep(3)
-
     logging.info("Barge: 輸入 COMPANY ID...")
     company_id_field = wait.until(EC.presence_of_element_located((By.XPATH, "//input[contains(@id, 'mat-input') and @placeholder='Company ID' or contains(@id, 'mat-input-0')]")))
     company_id_field.send_keys("CKL")
     logging.info("Barge: COMPANY ID 輸入完成")
     time.sleep(1)
-
     logging.info("Barge: 輸入 USER ID...")
     user_id_field = driver.find_element(By.XPATH, "//input[contains(@id, 'mat-input') and @placeholder='User ID' or contains(@id, 'mat-input-1')]")
     user_id_field.send_keys("barge")
     logging.info("Barge: USER ID 輸入完成")
     time.sleep(1)
-
     logging.info("Barge: 輸入 PW...")
     password_field = driver.find_element(By.XPATH, "//input[contains(@id, 'mat-input') and @placeholder='Password' or contains(@id, 'mat-input-2')]")
     password_field.send_keys(os.environ.get('BARGE_PASSWORD', '123456'))
     logging.info("Barge: PW 輸入完成")
     time.sleep(1)
-
     logging.info("Barge: 點擊 LOGIN 按鈕...")
     login_button_barge = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'LOGIN') or contains(@class, 'mat-raised-button')]")))
     ActionChains(driver).move_to_element(login_button_barge).click().perform()
     logging.info("Barge: LOGIN 按鈕點擊成功")
     time.sleep(3)
-
 def process_barge_download(driver, wait, initial_files):
     logging.info("Barge: 直接前往 https://barge.oneport.com/downloadReport...")
     driver.get("https://barge.oneport.com/downloadReport")
     time.sleep(3)
     wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
     logging.info("Barge: downloadReport 頁面加載完成")
-
     logging.info("Barge: 選擇 Report Type...")
     report_type_trigger = wait.until(EC.element_to_be_clickable((By.XPATH, "//mat-form-field[.//mat-label[contains(text(), 'Report Type')]]//div[contains(@class, 'mat-select-trigger')]")))
     ActionChains(driver).move_to_element(report_type_trigger).click().perform()
     logging.info("Barge: Report Type 選擇開始")
     time.sleep(2)
-
     logging.info("Barge: 點擊 Container Detail...")
     container_detail_option = wait.until(EC.element_to_be_clickable((By.XPATH, "//mat-option//span[contains(text(), 'Container Detail')]")))
     ActionChains(driver).move_to_element(container_detail_option).click().perform()
     logging.info("Barge: Container Detail 點擊成功")
     time.sleep(2)
-
     logging.info("Barge: 點擊 Download...")
     local_initial = initial_files.copy()
     download_button_barge = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[span[text()='Download']]")))
     ActionChains(driver).move_to_element(download_button_barge).click().perform()
     logging.info("Barge: Download 按鈕點擊成功")
-
     new_files = wait_for_new_file(barge_download_dir, local_initial)
     if new_files:
         logging.info(f"Barge: Container Detail 下載完成，檔案位於: {barge_download_dir}")
@@ -517,7 +496,6 @@ def process_barge_download(driver, wait, initial_files):
         logging.warning("Barge: Container Detail 未觸發新文件下載，記錄頁面狀態...")
         driver.save_screenshot("barge_download_failure.png")
         raise Exception("Barge: Container Detail 未觸發新文件下載")
-
 def process_barge():
     driver = None
     downloaded_files = set()
@@ -527,9 +505,7 @@ def process_barge():
         logging.info("Barge WebDriver 初始化成功")
         driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
         wait = WebDriverWait(driver, 20)
-
         barge_login(driver, wait)
-
         success = False
         for attempt in range(MAX_RETRIES):
             try:
@@ -544,13 +520,10 @@ def process_barge():
                     time.sleep(5)
         if not success:
             logging.error(f"Barge 下載經過 {MAX_RETRIES} 次嘗試失敗")
-
         return downloaded_files, driver
-
     except Exception as e:
         logging.error(f"Barge 總錯誤: {str(e)}")
         return downloaded_files, driver
-
     finally:
         try:
             if driver:
@@ -564,9 +537,7 @@ def process_barge():
                 except TimeoutException:
                     logging.debug("Barge: 主工具欄登出按鈕未找到，嘗試備用定位...")
                     raise
-
                 time.sleep(2)
-
                 logging.info("Barge: 點擊 Logout 選項...")
                 try:
                     logout_span_xpath = "//div[contains(@class, 'mat-menu-panel')]//button//span[contains(text(), 'Logout')]"
@@ -583,23 +554,18 @@ def process_barge():
                     time.sleep(1)
                     driver.execute_script("arguments[0].click();", logout_button_barge)
                     logging.info("Barge: 備用 Logout 選項點擊成功")
-
                 time.sleep(5)
-
         except Exception as e:
             logging.error(f"Barge: 登出失敗: {str(e)}")
-
 def main():
     load_dotenv()
     clear_download_dirs()
-
     cplus_files = set()
     house_file_count = [0]
     house_button_count = [0]
     barge_files = set()
     cplus_driver = None
     barge_driver = None
-
     def update_cplus(result):
         files, count, button_count, drv = result
         cplus_files.update(files)
@@ -607,36 +573,28 @@ def main():
         house_button_count[0] = button_count
         nonlocal cplus_driver
         cplus_driver = drv
-
     def update_barge(result):
         files, drv = result
         barge_files.update(files)
         nonlocal barge_driver
         barge_driver = drv
-
     cplus_thread = threading.Thread(target=lambda: update_cplus(process_cplus()))
     barge_thread = threading.Thread(target=lambda: update_barge(process_barge()))
-
     cplus_thread.start()
     barge_thread.start()
-
     cplus_thread.join()
     barge_thread.join()
-
     logging.info("檢查所有下載文件...")
     downloaded_files = [f for f in os.listdir(cplus_download_dir) if f.endswith(('.csv', '.xlsx'))] + [f for f in os.listdir(barge_download_dir) if f.endswith(('.csv', '.xlsx'))]
     logging.info(f"總下載文件: {len(downloaded_files)} 個")
     for file in downloaded_files:
         logging.info(f"找到檔案: {file}")
-
     required_patterns = {'movement': 'cntrMoveLog', 'onhand': 'data_', 'barge': 'ContainerDetailReport'}
     housekeep_prefixes = ['IE2_', 'DM1C_', 'IA17_', 'GA1_', 'IA5_', 'IA15_']
-
     has_required = all(any(pattern in f for f in downloaded_files) for pattern in required_patterns.values())
     house_files = [f for f in downloaded_files if any(p in f for p in housekeep_prefixes)]
     house_download_count = len(house_files)
     house_ok = (house_button_count[0] == 0) or (house_download_count >= house_button_count[0])
-
     if has_required and house_ok:
         logging.info("所有必須文件齊全，開始發送郵件...")
         try:
@@ -646,15 +604,12 @@ def main():
             sender_password = os.environ['ZOHO_PASSWORD']
             receiver_emails = os.environ.get('RECEIVER_EMAILS', 'paklun@ckline.com.hk').split(',')
             cc_emails = os.environ.get('CC_EMAILS', '').split(',') if os.environ.get('CC_EMAILS') else []
-
             dry_run = os.environ.get('DRY_RUN', 'False').lower() == 'true'
             if dry_run:
                 logging.info("Dry run 模式：只打印郵件內容，不發送。")
-
             house_report_names = ["REEFER CONTAINER MONITOR REPORT", "CONTAINER DAMAGE REPORT (LINE) ENTRY GATE + EXIT GATE", "CONTAINER LIST (ON HAND)", "CY - GATELOG", "CONTAINER LIST (DAMAGED)", "ACTIVE REEFER CONTAINER ON HAND LIST"]
             house_status = ['✓' if [f for f in house_files if p in f] else '-' for p in housekeep_prefixes]
             house_file_names = [', '.join([f for f in house_files if p in f]) if [f for f in house_files if p in f] else 'N/A' for p in housekeep_prefixes]
-
             body_html = f"""
             <html><body><p>Attached are the daily reports downloaded from CPLUS and Barge. Generated at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
             <table border="1" style="border-collapse: collapse; width: 100%;"><thead><tr><th>Category</th><th>Report</th><th>File Names</th><th>Status</th></tr></thead><tbody>
@@ -670,18 +625,15 @@ def main():
             <tr><td colspan="2"><strong>TOTAL</strong></td><td><strong>{len(downloaded_files)} files attached</strong></td><td><strong>{len(downloaded_files)}</strong></td></tr>
             </tbody></table></body></html>
             """
-
             msg = MIMEMultipart('alternative')
             msg['From'] = sender_email
             msg['To'] = ', '.join(receiver_emails)
             if cc_emails:
                 msg['Cc'] = ', '.join(cc_emails)
             msg['Subject'] = f"[TESTING] HIT DAILY {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-
             msg.attach(MIMEText(body_html, 'html'))
             plain_text = body_html.replace('<br>', '\n').replace('<table>', '').replace('</table>', '').replace('<tr>', '\n').replace('<td>', ' | ').replace('</td>', '').replace('<th>', ' | ').replace('</th>', '').strip()
             msg.attach(MIMEText(plain_text, 'plain'))
-
             for file in downloaded_files:
                 if file in os.listdir(cplus_download_dir):
                     file_path = os.path.join(cplus_download_dir, file)
@@ -695,7 +647,6 @@ def main():
                     msg.attach(attachment)
                 else:
                     logging.warning(f"附件不存在: {file_path}")
-
             if not os.environ.get('DRY_RUN', 'False').lower() == 'true':
                 server = smtplib.SMTP(smtp_server, smtp_port)
                 server.starttls()
@@ -706,7 +657,6 @@ def main():
                 logging.info("郵件發送成功!")
             else:
                 logging.info(f"模擬發送郵件：\nFrom: {sender_email}\nTo: {msg['To']}\nCc: {msg.get('Cc', '')}\nSubject: {msg['Subject']}\nBody: {body_html}")
-
         except KeyError as ke:
             logging.error(f"缺少環境變量: {ke}")
         except smtplib.SMTPAuthenticationError:
@@ -715,20 +665,15 @@ def main():
             logging.error("SMTP 連接失敗：檢查伺服器/端口")
         except Exception as e:
             logging.error(f"郵件發送失敗: {str(e)}")
-            
     else:
         logging.warning(f"文件不齊全: 缺少必須文件 (has_required={has_required}) 或 House文件不足 (download={house_download_count}, button={house_button_count[0]})")
-
-    # 關閉兩個WebDriver
     if cplus_driver:
         cplus_driver.quit()
         logging.info("CPLUS WebDriver 關閉")
     if barge_driver:
         barge_driver.quit()
         logging.info("Barge WebDriver 關閉")
-
     logging.info("腳本完成")
-
 if __name__ == "__main__":
     setup_environment()
     main()
