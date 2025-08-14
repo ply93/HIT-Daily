@@ -128,22 +128,6 @@ def cplus_login(driver, wait):
     print("CPLUS: LOGIN 按鈕點擊成功", flush=True)
     time.sleep(2)
 
-# 處理 popup 函數
-def handle_popup(driver, wait):
-    try:
-        # 等待 error popup 出現 (基於 HTML div)
-        error_div = wait.until(EC.presence_of_element_located((By.XPATH, "//div[contains(text(), 'System Error')]")))
-        print("檢測到 System Error popup", flush=True)
-        # 點擊 Close 按鈕
-        close_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Close')]")))
-        ActionChains(driver).move_to_element(close_button).click().perform()
-        print("已點擊 Close 按鈕", flush=True)
-        # 等待 popup 消失
-        wait.until(EC.invisibility_of_element_located((By.XPATH, "//div[contains(text(), 'System Error')]")))
-        print("Popup 已消失", flush=True)
-    except TimeoutException:
-        print("無 popup 檢測到", flush=True)
-
 # CPLUS Container Movement Log
 def process_cplus_movement(driver, wait, initial_files):
     print("CPLUS: 直接前往 Container Movement Log...", flush=True)
@@ -272,6 +256,22 @@ def process_cplus_onhand(driver, wait, initial_files):
         driver.save_screenshot("onhand_download_failure.png")
         raise Exception("CPLUS: OnHandContainerList 未觸發新文件下載")
 
+# 處理 popup 函數 (timeout 改 5s)
+def handle_popup(driver, wait):
+    try:
+        # 等待 error popup 出現, timeout 5s
+        error_div = WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.XPATH, "//div[contains(text(), 'System Error')]")))
+        print("檢測到 System Error popup", flush=True)
+        # 點擊 Close 按鈕
+        close_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Close')]")))
+        ActionChains(driver).move_to_element(close_button).click().perform()
+        print("已點擊 Close 按鈕", flush=True)
+        # 等待 popup 消失
+        WebDriverWait(driver, 5).until(EC.invisibility_of_element_located((By.XPATH, "//div[contains(text(), 'System Error')]")))
+        print("Popup 已消失", flush=True)
+    except TimeoutException:
+        print("無 popup 檢測到", flush=True)
+
 # CPLUS Housekeeping Reports
 def process_cplus_house(driver, wait, initial_files):
     print("CPLUS: 前往 Housekeeping Reports 頁面...", flush=True)
@@ -323,14 +323,12 @@ def process_cplus_house(driver, wait, initial_files):
             print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 JavaScript 點擊成功", flush=True)
             time.sleep(1.5)
 
-            # 处理 popup
             handle_popup(driver, wait)
 
             ActionChains(driver).move_to_element(button).pause(0.5).click().perform()
             print(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 ActionChains 點擊成功", flush=True)
             time.sleep(2)  # 加等確保trigger
 
-            # 处理 popup
             handle_popup(driver, wait)
 
             temp_new = wait_for_new_file(cplus_download_dir, local_initial)
