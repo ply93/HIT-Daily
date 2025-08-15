@@ -285,13 +285,13 @@ def process_cplus_house(driver, wait, initial_files):
     logging.info("CPLUS: 等待表格加載...")
     try:
         wait = WebDriverWait(driver, 60)  # 延長至 60 秒
-        rows = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr[td[contains(text(), 'CONTAINER DAMAGE REPORT') or contains(text(), 'CY - GATELOG')]]")))
+        rows = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr[td[contains(text(), 'CONTAINER DAMAGE REPORT') or contains(text(), 'CY - GATELOG')] ]")))
         if len(rows) == 0:
             logging.warning("CPLUS: 無記錄，嘗試刷新...")
             driver.refresh()
-            time.sleep(10)
-            rows = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr[td[contains(text(), 'CONTAINER DAMAGE REPORT') or contains(text(), 'CY - GATELOG')]]")))
-        if len(rows) < 6:
+            time.sleep(5)  # 減短刷新等待
+            rows = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr[td[contains(text(), 'CONTAINER DAMAGE REPORT') or contains(text(), 'CY - GATELOG')] ]")))
+        if len(rows) < 5:  # 調整為 < 5, 根據圖片 5 行
             logging.warning("刷新後表格數據仍不足，記錄頁面狀態...")
             driver.save_screenshot("house_load_failure.png")
             with open("house_load_failure.html", "w", encoding="utf-8") as f:
@@ -299,17 +299,15 @@ def process_cplus_house(driver, wait, initial_files):
             raise Exception("CPLUS: Housekeeping Reports 表格數據不足")
         logging.info("CPLUS: 表格加載完成")
     except TimeoutException:
-        logging.warning("CPLUS: 表格未加載，嘗試刷新頁面...")
-        driver.refresh()
-        time.sleep(10)
-        rows = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
+        logging.warning("CPLUS: XPath 失敗，嘗試備用 CSS 定位...")
+        rows = wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, ".MuiTable-root tbody tr")))
         if len(rows) == 0:
-            logging.error("CPLUS: 刷新後仍無表格數據，記錄頁面狀態...")
+            logging.error("CPLUS: 備用定位仍無表格數據，記錄頁面狀態...")
             driver.save_screenshot("house_load_failure.png")
             with open("house_load_failure.html", "w", encoding="utf-8") as f:
                 f.write(driver.page_source)
             raise Exception("CPLUS: Housekeeping Reports 無表格數據")
-        logging.info("CPLUS: 表格加載完成 (after refresh)")
+        logging.info("CPLUS: 表格加載完成 (備用定位)")
 
     logging.info("CPLUS: 定位並點擊所有 Excel 下載按鈕...")
     local_initial = initial_files.copy()
