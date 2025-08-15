@@ -581,15 +581,8 @@ def barge_login(driver, wait):
     login_button_barge = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'LOGIN') or contains(@class, 'mat-raised-button')]")))
     ActionChains(driver).move_to_element(login_button_barge).click().perform()
     logging.info("Barge: LOGIN 按鈕點擊成功")
-    time.sleep(5)  # 改為 5s
-    # 檢查 login 成功
-    try:
-        download_report = wait.until(EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'Download Report')]")))
-        logging.info("Barge: Login 成功，檢測到 Download Report 頁")
-    except TimeoutException:
-        logging.error("Barge: Login 失敗，未檢測到 Download Report")
-        raise Exception("Barge: Login 失敗")
-
+    time.sleep(3)
+    
 def process_barge_download(driver, wait, initial_files):
     logging.info("Barge: 直接前往 https://barge.oneport.com/downloadReport...")
     driver.get("https://barge.oneport.com/downloadReport")
