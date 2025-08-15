@@ -313,20 +313,19 @@ def process_cplus_house(driver, wait, initial_files):
 
     logging.info("CPLUS: 定位並點擊所有 Excel 下載按鈕...")
     local_initial = initial_files.copy()
-    new_files = set()
+    new_files = set()  # 使用 set 避免重複
+    all_downloaded_files = set()  # 記錄所有下載文件以檢查重複
     excel_buttons = driver.find_elements(By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)]")
     button_count = len(excel_buttons)
-    logging.info(f"CPLUS: 找到 {button_count} 個 Excel 下載按鈕")
-
     if button_count == 0:
         logging.debug("CPLUS: 未找到 Excel 按鈕，嘗試原始定位...")
         excel_buttons = driver.find_elements(By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button[not(@disabled)]//svg[@viewBox='0 0 24 24']//path[@fill='#036e11']")
         button_count = len(excel_buttons)
-        logging.info(f"CPLUS: 原始定位找到 {button_count} 個 Excel 下載按鈕")
+    logging.info(f"CPLUS: 找到 {button_count} 個 Excel 下載按鈕 (預期 6 個)")
 
     report_file_mapping = []
     failed_buttons = []  # 記錄失敗的按鈕索引
-    for idx in range(button_count):
+    for idx in range(max(button_count, 6)):  # 確保至少檢查 6 個預期按鈕
         success = False
         max_retries = 2  # 每個按鈕最多重試 2 次
         retry_count = 0
@@ -364,6 +363,11 @@ def process_cplus_house(driver, wait, initial_files):
                 temp_new = wait_for_new_file(cplus_download_dir, local_initial, timeout=90)
                 if temp_new:
                     logging.info(f"CPLUS: 第 {idx+1} 個按鈕下載新文件: {', '.join(temp_new)}")
+                    # 檢查重複
+                    duplicate_files = temp_new & all_downloaded_files
+                    if duplicate_files:
+                        logging.warning(f"CPLUS: 檢測到重複文件: {duplicate_files}")
+                    all_downloaded_files.update(temp_new)
                     report_file_mapping.append((report_name, ', '.join(temp_new)))
                     local_initial.update(temp_new)
                     new_files.update(temp_new)
@@ -397,7 +401,7 @@ def process_cplus_house(driver, wait, initial_files):
             report_file_mapping.append((report_name, "N/A"))
             failed_buttons.append(idx)
     if new_files:
-        logging.info(f"CPLUS: Housekeeping Reports 下載完成，共 {len(new_files)} 個文件，預期 {button_count} 個")
+        logging.info(f"CPLUS: Housekeeping Reports 下載完成，共 {len(new_files)} 個文件，預期 {max(button_count, 6)} 個")
         for report, files in report_file_mapping:
             logging.info(f"報告: {report}, 文件: {files}")
         # 處理失敗的按鈕
@@ -438,6 +442,11 @@ def process_cplus_house(driver, wait, initial_files):
                     temp_new = wait_for_new_file(cplus_download_dir, local_initial, timeout=90)
                     if temp_new:
                         logging.info(f"CPLUS: 第 {idx+1} 個按鈕重新下載新文件: {', '.join(temp_new)}")
+                        # 檢查重複
+                        duplicate_files = temp_new & all_downloaded_files
+                        if duplicate_files:
+                            logging.warning(f"CPLUS: 檢測到重複文件: {duplicate_files}")
+                        all_downloaded_files.update(temp_new)
                         report_file_mapping[idx] = (report_name, ', '.join(temp_new))
                         local_initial.update(temp_new)
                         new_files.update(temp_new)
@@ -453,13 +462,7 @@ def process_cplus_house(driver, wait, initial_files):
                     failed_buttons.remove(idx)
             if failed_buttons:
                 logging.warning(f"CPLUS: 仍有 {len(failed_buttons)} 個按鈕失敗: {failed_buttons}")
-        return new_files, len(new_files), button_count
-    else:
-        logging.warning("CPLUS: Housekeeping Reports 未下載任何文件，記錄頁面狀態...")
-        driver.save_screenshot("house_download_failure.png")
-        with open("house_download_failure.html", "w", encoding="utf-8") as f:
-            f.write(driver.page_source)
-        raise Exception("CPLUS: Housekeeping Reports 未下載任何文件")
+    return new_files, len(new_files), max(button_count, 6)  # 傳回實際或預期按鈕數
 
 def process_cplus():
     driver = None
@@ -740,8 +743,8 @@ def main():
     house_download_count = len(house_files)
     house_ok = (house_button_count[0] == 0) or (house_download_count >= house_button_count[0])
 
-    if has_required and house_ok and (house_button_count[0] == 0 or house_download_count >= house_button_count[0]):
-        logging.info("所有必須文件齊全，開始發送郵件...")
+    if has_required and house_ok and house_file_count[0] == house_button_count[0] and house_button_count[0] > 0:
+        logging.info("所有必須文件齊全且 Housekeep 文件數量匹配按鈕數，開始發送郵件...")
         try:
             smtp_server = os.environ.get('SMTP_SERVER', 'smtp.zoho.com')
             smtp_port = int(os.environ.get('SMTP_PORT', 587))
@@ -826,7 +829,7 @@ def main():
         except Exception as e:
             logging.error(f"郵件發送失敗: {str(e)}")
     else:
-        logging.warning(f"文件不齊全: 缺少必須文件 (has_required={has_required}) 或 House文件不足 (download={house_download_count}, button={house_button_count[0]})")
+        logging.warning(f"文件不齊全: 缺少必須文件 (has_required={has_required}) 或 House文件數量不匹配 (expected={house_button_count[0]}, actual={house_file_count[0]})")
 
     if cplus_driver:
         cplus_driver.quit()
