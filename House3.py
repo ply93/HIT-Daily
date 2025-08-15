@@ -137,10 +137,11 @@ def cplus_login(driver, wait):
     logging.info("CPLUS: LOGIN 按鈕點擊成功")
     try:
         wait.until(EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'KEN (CKL)')]")))
-        logging.info("CPLUS: Login 成功，檢測到用戶名稱")
+        logging.info("CPLUS: 頁面加載完成，登錄成功")
     except TimeoutException:
-        logging.error("CPLUS: Login 失敗，未檢測到用戶名稱")
-        raise Exception("CPLUS: Login 失敗")
+        logging.error("CPLUS: 頁面加載超時或登錄失敗")
+        driver.save_screenshot("login_failure.png")
+        raise Exception("CPLUS: 登錄後頁面加載失敗")
 
 def process_cplus_movement(driver, wait, initial_files):
     logging.info("CPLUS: 直接前往 Container Movement Log...")
@@ -289,13 +290,13 @@ def process_cplus_house(driver, wait, initial_files):
 
     logging.info("CPLUS: 等待表格加載...")
     try:
-        wait = WebDriverWait(driver, 60)  # 延長至 60 秒
-        rows = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr[td[contains(text(), 'CONTAINER DAMAGE REPORT') or contains(text(), 'CY - GATELOG')] ]")))
+        wait = WebDriverWait(driver, 20)
+        rows = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
         if len(rows) == 0:
             logging.warning("CPLUS: 無記錄，嘗試刷新...")
             driver.refresh()
             time.sleep(5)
-            rows = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr[td[contains(text(), 'CONTAINER DAMAGE REPORT') or contains(text(), 'CY - GATELOG')] ]")))
+            rows = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
         if len(rows) < 5:
             logging.warning("刷新後表格數據仍不足，記錄頁面狀態...")
             driver.save_screenshot("house_load_failure.png")
@@ -580,7 +581,7 @@ def barge_login(driver, wait):
     login_button_barge = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'LOGIN') or contains(@class, 'mat-raised-button')]")))
     ActionChains(driver).move_to_element(login_button_barge).click().perform()
     logging.info("Barge: LOGIN 按鈕點擊成功")
-    time.sleep(3)
+    time.sleep(5)  # 改為 5s
     # 檢查 login 成功
     try:
         download_report = wait.until(EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'Download Report')]")))
