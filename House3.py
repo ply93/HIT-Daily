@@ -284,12 +284,12 @@ def process_cplus_house(driver, wait, initial_files):
     logging.info("CPLUS: 等待表格加載...")
     try:
         wait = WebDriverWait(driver, 60)  # 延長至 60 秒
-        rows = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr[td[contains(text(), 'CONTAINER DAMAGE REPORT')] or td[contains(text(), 'CY - GATELOG')]")))
+        rows = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr[td[contains(text(), 'CONTAINER DAMAGE REPORT') or contains(text(), 'CY - GATELOG')]")))
         if len(rows) == 0:
             logging.warning("CPLUS: 無記錄，嘗試刷新...")
             driver.refresh()
             time.sleep(10)
-            rows = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr[td[contains(text(), 'CONTAINER DAMAGE REPORT')] or td[contains(text(), 'CY - GATELOG')]")))
+            rows = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr[td[contains(text(), 'CONTAINER DAMAGE REPORT') or contains(text(), 'CY - GATELOG')]")))
         if len(rows) < 6:
             logging.warning("刷新後表格數據仍不足，記錄頁面狀態...")
             driver.save_screenshot("house_load_failure.png")
@@ -301,7 +301,13 @@ def process_cplus_house(driver, wait, initial_files):
         logging.warning("CPLUS: 表格未加載，嘗試刷新頁面...")
         driver.refresh()
         time.sleep(10)
-        wait.until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr[td[contains(text(), 'CONTAINER DAMAGE REPORT')] or td[contains(text(), 'CY - GATELOG')]")))
+        rows = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
+        if len(rows) == 0:
+            logging.error("CPLUS: 刷新後仍無表格數據，記錄頁面狀態...")
+            driver.save_screenshot("house_load_failure.png")
+            with open("house_load_failure.html", "w", encoding="utf-8") as f:
+                f.write(driver.page_source)
+            raise Exception("CPLUS: Housekeeping Reports 無表格數據")
         logging.info("CPLUS: 表格加載完成 (after refresh)")
 
     logging.info("CPLUS: 定位並點擊所有 Excel 下載按鈕...")
@@ -373,7 +379,7 @@ def process_cplus_house(driver, wait, initial_files):
                         logging.info(f"CPLUS: 刷新頁面並重試第 {idx+1} 個按鈕...")
                         driver.refresh()
                         time.sleep(5)
-                        wait.until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr[td[contains(text(), 'CONTAINER DAMAGE REPORT')] or td[contains(text(), 'CY - GATELOG')]")))
+                        wait.until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr[td[contains(text(), 'CONTAINER DAMAGE REPORT') or contains(text(), 'CY - GATELOG')]")))
             except Exception as e:
                 logging.error(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕點擊失敗: {str(e)}")
                 driver.save_screenshot(f"house_button_{idx+1}_failure.png")
@@ -384,7 +390,7 @@ def process_cplus_house(driver, wait, initial_files):
                     logging.info(f"CPLUS: 刷新頁面並重試第 {idx+1} 個按鈕...")
                     driver.refresh()
                     time.sleep(5)
-                    wait.until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr[td[contains(text(), 'CONTAINER DAMAGE REPORT')] or td[contains(text(), 'CY - GATELOG')]")))
+                    wait.until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr[td[contains(text(), 'CONTAINER DAMAGE REPORT') or contains(text(), 'CY - GATELOG')]")))
         if not success:
             logging.warning(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕失敗")
             report_file_mapping.append((report_name, "N/A"))
@@ -725,7 +731,7 @@ def main():
     house_download_count = len(house_files)
     house_ok = (house_button_count[0] == 0) or (house_download_count >= house_button_count[0])
 
-    if has_required and house_ok and house_download_count >= house_button_count[0]:
+    if has_required and house_ok and (house_button_count[0] == 0 or house_download_count >= house_button_count[0]):
         logging.info("所有必須文件齊全，開始發送郵件...")
         try:
             smtp_server = os.environ.get('SMTP_SERVER', 'smtp.zoho.com')
