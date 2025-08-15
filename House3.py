@@ -151,14 +151,14 @@ def process_cplus_movement(driver, wait, initial_files):
     logging.info("CPLUS: 點擊 Search...")
     local_initial = initial_files.copy()
     try:
-        search_button = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[1]/div/form/div[2]/div/div[4]/button")))
+        search_button = WebDriverWait(driver, 15).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[1]/div/form/div[2]/div/div[4]/button")))
         ActionChains(driver).move_to_element(search_button).click().perform()
         logging.info("CPLUS: Search 按鈕點擊成功")
     except TimeoutException:
         logging.warning("CPLUS: Search 按鈕超時，刷新頁面...")
         driver.refresh()
-        time.sleep(2)
-        search_button = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[1]/div/form/div[2]/div/div[4]/button")))
+        time.sleep(5)
+        search_button = WebDriverWait(driver, 15).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[1]/div/form/div[2]/div/div[4]/button")))
         ActionChains(driver).move_to_element(search_button).click().perform()
         logging.info("CPLUS: Search 按鈕點擊成功 (刷新後)")
 
@@ -208,8 +208,9 @@ def process_cplus_movement(driver, wait, initial_files):
 def process_cplus_onhand(driver, wait, initial_files):
     logging.info("CPLUS: 前往 OnHandContainerList 頁面...")
     driver.get("https://cplus.hit.com.hk/app/#/enquiry/OnHandContainerList")
-    time.sleep(3)  # 改為 3 秒
+    time.sleep(5)  # 延長至 5 秒
     wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
+    wait.until(EC.presence_of_element_located((By.XPATH, "//form//input")))
     logging.info("CPLUS: OnHandContainerList 頁面加載完成")
 
     logging.info("CPLUS: 等待表單字段加載...")
@@ -219,7 +220,7 @@ def process_cplus_onhand(driver, wait, initial_files):
     logging.info("CPLUS: 點擊 Search...")
     local_initial = initial_files.copy()
     try:
-        search_button_onhand = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div[1]/form/div[1]/div[24]/div[2]/button/span[1]")))
+        search_button_onhand = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div[1]/form/div[1]/div[24]/div[2]/button/span[1]")))
         try:
             ActionChains(driver).move_to_element(search_button_onhand).click().perform()
             logging.info("CPLUS: Search 按鈕點擊成功")
@@ -230,8 +231,8 @@ def process_cplus_onhand(driver, wait, initial_files):
     except TimeoutException:
         logging.warning("CPLUS: Search 按鈕超時，刷新頁面...")
         driver.refresh()
-        time.sleep(2)
-        search_button_onhand = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div[1]/form/div[1]/div[24]/div[2]/button/span[1]")))
+        time.sleep(5)
+        search_button_onhand = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div[1]/form/div[1]/div[24]/div[2]/button/span[1]")))
         try:
             ActionChains(driver).move_to_element(search_button_onhand).click().perform()
             logging.info("CPLUS: Search 按鈕點擊成功 (刷新後)")
@@ -284,12 +285,12 @@ def process_cplus_house(driver, wait, initial_files):
     logging.info("CPLUS: 等待表格加載...")
     try:
         wait = WebDriverWait(driver, 60)  # 延長至 60 秒
-        rows = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr[td[contains(text(), 'CONTAINER DAMAGE REPORT') or contains(text(), 'CY - GATELOG')]")))
+        rows = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr[td[contains(text(), 'CONTAINER DAMAGE REPORT') or contains(text(), 'CY - GATELOG')]]")))
         if len(rows) == 0:
             logging.warning("CPLUS: 無記錄，嘗試刷新...")
             driver.refresh()
             time.sleep(10)
-            rows = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr[td[contains(text(), 'CONTAINER DAMAGE REPORT') or contains(text(), 'CY - GATELOG')]")))
+            rows = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr[td[contains(text(), 'CONTAINER DAMAGE REPORT') or contains(text(), 'CY - GATELOG')]]")))
         if len(rows) < 6:
             logging.warning("刷新後表格數據仍不足，記錄頁面狀態...")
             driver.save_screenshot("house_load_failure.png")
@@ -505,28 +506,36 @@ def process_cplus():
         try:
             if driver:
                 print("CPLUS: 嘗試登出...", flush=True)
-                logout_menu_button = WebDriverWait(driver, 60).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
+                logout_menu_button = WebDriverWait(driver, 90).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
                 driver.execute_script("arguments[0].scrollIntoView(true);", logout_menu_button)
                 time.sleep(1)
                 driver.execute_script("arguments[0].click();", logout_menu_button)
                 print("CPLUS: 登錄按鈕點擊成功", flush=True)
                 try:
-                    logout_option = WebDriverWait(driver, 60).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='menu-list-grow']/div[6]/li")))
+                    logout_option = WebDriverWait(driver, 90).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='menu-list-grow']/div[6]/li")))
                     driver.execute_script("arguments[0].scrollIntoView(true);", logout_option)
                     time.sleep(1)
                     driver.execute_script("arguments[0].click();", logout_option)
                     print("CPLUS: Logout 選項點擊成功", flush=True)
                 except TimeoutException:
-                    logging.debug("CPLUS: 主 Logout 選項未找到，嘗試備用定位...")
+                    logging.debug("CPLUS: 主 Logout 選項未找到，嘗試備用定位 1...")
                     try:
-                        logout_option = WebDriverWait(driver, 60).until(EC.element_to_be_clickable((By.XPATH, "//li[contains(text(), 'Logout')]")))
+                        logout_option = WebDriverWait(driver, 90).until(EC.element_to_be_clickable((By.XPATH, "//li[contains(text(), 'Logout')]")))
                         driver.execute_script("arguments[0].scrollIntoView(true);", logout_option)
                         time.sleep(1)
                         driver.execute_script("arguments[0].click();", logout_option)
-                        print("CPLUS: 備用 Logout 選項點擊成功", flush=True)
+                        print("CPLUS: 備用 Logout 選項 1 點擊成功", flush=True)
                     except TimeoutException:
-                        logging.error("CPLUS: Logout 選項未找到")
-                        raise
+                        logging.debug("CPLUS: 備用 Logout 選項 1 失敗，嘗試備用定位 2...")
+                        try:
+                            logout_option = WebDriverWait(driver, 90).until(EC.element_to_be_clickable((By.XPATH, "//*[contains(@role, 'menuitem') and contains(., 'Logout')]")))
+                            driver.execute_script("arguments[0].scrollIntoView(true);", logout_option)
+                            time.sleep(1)
+                            driver.execute_script("arguments[0].click();", logout_option)
+                            print("CPLUS: 備用 Logout 選項 2 點擊成功", flush=True)
+                        except TimeoutException:
+                            logging.error("CPLUS: 所有 Logout 選項未找到")
+                            raise
                 time.sleep(5)
                 # 檢查並處理可能的 System Error 或 Logout 狀態
                 try:
