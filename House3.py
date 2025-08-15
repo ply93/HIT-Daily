@@ -498,46 +498,39 @@ def process_cplus():
     finally:
         try:
             if driver:
-                logging.info("CPLUS: 嘗試登出...")
-                logout_menu_button = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
-                ActionChains(driver).move_to_element(logout_menu_button).click().perform()
-                logging.info("CPLUS: 用戶菜單點擊成功")
-                logout_option = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//li[contains(text(), 'Logout')]")))
-                ActionChains(driver).move_to_element(logout_option).click().perform()
-                logging.info("CPLUS: Logout 選項點擊成功")
-                time.sleep(2)
+                print("CPLUS: 嘗試登出...", flush=True)
+                logout_menu_button = WebDriverWait(driver, 60).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
+                driver.execute_script("arguments[0].scrollIntoView(true);", logout_menu_button)
+                time.sleep(1)
+                driver.execute_script("arguments[0].click();", logout_menu_button)
+                print("CPLUS: 登錄按鈕點擊成功", flush=True)
                 try:
-                    WebDriverWait(driver, 60).until(EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'System Logout')]")))
-                    try:
-                        close_button = WebDriverWait(driver, 60).until(EC.element_to_be_clickable((By.XPATH, '//*[@id="logout"]/div[3]/div/div[3]/button/span[1]')))
-                        ActionChains(driver).move_to_element(close_button).click().perform()
-                        logging.info("CPLUS: Logout 後 CLOSE 按鈕點擊成功")
-                    except TimeoutException:
-                        logging.debug("CPLUS: 主 CLOSE 按鈕未找到，嘗試備用定位...")
-                        try:
-                            close_button = WebDriverWait(driver, 60).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Close')]")))
-                            ActionChains(driver).move_to_element(close_button).click().perform()
-                            logging.info("CPLUS: 備用 CLOSE 按鈕點擊成功")
-                        except TimeoutException:
-                            logging.warning("CPLUS: Logout 後無 CLOSE 按鈕，記錄頁面狀態...")
-                            driver.save_screenshot("logout_close_failure.png")
-                            with open("logout_close_failure.html", "w", encoding="utf-8") as f:
-                                f.write(driver.page_source)
-                            # 處理 System Error
-                            try:
-                                error_div = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//div[contains(text(), 'System Error')]")))
-                                close_button = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Close')]")))
-                                ActionChains(driver).move_to_element(close_button).click().perform()
-                                logging.info("CPLUS: 處理 System Error 並關閉")
-                            except TimeoutException:
-                                logging.debug("CPLUS: 無 System Error 檢測到")
+                    logout_option = WebDriverWait(driver, 60).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='menu-list-grow']/div[6]/li")))
+                    driver.execute_script("arguments[0].scrollIntoView(true);", logout_option)
+                    time.sleep(1)
+                    driver.execute_script("arguments[0].click();", logout_option)
+                    print("CPLUS: Logout 選項點擊成功", flush=True)
                 except TimeoutException:
-                    logging.error("CPLUS: 未檢測到 System Logout 狀態")
-                    driver.save_screenshot("logout_failure.png")
-                    with open("logout_failure.html", "w", encoding="utf-8") as f:
-                        f.write(driver.page_source)
-        except Exception as e:
-            logging.error(f"CPLUS: 登出失敗: {str(e)}")
+                    logging.debug("CPLUS: 主 Logout 選項未找到，嘗試備用定位...")
+                    try:
+                        logout_option = WebDriverWait(driver, 60).until(EC.element_to_be_clickable((By.XPATH, "//li[contains(text(), 'Logout')]")))
+                        driver.execute_script("arguments[0].scrollIntoView(true);", logout_option)
+                        time.sleep(1)
+                        driver.execute_script("arguments[0].click();", logout_option)
+                        print("CPLUS: 備用 Logout 選項點擊成功", flush=True)
+                    except TimeoutException:
+                        logging.error("CPLUS: Logout 選項未找到")
+                        raise
+                time.sleep(5)
+                # 檢查並處理可能的 System Error 或 Logout 狀態
+                try:
+                    WebDriverWait(driver, 10).until_not(EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'User Online')]")))
+                    print("CPLUS: 確認登出完成", flush=True)
+                except TimeoutException:
+                    logging.warning("CPLUS: 登出後仍檢測到 User Online，嘗試處理...")
+                    handle_popup(driver, wait)
+        except Exception as logout_error:
+            print(f"CPLUS: 登出失敗: {str(logout_error)}", flush=True)
             driver.save_screenshot("logout_failure.png")
             with open("logout_failure.html", "w", encoding="utf-8") as f:
                 f.write(driver.page_source)
