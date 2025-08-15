@@ -692,14 +692,6 @@ def process_barge():
 
                 time.sleep(5)
 
-                # 檢查 logout 成功
-                try:
-                    login_button_barge = wait.until(EC.presence_of_element_located((By.XPATH, "//button[contains(text(), 'LOGIN')]")))
-                    logging.info("Barge: Logout 成功，返回登錄頁")
-                except TimeoutException:
-                    logging.error("Barge: Logout 失敗，未返回登錄頁")
-                    raise Exception("Barge: Logout 失敗")
-
         except Exception as e:
             logging.error(f"Barge: 登出失敗: {str(e)}")
 
