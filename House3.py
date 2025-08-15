@@ -25,7 +25,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 cplus_download_dir = os.path.abspath("downloads_cplus")
 barge_download_dir = os.path.abspath("downloads_barge")
 MAX_RETRIES = 3
-DOWNLOAD_TIMEOUT = 90  # 延長至 90 秒
+DOWNLOAD_TIMEOUT = 45  # 縮短至 45 秒
 
 def clear_download_dirs():
     for dir_path in [cplus_download_dir, barge_download_dir]:
@@ -86,7 +86,7 @@ def wait_for_new_file(download_dir, initial_files, timeout=DOWNLOAD_TIMEOUT):
         new_files = {f for f in new_files if os.path.getsize(os.path.join(download_dir, f)) > 10240}  # >10KB
         if new_files:
             return new_files
-        time.sleep(2)
+        time.sleep(1)  # 縮短間隔到1秒
     return set()
 
 def handle_popup(driver, wait):
@@ -163,7 +163,7 @@ def process_cplus_movement(driver, wait, initial_files):
     except TimeoutException:
         logging.warning("CPLUS: Search 按鈕超時，刷新頁面...")
         driver.refresh()
-        time.sleep(5)
+        time.sleep(3)
         search_button = WebDriverWait(driver, 15).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[1]/div/form/div[2]/div/div[4]/button")))
         ActionChains(driver).move_to_element(search_button).click().perform()
         logging.info("CPLUS: Search 按鈕點擊成功 (刷新後)")
@@ -214,7 +214,7 @@ def process_cplus_movement(driver, wait, initial_files):
 def process_cplus_onhand(driver, wait, initial_files):
     logging.info("CPLUS: 前往 OnHandContainerList 頁面...")
     driver.get("https://cplus.hit.com.hk/app/#/enquiry/OnHandContainerList")
-    time.sleep(5)  # 延長至 5 秒
+    time.sleep(3)  # 縮短
     wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
     wait.until(EC.presence_of_element_located((By.XPATH, "//form//input")))
     logging.info("CPLUS: OnHandContainerList 頁面加載完成")
@@ -226,7 +226,7 @@ def process_cplus_onhand(driver, wait, initial_files):
     logging.info("CPLUS: 點擊 Search...")
     local_initial = initial_files.copy()
     try:
-        search_button_onhand = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div[1]/form/div[1]/div[24]/div[2]/button/span[1]")))
+        search_button_onhand = WebDriverWait(driver, 15).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div[1]/form/div[1]/div[24]/div[2]/button/span[1]")))
         try:
             ActionChains(driver).move_to_element(search_button_onhand).click().perform()
             logging.info("CPLUS: Search 按鈕點擊成功")
@@ -237,8 +237,8 @@ def process_cplus_onhand(driver, wait, initial_files):
     except TimeoutException:
         logging.warning("CPLUS: Search 按鈕超時，刷新頁面...")
         driver.refresh()
-        time.sleep(5)
-        search_button_onhand = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div[1]/form/div[1]/div[24]/div[2]/button/span[1]")))
+        time.sleep(3)
+        search_button_onhand = WebDriverWait(driver, 15).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div[1]/form/div[1]/div[24]/div[2]/button/span[1]")))
         try:
             ActionChains(driver).move_to_element(search_button_onhand).click().perform()
             logging.info("CPLUS: Search 按鈕點擊成功 (刷新後)")
@@ -284,7 +284,7 @@ def process_cplus_onhand(driver, wait, initial_files):
 def process_cplus_house(driver, wait, initial_files):
     logging.info("CPLUS: 前往 Housekeeping Reports 頁面...")
     driver.get("https://cplus.hit.com.hk/app/#/report/housekeepReport")
-    time.sleep(3)
+    time.sleep(1)  # 縮短
     wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
     logging.info("CPLUS: Housekeeping Reports 頁面加載完成")
 
@@ -294,7 +294,7 @@ def process_cplus_house(driver, wait, initial_files):
         if len(rows) == 0:
             logging.warning("CPLUS: 無記錄，嘗試刷新...")
             driver.refresh()
-            time.sleep(5)
+            time.sleep(3)
             rows = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
         logging.info(f"CPLUS: 找到 {len(rows)} 個報告行")
     except TimeoutException:
@@ -302,7 +302,7 @@ def process_cplus_house(driver, wait, initial_files):
         rows = wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, ".MuiTable-root tbody tr")))
         logging.info(f"CPLUS: 找到 {len(rows)} 個報告行 (備用定位)")
 
-    time.sleep(3)
+    time.sleep(1)  # 縮短
     logging.info("CPLUS: 定位並點擊所有 Excel 下載按鈕...")
     local_initial = initial_files.copy()
     new_files = set()
@@ -321,16 +321,16 @@ def process_cplus_house(driver, wait, initial_files):
 
     report_file_mapping = []
     failed_buttons = []
+    current_max_retries = 3  # 初始3
     for idx in range(button_count):
         success = False
-        max_retries = 5
         retry_count = 0
-        while retry_count < max_retries and not success:
+        while retry_count < current_max_retries and not success:
             try:
                 button_xpath = f"(//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button)[{idx+1}]"
-                button = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, button_xpath)))
+                button = WebDriverWait(driver, 15).until(EC.element_to_be_clickable((By.XPATH, button_xpath)))
                 driver.execute_script("arguments[0].scrollIntoView({block: 'center', behavior: 'smooth'});", button)
-                time.sleep(2)
+                time.sleep(1)  # 縮短
 
                 try:
                     report_name = driver.find_element(By.XPATH, f"(//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[3])[{idx+1}]").text
@@ -340,18 +340,18 @@ def process_cplus_house(driver, wait, initial_files):
 
                 driver.execute_script("arguments[0].click();", button)
                 logging.info(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 JS 點擊成功 (重試 {retry_count+1})")
-                time.sleep(3)
+                time.sleep(1)  # 縮短
                 handle_popup(driver, wait)
 
                 try:
-                    WebDriverWait(driver, 15).until(EC.invisibility_of_element_located((By.XPATH, "//*[contains(@class, 'spinner') or contains(@class, 'loading') or contains(@class, 'progress')]")))
+                    WebDriverWait(driver, 10).until(EC.invisibility_of_element_located((By.XPATH, "//*[contains(@class, 'spinner') or contains(@class, 'loading') or contains(@class, 'progress')]")))
                     logging.debug("CPLUS: 加載 spinner 已消失")
                 except TimeoutException:
                     logging.debug("CPLUS: 無 spinner 或超時，繼續")
 
-                ActionChains(driver).move_to_element(button).pause(1).click().perform()
+                ActionChains(driver).move_to_element(button).pause(0.5).click().perform()
                 logging.info(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 ActionChains 點擊成功 (重試 {retry_count+1})")
-                time.sleep(3)
+                time.sleep(1)  # 縮短
                 handle_popup(driver, wait)
 
                 temp_new = wait_for_new_file(cplus_download_dir, local_initial)
@@ -371,22 +371,24 @@ def process_cplus_house(driver, wait, initial_files):
                     with open(f"house_button_{idx+1}_failure_{retry_count}.html", "w", encoding="utf-8") as f:
                         f.write(driver.page_source)
                     retry_count += 1
-                    if retry_count < max_retries:
+                    if retry_count < current_max_retries:
                         logging.info(f"CPLUS: 刷新頁面重試第 {idx+1} 個...")
                         driver.refresh()
-                        time.sleep(5)
+                        time.sleep(3)  # 縮短
                         wait.until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
             except (TimeoutException, NoSuchElementException, ElementClickInterceptedException, WebDriverException) as e:
                 logging.error(f"CPLUS: 第 {idx+1} 個失敗: {str(e)}")
                 driver.save_screenshot(f"house_button_{idx+1}_failure_{retry_count}.png")
                 retry_count += 1
-                if retry_count < max_retries:
+                if retry_count < current_max_retries:
                     logging.info(f"CPLUS: 捕捉錯誤，刷新重試...")
                     driver.refresh()
-                    time.sleep(5)
+                    time.sleep(3)  # 縮短
         if not success:
             failed_buttons.append(idx)
             report_file_mapping.append((report_name, "N/A"))
+            # 如果失敗，減少後續重試次數以加速
+            current_max_retries = max(1, current_max_retries - 1)
 
     if new_files:
         logging.info(f"CPLUS: Housekeeping Reports 下載完成，共 {len(new_files)} 個文件，找到 {button_count} 個按鈕")
@@ -394,9 +396,6 @@ def process_cplus_house(driver, wait, initial_files):
             logging.info(f"報告: {report}, 文件: {files}")
         if failed_buttons:
             logging.warning(f"CPLUS: {len(failed_buttons)} 個失敗: {failed_buttons}")
-            if len(failed_buttons) > 2:
-                logging.info("CPLUS: 失敗太多，重新載入頁面並重跑 house...")
-                return process_cplus_house(driver, wait, initial_files)
     else:
         raise Exception("CPLUS: Housekeeping Reports 無任何下載")
 
@@ -495,7 +494,7 @@ def barge_login(driver, wait):
     logging.info("Barge: 嘗試打開網站 https://barge.oneport.com/login...")
     driver.get("https://barge.oneport.com/login")
     logging.info(f"Barge: 網站已成功打開，當前 URL: {driver.current_url}")
-    time.sleep(3)
+    time.sleep(2)  # 縮短
 
     logging.info("Barge: 輸入 COMPANY ID...")
     company_id_field = wait.until(EC.presence_of_element_located((By.XPATH, "//input[contains(@id, 'mat-input') and @placeholder='Company ID' or contains(@id, 'mat-input-0')]")))
@@ -519,12 +518,12 @@ def barge_login(driver, wait):
     login_button_barge = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'LOGIN') or contains(@class, 'mat-raised-button')]")))
     ActionChains(driver).move_to_element(login_button_barge).click().perform()
     logging.info("Barge: LOGIN 按鈕點擊成功")
-    time.sleep(3)
+    time.sleep(2)  # 縮短
     
 def process_barge_download(driver, wait, initial_files):
     logging.info("Barge: 直接前往 https://barge.oneport.com/downloadReport...")
     driver.get("https://barge.oneport.com/downloadReport")
-    time.sleep(3)
+    time.sleep(2)  # 縮短
     wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
     logging.info("Barge: downloadReport 頁面加載完成")
 
@@ -532,13 +531,13 @@ def process_barge_download(driver, wait, initial_files):
     report_type_trigger = wait.until(EC.element_to_be_clickable((By.XPATH, "//mat-form-field[.//mat-label[contains(text(), 'Report Type')]]//div[contains(@class, 'mat-select-trigger')]")))
     ActionChains(driver).move_to_element(report_type_trigger).click().perform()
     logging.info("Barge: Report Type 選擇開始")
-    time.sleep(2)
+    time.sleep(1)  # 縮短
 
     logging.info("Barge: 點擊 Container Detail...")
     container_detail_option = wait.until(EC.element_to_be_clickable((By.XPATH, "//mat-option//span[contains(text(), 'Container Detail')]")))
     ActionChains(driver).move_to_element(container_detail_option).click().perform()
     logging.info("Barge: Container Detail 點擊成功")
-    time.sleep(2)
+    time.sleep(1)  # 縮短
 
     logging.info("Barge: 點擊 Download...")
     local_initial = initial_files.copy()
@@ -609,7 +608,7 @@ def process_barge():
                     logging.debug("Barge: 主工具欄登出按鈕未找到，嘗試備用定位...")
                     raise
 
-                time.sleep(2)
+                time.sleep(1)  # 縮短
 
                 logging.info("Barge: 點擊 Logout 選項...")
                 try:
@@ -628,7 +627,7 @@ def process_barge():
                     driver.execute_script("arguments[0].click();", logout_button_barge)
                     logging.info("Barge: 備用 Logout 選項點擊成功")
 
-                time.sleep(5)
+                time.sleep(3)  # 縮短
 
         except Exception as e:
             logging.error(f"Barge: 登出失敗: {str(e)}")
