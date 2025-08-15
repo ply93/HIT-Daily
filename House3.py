@@ -25,7 +25,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 cplus_download_dir = os.path.abspath("downloads_cplus")
 barge_download_dir = os.path.abspath("downloads_barge")
 MAX_RETRIES = 3
-DOWNLOAD_TIMEOUT = 45  # 減短至 45 秒
+DOWNLOAD_TIMEOUT = 30  # 減短至 30 秒
 
 def clear_download_dirs():
     for dir_path in [cplus_download_dir, barge_download_dir]:
@@ -327,7 +327,7 @@ def process_cplus_house(driver, wait, initial_files):
     failed_buttons = []  # 記錄失敗的按鈕索引
     for idx in range(max(button_count, 6)):  # 確保至少檢查 6 個預期按鈕
         success = False
-        max_retries = 2  # 每個按鈕最多重試 2 次
+        max_retries = 1  # 減為 1 次重試
         retry_count = 0
         while retry_count < max_retries and not success:
             try:
@@ -360,7 +360,7 @@ def process_cplus_house(driver, wait, initial_files):
 
                 handle_popup(driver, wait)
 
-                temp_new = wait_for_new_file(cplus_download_dir, local_initial, timeout=45)
+                temp_new = wait_for_new_file(cplus_download_dir, local_initial, timeout=30)
                 if temp_new:
                     logging.info(f"CPLUS: 第 {idx+1} 個按鈕下載新文件: {', '.join(temp_new)}")
                     # 檢查重複
@@ -383,7 +383,7 @@ def process_cplus_house(driver, wait, initial_files):
                     if retry_count < max_retries:
                         logging.info(f"CPLUS: 刷新頁面並重試第 {idx+1} 個按鈕...")
                         driver.refresh()
-                        time.sleep(5)
+                        time.sleep(2)  # 減短刷新等待
                         wait.until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr[td[contains(text(), 'CONTAINER DAMAGE REPORT') or contains(text(), 'CY - GATELOG')]")))
             except Exception as e:
                 logging.error(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕點擊失敗: {str(e)}")
@@ -394,7 +394,7 @@ def process_cplus_house(driver, wait, initial_files):
                 if retry_count < max_retries:
                     logging.info(f"CPLUS: 刷新頁面並重試第 {idx+1} 個按鈕...")
                     driver.refresh()
-                    time.sleep(5)
+                    time.sleep(2)  # 減短刷新等待
                     wait.until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr[td[contains(text(), 'CONTAINER DAMAGE REPORT') or contains(text(), 'CY - GATELOG')]")))
         if not success:
             logging.warning(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕失敗")
@@ -439,7 +439,7 @@ def process_cplus_house(driver, wait, initial_files):
 
                     handle_popup(driver, wait)
 
-                    temp_new = wait_for_new_file(cplus_download_dir, local_initial, timeout=45)
+                    temp_new = wait_for_new_file(cplus_download_dir, local_initial, timeout=30)
                     if temp_new:
                         logging.info(f"CPLUS: 第 {idx+1} 個按鈕重新下載新文件: {', '.join(temp_new)}")
                         # 檢查重複
@@ -462,13 +462,7 @@ def process_cplus_house(driver, wait, initial_files):
                     failed_buttons.remove(idx)
             if failed_buttons:
                 logging.warning(f"CPLUS: 仍有 {len(failed_buttons)} 個按鈕失敗: {failed_buttons}")
-        return new_files, len(new_files), max(button_count, 6)  # 傳回實際或預期按鈕數
-    else:
-        logging.warning("CPLUS: Housekeeping Reports 未下載任何文件，記錄頁面狀態...")
-        driver.save_screenshot("house_download_failure.png")
-        with open("house_download_failure.html", "w", encoding="utf-8") as f:
-            f.write(driver.page_source)
-        raise Exception("CPLUS: Housekeeping Reports 未下載任何文件")
+    return new_files, len(new_files), max(button_count, 6)  # 傳回實際或預期按鈕數
 
 def process_cplus():
     driver = None
