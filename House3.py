@@ -135,7 +135,12 @@ def cplus_login(driver, wait):
     login_button = driver.find_element(By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/div[2]/div/div/form/button/span[1]")
     ActionChains(driver).move_to_element(login_button).click().perform()
     logging.info("CPLUS: LOGIN 按鈕點擊成功")
-    time.sleep(2)
+    try:
+        wait.until(EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'KEN (CKL)')]")))
+        logging.info("CPLUS: Login 成功，檢測到用戶名稱")
+    except TimeoutException:
+        logging.error("CPLUS: Login 失敗，未檢測到用戶名稱")
+        raise Exception("CPLUS: Login 失敗")
 
 def process_cplus_movement(driver, wait, initial_files):
     logging.info("CPLUS: 直接前往 Container Movement Log...")
@@ -452,8 +457,8 @@ def process_cplus_house(driver, wait, initial_files):
                     driver.save_screenshot(f"house_button_{idx+1}_retry_failure.png")
                     with open(f"house_button_{idx+1}_retry_failure.html", "w", encoding="utf-8") as f:
                         f.write(driver.page_source)
-                if success:
-                    failed_buttons.remove(idx)
+                    if success:
+                        failed_buttons.remove(idx)
             if failed_buttons:
                 logging.warning(f"CPLUS: 仍有 {len(failed_buttons)} 個按鈕失敗: {failed_buttons}")
     return new_files, len(new_files), max(button_count, 6)
@@ -534,12 +539,13 @@ def process_cplus():
                             logging.error("CPLUS: 所有 Logout 選項未找到")
                             raise
                 time.sleep(5)
+                # 檢查 logout 成功
                 try:
-                    WebDriverWait(driver, 10).until_not(EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'User Online')]")))
-                    print("CPLUS: 確認登出完成", flush=True)
+                    login_button_pre = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
+                    logging.info("CPLUS: Logout 成功，返回登錄頁")
                 except TimeoutException:
-                    logging.warning("CPLUS: 登出後仍檢測到 User Online，嘗試處理...")
-                    handle_popup(driver, wait)
+                    logging.error("CPLUS: Logout 失敗，未返回登錄頁")
+                    raise Exception("CPLUS: Logout 失敗")
         except Exception as logout_error:
             print(f"CPLUS: 登出失敗: {str(logout_error)}", flush=True)
             driver.save_screenshot("logout_failure.png")
@@ -575,6 +581,13 @@ def barge_login(driver, wait):
     ActionChains(driver).move_to_element(login_button_barge).click().perform()
     logging.info("Barge: LOGIN 按鈕點擊成功")
     time.sleep(3)
+    # 檢查 login 成功
+    try:
+        download_report = wait.until(EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'Download Report')]")))
+        logging.info("Barge: Login 成功，檢測到 Download Report 頁")
+    except TimeoutException:
+        logging.error("Barge: Login 失敗，未檢測到 Download Report")
+        raise Exception("Barge: Login 失敗")
 
 def process_barge_download(driver, wait, initial_files):
     logging.info("Barge: 直接前往 https://barge.oneport.com/downloadReport...")
@@ -684,6 +697,14 @@ def process_barge():
                     logging.info("Barge: 備用 Logout 選項點擊成功")
 
                 time.sleep(5)
+
+                # 檢查 logout 成功
+                try:
+                    login_button_barge = wait.until(EC.presence_of_element_located((By.XPATH, "//button[contains(text(), 'LOGIN')]")))
+                    logging.info("Barge: Logout 成功，返回登錄頁")
+                except TimeoutException:
+                    logging.error("Barge: Logout 失敗，未返回登錄頁")
+                    raise Exception("Barge: Logout 失敗")
 
         except Exception as e:
             logging.error(f"Barge: 登出失敗: {str(e)}")
