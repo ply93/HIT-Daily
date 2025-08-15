@@ -290,16 +290,22 @@ def process_cplus_house(driver, wait, initial_files):
 
     logging.info("CPLUS: 等待表格加載...")
     try:
-        rows = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
+        # 先等待表格出現
+        WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]")))
+        logging.debug("CPLUS: 表格元素已檢測到")
+        # 然後等待 tbody tr
+        rows = WebDriverWait(driver, 30).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
         if len(rows) == 0:
             logging.warning("CPLUS: 無記錄，嘗試刷新...")
             driver.refresh()
             time.sleep(3)
-            rows = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
+            WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]")))
+            rows = WebDriverWait(driver, 30).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
         logging.info(f"CPLUS: 找到 {len(rows)} 個報告行")
     except TimeoutException:
         logging.warning("CPLUS: XPath 失敗，嘗試備用 CSS 定位...")
-        rows = wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, ".MuiTable-root tbody tr")))
+        WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.CSS_SELECTOR, ".MuiTable-root")))
+        rows = WebDriverWait(driver, 30).until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, ".MuiTable-root tbody tr")))
         logging.info(f"CPLUS: 找到 {len(rows)} 個報告行 (備用定位)")
 
     time.sleep(1)  # 縮短
@@ -446,13 +452,13 @@ def process_cplus():
         try:
             if driver:
                 print("CPLUS: 嘗試登出...", flush=True)
-                logout_menu_button = WebDriverWait(driver, 90).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
+                logout_menu_button = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
                 driver.execute_script("arguments[0].scrollIntoView(true);", logout_menu_button)
                 time.sleep(1)
                 driver.execute_script("arguments[0].click();", logout_menu_button)
                 print("CPLUS: 登錄按鈕點擊成功", flush=True)
                 try:
-                    logout_option = WebDriverWait(driver, 90).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='menu-list-grow']/div[6]/li")))
+                    logout_option = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='menu-list-grow']/div[6]/li")))
                     driver.execute_script("arguments[0].scrollIntoView(true);", logout_option)
                     time.sleep(1)
                     driver.execute_script("arguments[0].click();", logout_option)
@@ -460,7 +466,7 @@ def process_cplus():
                 except TimeoutException:
                     logging.debug("CPLUS: 主 Logout 選項未找到，嘗試備用定位 1...")
                     try:
-                        logout_option = WebDriverWait(driver, 90).until(EC.element_to_be_clickable((By.XPATH, "//li[contains(text(), 'Logout')]")))
+                        logout_option = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//li[contains(text(), 'Logout')]")))
                         driver.execute_script("arguments[0].scrollIntoView(true);", logout_option)
                         time.sleep(1)
                         driver.execute_script("arguments[0].click();", logout_option)
@@ -468,7 +474,7 @@ def process_cplus():
                     except TimeoutException:
                         logging.debug("CPLUS: 備用 Logout 選項 1 失敗，嘗試備用定位 2...")
                         try:
-                            logout_option = WebDriverWait(driver, 90).until(EC.element_to_be_clickable((By.XPATH, "//*[contains(@role, 'menuitem') and contains(., 'Logout')]")))
+                            logout_option = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[contains(@role, 'menuitem') and contains(., 'Logout')]")))
                             driver.execute_script("arguments[0].scrollIntoView(true);", logout_option)
                             time.sleep(1)
                             driver.execute_script("arguments[0].click();", logout_option)
@@ -476,7 +482,7 @@ def process_cplus():
                         except TimeoutException:
                             logging.error("CPLUS: 所有 Logout 選項未找到")
                             raise
-                time.sleep(5)
+                time.sleep(2)  # 縮短
                 # 檢查 logout 成功
                 try:
                     login_button_pre = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
@@ -627,7 +633,7 @@ def process_barge():
                     driver.execute_script("arguments[0].click();", logout_button_barge)
                     logging.info("Barge: 備用 Logout 選項點擊成功")
 
-                time.sleep(3)  # 縮短
+                time.sleep(2)  # 縮短
 
         except Exception as e:
             logging.error(f"Barge: 登出失敗: {str(e)}")
