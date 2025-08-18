@@ -386,8 +386,9 @@ def process_cplus_house(driver, wait, initial_files):
                 try:
                     report_name = driver.find_element(By.XPATH, f"(//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[3])[{idx+1}]").text
                     logging.info(f"CPLUS: 準備點擊第 {idx+1} 個 Excel 按鈕，報告名稱: {report_name}")
-                except:
+                except Exception as e:
                     report_name = f"未知報告 {idx+1}"
+                    logging.warning(f"CPLUS: 獲取報告名稱失敗: {str(e)}")
 
                 # 嘗試多種點擊方法
                 clicked = False
@@ -395,17 +396,20 @@ def process_cplus_house(driver, wait, initial_files):
                     ActionChains(driver).move_to_element(button).pause(0.5).click_and_hold().pause(0.1).release().perform()
                     logging.info(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 ActionChains 完整點擊成功 (重試 {retry_count+1})")
                     clicked = True
-                except ElementClickInterceptedException:
+                except ElementClickInterceptedException as e:
+                    logging.warning(f"CPLUS: ActionChains 點擊失敗: {str(e)}")
                     try:
                         ActionChains(driver).move_to_element(button).pause(0.5).send_keys(Keys.ENTER).perform()
                         logging.info(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 Enter 鍵點擊成功 (重試 {retry_count+1})")
                         clicked = True
                     except Exception as e1:
+                        logging.warning(f"CPLUS: Enter 鍵點擊失敗: {str(e1)}")
                         try:
                             driver.execute_script("arguments[0].dispatchEvent(new Event('click'));", button)
                             logging.info(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 dispatchEvent 點擊成功 (重試 {retry_count+1})")
                             clicked = True
                         except Exception as e2:
+                            logging.warning(f"CPLUS: dispatchEvent 點擊失敗: {str(e2)}")
                             try:
                                 onclick_event = driver.execute_script("return arguments[0].onclick;", button)
                                 if onclick_event:
@@ -417,6 +421,7 @@ def process_cplus_house(driver, wait, initial_files):
                                     logging.info(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 click() 點擊成功 (重試 {retry_count+1})")
                                     clicked = True
                             except Exception as e3:
+                                logging.warning(f"CPLUS: onclick/click 點擊失敗: {str(e3)}")
                                 driver.execute_script("arguments[0].click();", button)
                                 logging.info(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 JS 點擊成功 (重試 {retry_count+1})")
                                 clicked = True
@@ -429,7 +434,7 @@ def process_cplus_house(driver, wait, initial_files):
 
                 # 檢查下載文件並與點擊時間匹配
                 temp_new, download_time = wait_for_new_file(cplus_download_dir, local_initial)
-                if temp_new:
+                if temp_new and isinstance(download_time, (int, float)):
                     # 找到與當前按鈕點擊時間最近的文件
                     current_click_time = click_times[idx]
                     min_time_diff = float('inf')
@@ -451,7 +456,7 @@ def process_cplus_house(driver, wait, initial_files):
                     else:
                         logging.warning(f"CPLUS: 第 {idx+1} 個文件匹配失敗，跳過")
                 else:
-                    logging.warning(f"CPLUS: 第 {idx+1} 個未觸發新文件 (重試 {retry_count+1})")
+                    logging.warning(f"CPLUS: 第 {idx+1} 個未觸發新文件或下載時間無效 (重試 {retry_count+1}), temp_new: {temp_new}, download_time: {download_time}")
                     driver.save_screenshot(f"house_button_{idx+1}_failure_{retry_count}.png")
                     with open(f"house_button_{idx+1}_failure_{retry_count}.html", "w", encoding="utf-8") as f:
                         f.write(driver.page_source)
