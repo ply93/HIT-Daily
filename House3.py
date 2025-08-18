@@ -3,6 +3,7 @@ import time
 import shutil
 import subprocess
 from datetime import datetime
+from selenium.webdriver.common.keys import Keys
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
@@ -24,7 +25,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 cplus_download_dir = os.path.abspath("downloads_cplus")
 barge_download_dir = os.path.abspath("downloads_barge")
 MAX_RETRIES = 2
-DOWNLOAD_TIMEOUT = 5  # 縮短下載超時
+DOWNLOAD_TIMEOUT = 5
 
 def clear_download_dirs():
     for dir_path in [cplus_download_dir, barge_download_dir]:
@@ -82,9 +83,9 @@ def wait_for_new_file(download_dir, initial_files, timeout=DOWNLOAD_TIMEOUT):
     while time.time() - start_time < timeout:
         current_files = set(os.listdir(download_dir))
         new_files = current_files - initial_files
-        if new_files and any(os.path.getsize(os.path.join(download_dir, f)) > 0 for f in new_files):  # 確保文件非空
+        if new_files and any(os.path.getsize(os.path.join(download_dir, f)) > 0 for f in new_files):
             return new_files
-        time.sleep(0.1)  # 縮短間隔
+        time.sleep(0.1)
     return set()
 
 def handle_popup(driver, wait):
@@ -136,7 +137,7 @@ def cplus_login(driver, wait):
     ActionChains(driver).move_to_element(login_button).click().perform()
     logging.info("CPLUS: LOGIN 按鈕點擊成功")
     try:
-        handle_popup(driver, wait)  # 處理系統錯誤
+        handle_popup(driver, wait)
         WebDriverWait(driver, 60).until(EC.url_contains("https://cplus.hit.com.hk/app/#/"))
         logging.info("CPLUS: 檢測到主界面 URL，登錄成功")
     except TimeoutException:
@@ -380,11 +381,38 @@ def process_cplus_house(driver, wait, initial_files):
                 except:
                     report_name = f"未知報告 {idx+1}"
 
-                # 強制觸發下載並等待
-                driver.execute_script("arguments[0].click();", button)
-                logging.info(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 JS 點擊成功 (重試 {retry_count+1})")
+                # 嘗試多種點擊方法
+                clicked = False
+                try:
+                    ActionChains(driver).move_to_element(button).pause(0.5).click_and_hold().pause(0.1).release().perform()
+                    logging.info(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 ActionChains 完整點擊成功 (重試 {retry_count+1})")
+                    clicked = True
+                except ElementClickInterceptedException:
+                    try:
+                        ActionChains(driver).move_to_element(button).pause(0.5).send_keys(Keys.ENTER).perform()
+                        logging.info(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 Enter 鍵點擊成功 (重試 {retry_count+1})")
+                        clicked = True
+                    except Exception as e1:
+                        try:
+                            onclick_event = driver.execute_script("return arguments[0].onclick;", button)
+                            if onclick_event:
+                                driver.execute_script("arguments[0].onclick();", button)
+                                logging.info(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 onclick 事件觸發成功 (重試 {retry_count+1})")
+                                clicked = True
+                            else:
+                                button.click()
+                                logging.info(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 click() 點擊成功 (重試 {retry_count+1})")
+                                clicked = True
+                        except Exception as e2:
+                            driver.execute_script("arguments[0].click();", button)
+                            logging.info(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 JS 點擊成功 (重試 {retry_count+1})")
+                            clicked = True
+
+                if not clicked:
+                    raise Exception("所有點擊方法失敗")
+
                 handle_popup(driver, wait)  # 處理可能的系統錯誤
-                time.sleep(1)  # 增加下載觸發等待
+                time.sleep(1)  # 確保下載觸發
 
                 # 檢查下載文件
                 temp_new = wait_for_new_file(cplus_download_dir, local_initial)
