@@ -84,9 +84,9 @@ def wait_for_new_file(download_dir, initial_files, timeout=DOWNLOAD_TIMEOUT):
         current_files = set(os.listdir(download_dir))
         new_files = current_files - initial_files
         if new_files and any(os.path.getsize(os.path.join(download_dir, f)) > 0 for f in new_files):
-            return new_files
+            return new_files, time.time() - start_time
         time.sleep(0.1)
-    return set()
+    return set(), 0
 
 def handle_popup(driver, wait):
     max_attempts = 3
@@ -371,6 +371,7 @@ def process_cplus_house(driver, wait, initial_files):
 
     report_file_mapping = []
     failed_buttons = []
+    click_times = []  # 記錄每個按鈕點擊時間
     for idx in range(button_count):
         success = False
         for retry_count in range(MAX_RETRIES):
@@ -378,6 +379,8 @@ def process_cplus_house(driver, wait, initial_files):
                 button_xpath = f"(//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button)[{idx+1}]"
                 button = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, button_xpath)))
                 driver.execute_script("arguments[0].scrollIntoView({block: 'center', behavior: 'smooth'});", button)
+                click_time = time.time()
+                click_times.append(click_time)
                 time.sleep(0.1)
 
                 try:
@@ -424,16 +427,29 @@ def process_cplus_house(driver, wait, initial_files):
                 handle_popup(driver, wait)  # 處理可能的系統錯誤
                 time.sleep(1)  # 確保下載觸發
 
-                # 檢查下載文件
-                temp_new = wait_for_new_file(cplus_download_dir, local_initial)
+                # 檢查下載文件並與點擊時間匹配
+                temp_new, download_time = wait_for_new_file(cplus_download_dir, local_initial)
                 if temp_new:
-                    all_downloaded_files.update(temp_new)
-                    report_file_mapping.append((report_name, ', '.join(temp_new)))
-                    local_initial.update(temp_new)
-                    new_files.update(temp_new)
-                    success = True
-                    logging.info(f"CPLUS: 第 {idx+1} 個下載成功，文件: {', '.join(temp_new)}")
-                    break
+                    # 找到與當前按鈕點擊時間最近的文件
+                    current_click_time = click_times[idx]
+                    min_time_diff = float('inf')
+                    matched_file = None
+                    for file in temp_new:
+                        file_time = current_click_time + download_time
+                        time_diff = abs(file_time - current_click_time)
+                        if time_diff < min_time_diff:
+                            min_time_diff = time_diff
+                            matched_file = file
+                    if matched_file:
+                        all_downloaded_files.add(matched_file)
+                        report_file_mapping.append((report_name, matched_file, download_time))
+                        local_initial.add(matched_file)
+                        new_files.add(matched_file)
+                        success = True
+                        logging.info(f"CPLUS: 第 {idx+1} 個下載成功，文件: {matched_file}, 耗時 {download_time:.1f} 秒")
+                        break
+                    else:
+                        logging.warning(f"CPLUS: 第 {idx+1} 個文件匹配失敗，跳過")
                 else:
                     logging.warning(f"CPLUS: 第 {idx+1} 個未觸發新文件 (重試 {retry_count+1})")
                     driver.save_screenshot(f"house_button_{idx+1}_failure_{retry_count}.png")
@@ -448,11 +464,11 @@ def process_cplus_house(driver, wait, initial_files):
                     time.sleep(5)
         if not success:
             failed_buttons.append(idx)
-            report_file_mapping.append((report_name, "N/A"))
+            report_file_mapping.append((report_name, "N/A", 0))
 
     if new_files:
         logging.info(f"CPLUS: Housekeeping Reports 下載完成，共 {len(new_files)} 個文件，找到 {button_count} 個按鈕")
-        for report, files in report_file_mapping:
+        for report, files, _ in report_file_mapping:
             logging.info(f"報告: {report}, 文件: {files}")
         if failed_buttons:
             logging.warning(f"CPLUS: {len(failed_buttons)} 個失敗: {failed_buttons}")
@@ -676,6 +692,52 @@ def process_barge_logout(driver, wait):
             f.write(driver.page_source)
         raise
 
+def send_email(subject, body, files, sender_email, receiver_emails, cc_emails, sender_password, dry_run=False):
+    msg = MIMEMultipart('alternative')
+    msg['From'] = sender_email
+    msg['To'] = ', '.join(receiver_emails)
+    if cc_emails:
+        msg['Cc'] = ', '.join(cc_emails)
+    msg['Subject'] = subject
+
+    msg.attach(MIMEText(body, 'html'))
+    plain_text = body.replace('<br>', '\n').replace('<table>', '').replace('</table>', '').replace('<tr>', '\n').replace('<td>', ' | ').replace('</td>', '').replace('<th>', ' | ').replace('</th>', '').strip()
+    msg.attach(MIMEText(plain_text, 'plain'))
+
+    for file in files:
+        if file in os.listdir(cplus_download_dir):
+            file_path = os.path.join(cplus_download_dir, file)
+        else:
+            file_path = os.path.join(barge_download_dir, file)
+        if os.path.exists(file_path):
+            attachment = MIMEBase('application', 'octet-stream')
+            with open(file_path, 'rb') as f:
+                attachment.set_payload(f.read())
+            encoders.encode_base64(attachment)
+            attachment.add_header('Content-Disposition', f'attachment; filename={file}')
+            msg.attach(attachment)
+        else:
+            logging.warning(f"附件不存在: {file_path}")
+
+    if not dry_run:
+        try:
+            smtp_server = os.environ.get('SMTP_SERVER', 'smtp.zoho.com')
+            smtp_port = int(os.environ.get('SMTP_PORT', 587))
+            with smtplib.SMTP(smtp_server, smtp_port) as server:
+                server.starttls()
+                server.login(sender_email, sender_password)
+                all_receivers = receiver_emails + cc_emails
+                server.sendmail(sender_email, all_receivers, msg.as_string())
+            logging.info(f"郵件發送成功至 {', '.join(all_receivers)}")
+        except smtplib.SMTPAuthenticationError:
+            logging.error("SMTP 認證失敗：檢查用戶名/密碼")
+        except smtplib.SMTPConnectError:
+            logging.error("SMTP 連接失敗：檢查伺服器/端口")
+        except Exception as e:
+            logging.error(f"郵件發送失敗: {str(e)}")
+    else:
+        logging.info(f"模擬發送郵件：\nFrom: {sender_email}\nTo: {msg['To']}\nCc: {msg.get('Cc', '')}\nSubject: {msg['Subject']}\nBody: {body}")
+
 def process_barge():
     driver = None
     downloaded_files = set()
@@ -717,7 +779,7 @@ def main():
         logging.info(f"找到檔案: {file}")
 
     required_patterns = {'movement': 'cntrMoveLog', 'onhand': 'data_', 'barge': 'ContainerDetailReport'}
-    housekeep_prefixes = ['IE2_', 'DM1C_', 'IA17_', 'GA1_', 'IA5_', 'IA15_']
+    housekeep_prefixes = ['IA5_', 'DM1C_', 'IA15_', 'GA1_', 'IA15_', 'IA17_']  # 根據報告名稱調整前綴
 
     has_required = all(any(pattern in f for f in downloaded_files) for pattern in required_patterns.values())
     house_files = [f for f in downloaded_files if any(p in f for p in housekeep_prefixes)]
@@ -726,9 +788,50 @@ def main():
 
     if has_required and house_ok:
         logging.info("所有必須文件齊全且 Housekeep 文件數量匹配按鈕數，開始發送郵件...")
-        # (郵件發送代碼保持不變)
+        try:
+            smtp_server = os.environ.get('SMTP_SERVER', 'smtp.zoho.com')
+            smtp_port = int(os.environ.get('SMTP_PORT', 587))
+            sender_email = os.environ['ZOHO_EMAIL']
+            sender_password = os.environ['ZOHO_PASSWORD']
+            receiver_emails = os.environ.get('RECEIVER_EMAILS', 'ckeqc@ckline.com.hk').split(',')
+            cc_emails = os.environ.get('CC_EMAILS', '').split(',') if os.environ.get('CC_EMAILS') else []
+            dry_run = os.environ.get('DRY_RUN', 'False').lower() == 'true'
+            if dry_run:
+                logging.info("Dry run 模式：只打印郵件內容，不發送。")
+            house_report_names = ["REEFER CONTAINER MONITOR REPORT", "CONTAINER DAMAGE REPORT (LINE) ENTRY GATE + EXIT GATE", "CONTAINER LIST (ON HAND)", "CY - GATELOG", "CONTAINER LIST (DAMAGED)", "ACTIVE REEFER CONTAINER ON HAND LIST"]
+            house_status = ['✓' if [f for f in house_files if p in f] else '-' for p in housekeep_prefixes]
+            house_file_names = [', '.join([f for f in house_files if p in f]) if [f for f in house_files if p in f] else 'N/A' for p in housekeep_prefixes]
+            body_html = f"""
+            <html><body><p>Attached are the daily reports downloaded from CPLUS and Barge. Generated at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+            <table border="1" style="border-collapse: collapse; width: 100%;"><thead><tr><th>Category</th><th>Report</th><th>File Names</th><th>Status</th></tr></thead><tbody>
+            <tr><td rowspan="8">CPLUS</td><td>Container Movement</td><td>{', '.join([f for f in downloaded_files if 'cntrMoveLog' in f]) or 'N/A'}</td><td>{'✓' if any('cntrMoveLog' in f for f in downloaded_files) else '-'}</td></tr>
+            <tr><td>OnHandContainerList</td><td>{', '.join([f for f in downloaded_files if 'data_' in f]) or 'N/A'}</td><td>{'✓' if any('data_' in f for f in downloaded_files) else '-'}</td></tr>
+            <tr><td>{house_report_names[0]}</td><td>{house_file_names[0]}</td><td>{house_status[0]}</td></tr>
+            <tr><td>{house_report_names[1]}</td><td>{house_file_names[1]}</td><td>{house_status[1]}</td></tr>
+            <tr><td>{house_report_names[2]}</td><td>{house_file_names[2]}</td><td>{house_status[2]}</td></tr>
+            <tr><td>{house_report_names[3]}</td><td>{house_file_names[3]}</td><td>{house_status[3]}</td></tr>
+            <tr><td>{house_report_names[4]}</td><td>{house_file_names[4]}</td><td>{house_status[4]}</td></tr>
+            <tr><td>{house_report_names[5]}</td><td>{house_file_names[5]}</td><td>{house_status[5]}</td></tr>
+            <tr><td rowspan="1">BARGE</td><td>Container Detail</td><td>{', '.join([f for f in downloaded_files if 'ContainerDetailReport' in f]) or 'N/A'}</td><td>{'✓' if any('ContainerDetailReport' in f for f in downloaded_files) else '-'}</td></tr>
+            <tr><td colspan="2"><strong>TOTAL</strong></td><td><strong>{len(downloaded_files)} files attached</strong></td><td><strong>{len(downloaded_files)}</strong></td></tr>
+            </tbody></table></body></html>
+            """
+            send_email(
+                f"[TESTING] HIT DAILY {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+                body_html,
+                downloaded_files,
+                sender_email,
+                receiver_emails,
+                cc_emails,
+                sender_password,
+                dry_run
+            )
+        except KeyError as ke:
+            logging.error(f"缺少環境變量: {ke}")
+        except Exception as e:
+            logging.error(f"郵件發送失敗: {str(e)}")
     else:
-        logging.warning(f"文件不齊全: 缺少必須文件 (has_required={has_required}) 或 House文件數量不匹配 (expected={cplus_house_button_count}, actual={cplus_house_file_count})")
+        logging.warning(f"文件不齊全: 缺少必須文件 (has_required={has_required}) 或 House文件不足 (download={house_download_count}, button={cplus_house_button_count})")
 
     if cplus_driver:
         cplus_driver.quit()
