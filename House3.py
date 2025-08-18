@@ -2,12 +2,14 @@ import os
 import time
 import shutil
 import subprocess
+from dotenv import load_dotenv
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.action_chains import ActionChains
+from selenium.webdriver.common.keys import Keys
 from selenium.common.exceptions import TimeoutException, NoSuchElementException, ElementClickInterceptedException, WebDriverException
 import logging
 
@@ -96,6 +98,68 @@ def handle_popup(driver, wait):
             logging.debug("無系統錯誤或加載彈窗檢測到")
             break
 
+def cplus_login(driver, wait):
+    logging.info("CPLUS: 嘗試打開網站 https://cplus.hit.com.hk/frontpage/#/")
+    driver.get("https://cplus.hit.com.hk/frontpage/#/")
+    logging.info(f"CPLUS: 網站已成功打開，當前 URL: {driver.current_url}")
+    time.sleep(0.5)
+
+    logging.info("CPLUS: 點擊登錄前按鈕...")
+    login_button_pre = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
+    ActionChains(driver).move_to_element(login_button_pre).click().perform()
+    logging.info("CPLUS: 登錄前按鈕點擊成功")
+    time.sleep(0.5)
+
+    logging.info("CPLUS: 輸入 COMPANY CODE...")
+    company_code_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='companyCode']")))
+    company_code_field.send_keys("CKL")
+    logging.info("CPLUS: COMPANY CODE 輸入完成")
+    time.sleep(0.5)
+
+    logging.info("CPLUS: 輸入 USER ID...")
+    user_id_field = driver.find_element(By.XPATH, "//*[@id='userId']")
+    user_id_field.send_keys("KEN")
+    logging.info("CPLUS: USER ID 輸入完成")
+    time.sleep(0.5)
+
+    logging.info("CPLUS: 輸入 PASSWORD...")
+    password_field = driver.find_element(By.XPATH, "//*[@id='passwd']")
+    password_field.send_keys(os.environ.get('SITE_PASSWORD'))
+    logging.info("CPLUS: PASSWORD 輸入完成")
+    time.sleep(0.5)
+
+    logging.info("CPLUS: 點擊 LOGIN 按鈕...")
+    login_button = driver.find_element(By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/div[2]/div/div/form/button/span[1]")
+    ActionChains(driver).move_to_element(login_button).click().perform()
+    logging.info("CPLUS: LOGIN 按鈕點擊成功")
+    try:
+        handle_popup(driver, wait)
+        WebDriverWait(driver, 60).until(EC.url_contains("https://cplus.hit.com.hk/app/#/"))
+        logging.info("CPLUS: 檢測到主界面 URL，登錄成功")
+    except TimeoutException:
+        logging.warning("CPLUS: 登錄後主界面加載失敗，但繼續執行")
+        driver.save_screenshot("login_warning.png")
+        with open("login_warning.html", "w", encoding="utf-8") as f:
+            f.write(driver.page_source)
+
+def attempt_click(button, driver):
+    methods = [
+        ("Standard click", lambda: button.click()),
+        ("ActionChains click", lambda: ActionChains(driver).move_to_element(button).click().perform()),
+        ("ActionChains click_and_hold", lambda: ActionChains(driver).move_to_element(button).click_and_hold().pause(0.1).release().perform()),
+        ("JavaScript click", lambda: driver.execute_script("arguments[0].click();", button)),
+        ("Send Keys ENTER", lambda: ActionChains(driver).move_to_element(button).send_keys(Keys.ENTER).perform()),
+        ("DispatchEvent click", lambda: driver.execute_script("arguments[0].dispatchEvent(new Event('click'));", button))
+    ]
+    for method_name, method_func in methods:
+        try:
+            method_func()
+            logging.info(f"點擊成功使用方法: {method_name}")
+            return True, method_name
+        except Exception as e:
+            logging.debug(f"點擊失敗使用方法 {method_name}: {str(e)}")
+    return False, None
+
 def process_cplus_house(driver, wait, initial_files):
     logging.info("CPLUS: 前往 Housekeeping Reports 頁面...")
     driver.get("https://cplus.hit.com.hk/app/#/report/housekeepReport")
@@ -161,6 +225,10 @@ def process_cplus_house(driver, wait, initial_files):
     report_file_mapping = []
     failed_buttons = []
     click_times = []
+    successful_methods = {}  # 用來記錄每種方法的成功次數
+    for method in ["Standard click", "ActionChains click", "ActionChains click_and_hold", "JavaScript click", "Send Keys ENTER", "DispatchEvent click"]:
+        successful_methods[method] = 0
+
     for idx in range(button_count):
         success = False
         for retry_count in range(MAX_RETRIES):
@@ -179,22 +247,11 @@ def process_cplus_house(driver, wait, initial_files):
                     report_name = f"未知報告 {idx+1}"
                     logging.warning(f"CPLUS: 獲取報告名稱失敗: {str(e)}")
 
-                clicked = False
-                try:
-                    ActionChains(driver).move_to_element(button).pause(0.5).click_and_hold().pause(0.1).release().perform()
-                    logging.info(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 ActionChains 完整點擊成功 (重試 {retry_count+1})")
-                    clicked = True
-                except ElementClickInterceptedException as e:
-                    logging.warning(f"CPLUS: ActionChains 點擊失敗: {str(e)}")
-                    try:
-                        driver.execute_script("arguments[0].click();", button)
-                        logging.info(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 JS 點擊成功 (重試 {retry_count+1})")
-                        clicked = True
-                    except Exception as e2:
-                        logging.warning(f"CPLUS: JS 點擊失敗: {str(e2)}")
-
+                clicked, method_name = attempt_click(button, driver)
                 if not clicked:
                     raise Exception("所有點擊方法失敗")
+
+                successful_methods[method_name] += 1
 
                 handle_popup(driver, wait)
                 time.sleep(1)
@@ -207,7 +264,7 @@ def process_cplus_house(driver, wait, initial_files):
                     local_initial.add(matched_file)
                     new_files.add(matched_file)
                     success = True
-                    logging.info(f"CPLUS: 第 {idx+1} 個下載成功，文件: {matched_file}, 耗時 {download_time:.1f} 秒")
+                    logging.info(f"CPLUS: 第 {idx+1} 個下載成功，文件: {matched_file}, 耗時 {download_time:.1f} 秒，使用方法: {method_name}")
                     break
                 else:
                     logging.warning(f"CPLUS: 第 {idx+1} 個未觸發新文件 (重試 {retry_count+1})")
@@ -234,9 +291,15 @@ def process_cplus_house(driver, wait, initial_files):
     else:
         logging.warning("CPLUS: Housekeeping Reports 無任何下載")
 
+    # 輸出各點擊方法的穩定性（成功次數）
+    logging.info("點擊方法穩定性統計:")
+    for method, count in successful_methods.items():
+        logging.info(f"{method}: {count} 次成功")
+
     return new_files, len(new_files), button_count
 
 def main():
+    load_dotenv()
     clear_download_dirs()
     setup_environment()
     driver = None
@@ -246,6 +309,7 @@ def main():
         logging.info("CPLUS WebDriver 初始化成功")
         driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
         wait = WebDriverWait(driver, 60)
+        cplus_login(driver, wait)
         new_files, house_file_count, house_button_count = process_cplus_house(driver, wait, initial_files)
         logging.info(f"總下載文件: {len(new_files)} 個")
         for file in new_files:
