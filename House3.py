@@ -102,13 +102,23 @@ def handle_popup(driver, wait):
     except TimeoutException:
         logging.debug("無 popup 檢測到")
 
-    # 檢查二因子認証彈窗
+    # 檢查二因子認証或錯誤提示
     try:
         two_factor_popup = WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'Two Factor Authentication')]")))
-        logging.warning("檢測到二因子認証彈窗，暫時無法處理")
+        logging.error("CPLUS: 檢測到二因子認証彈窗，登錄需要手動配置")
         driver.save_screenshot("two_factor_popup.png")
         with open("two_factor_popup.html", "w", encoding="utf-8") as f:
             f.write(driver.page_source)
+        raise Exception("CPLUS: 檢測到二因子認証，需手動處理")
+    except TimeoutException:
+        pass
+    try:
+        error_message = WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.XPATH, "//div[contains(text(), 'System Error')]")))
+        logging.error(f"CPLUS: 檢測到系統錯誤: {error_message.text}")
+        driver.save_screenshot("system_error.png")
+        with open("system_error.html", "w", encoding="utf-8") as f:
+            f.write(driver.page_source)
+        raise Exception("CPLUS: 檢測到系統錯誤")
     except TimeoutException:
         pass
 
@@ -147,14 +157,16 @@ def cplus_login(driver, wait):
     ActionChains(driver).move_to_element(login_button).click().perform()
     logging.info("CPLUS: LOGIN 按鈕點擊成功")
     try:
-        wait.until(EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'KEN (CKL)')]")), 10)
+        # 先檢查錯誤或 2FA
+        handle_popup(driver, wait)
+        # 然後檢查登錄成功
+        wait.until(EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'KEN (CKL)')]")), 5)
         logging.info("CPLUS: 頁面加載完成，登錄成功")
     except TimeoutException:
         logging.error("CPLUS: 登錄失敗，未找到 'KEN (CKL)'")
         driver.save_screenshot("login_failure.png")
         with open("login_failure.html", "w", encoding="utf-8") as f:
             f.write(driver.page_source)
-        # 保存瀏覽器日志
         try:
             browser_logs = driver.get_log('browser')
             with open("browser_log.txt", "w", encoding="utf-8") as log_file:
@@ -185,7 +197,7 @@ def process_cplus_movement(driver, wait, initial_files):
     except TimeoutException:
         logging.warning("CPLUS: Search 按鈕超時，刷新頁面...")
         driver.refresh()
-        time.sleep(1)
+        time.sleep(0.5)
         search_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[1]/div/form/div[2]/div/div[4]/button")), 10)
         ActionChains(driver).move_to_element(search_button).click().perform()
         logging.info("CPLUS: Search 按鈕點擊成功 (刷新後)")
@@ -338,7 +350,7 @@ def process_cplus_house(driver, wait, initial_files):
             return set(), 0, 0
         logging.info(f"CPLUS: 找到 {len(rows)} 個報告行 (備用定位)，耗時 {time.time() - start_time:.1f} 秒")
 
-    if time.time() - start_time > 30:  # 超過 30 秒跳過
+    if time.time() - start_time > 30:
         logging.warning("CPLUS: Housekeeping Reports 加載時間過長，跳過")
         driver.save_screenshot("house_load_timeout.png")
         return set(), 0, 0
@@ -482,8 +494,8 @@ def process_cplus():
     finally:
         if driver:
             try:
-                print("CPLUS: 嘗試登出...", flush=True)
                 if 'login_failure' not in logging.getLogger().handlers[0].stream.getvalue():  # 僅登錄成功時登出
+                    print("CPLUS: 嘗試登出...", flush=True)
                     logout_menu_button = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
                     driver.execute_script("arguments[0].scrollIntoView(true);", logout_menu_button)
                     time.sleep(0.2)
