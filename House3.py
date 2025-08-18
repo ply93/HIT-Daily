@@ -84,9 +84,9 @@ def wait_for_new_file(download_dir, initial_files, timeout=DOWNLOAD_TIMEOUT):
         current_files = set(os.listdir(download_dir))
         new_files = current_files - initial_files
         if new_files and any(os.path.getsize(os.path.join(download_dir, f)) > 0 for f in new_files):
-            return new_files, time.time() - start_time
+            return new_files
         time.sleep(0.1)
-    return set(), 0
+    return set()
 
 def handle_popup(driver, wait):
     max_attempts = 3
