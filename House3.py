@@ -89,18 +89,23 @@ def wait_for_new_file(download_dir, initial_files, timeout=DOWNLOAD_TIMEOUT):
     return set()
 
 def handle_popup(driver, wait):
-    try:
-        error_div = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//div[contains(text(), 'System Error') or contains(text(), 'Loading') or contains(@class, 'error') or contains(@class, 'popup')]")))
-        logging.error(f"CPLUS/Barge: 檢測到系統錯誤: {error_div.text}")
-        close_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Close') or contains(text(), 'OK') or contains(text(), 'Download Screenshots')]")))
-        driver.execute_script("arguments[0].click();", close_button)
-        logging.info("CPLUS/Barge: 關閉系統錯誤彈窗")
-        time.sleep(1)
-        driver.save_screenshot("system_error.png")
-        with open("system_error.html", "w", encoding="utf-8") as f:
-            f.write(driver.page_source)
-    except TimeoutException:
-        logging.debug("無系統錯誤或加載彈窗檢測到")
+    max_attempts = 3
+    attempt = 0
+    while attempt < max_attempts:
+        try:
+            error_div = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//div[contains(text(), 'System Error') or contains(text(), 'Loading') or contains(@class, 'error') or contains(@class, 'popup')]")))
+            logging.error(f"CPLUS/Barge: 檢測到系統錯誤: {error_div.text}")
+            close_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Close') or contains(text(), 'OK') or contains(text(), 'Download Screenshots')]")))
+            driver.execute_script("arguments[0].click();", close_button)
+            logging.info("CPLUS/Barge: 關閉系統錯誤彈窗")
+            time.sleep(1)
+            driver.save_screenshot("system_error.png")
+            with open("system_error.html", "w", encoding="utf-8") as f:
+                f.write(driver.page_source)
+            attempt += 1
+        except TimeoutException:
+            logging.debug("無系統錯誤或加載彈窗檢測到")
+            break
 
 def cplus_login(driver, wait):
     logging.info("CPLUS: 嘗試打開網站 https://cplus.hit.com.hk/frontpage/#/")
@@ -394,19 +399,24 @@ def process_cplus_house(driver, wait, initial_files):
                         clicked = True
                     except Exception as e1:
                         try:
-                            onclick_event = driver.execute_script("return arguments[0].onclick;", button)
-                            if onclick_event:
-                                driver.execute_script("arguments[0].onclick();", button)
-                                logging.info(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 onclick 事件觸發成功 (重試 {retry_count+1})")
-                                clicked = True
-                            else:
-                                button.click()
-                                logging.info(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 click() 點擊成功 (重試 {retry_count+1})")
-                                clicked = True
-                        except Exception as e2:
-                            driver.execute_script("arguments[0].click();", button)
-                            logging.info(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 JS 點擊成功 (重試 {retry_count+1})")
+                            driver.execute_script("arguments[0].dispatchEvent(new Event('click'));", button)
+                            logging.info(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 dispatchEvent 點擊成功 (重試 {retry_count+1})")
                             clicked = True
+                        except Exception as e2:
+                            try:
+                                onclick_event = driver.execute_script("return arguments[0].onclick;", button)
+                                if onclick_event:
+                                    driver.execute_script("arguments[0].onclick();", button)
+                                    logging.info(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 onclick 事件觸發成功 (重試 {retry_count+1})")
+                                    clicked = True
+                                else:
+                                    button.click()
+                                    logging.info(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 click() 點擊成功 (重試 {retry_count+1})")
+                                    clicked = True
+                            except Exception as e3:
+                                driver.execute_script("arguments[0].click();", button)
+                                logging.info(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 JS 點擊成功 (重試 {retry_count+1})")
+                                clicked = True
 
                 if not clicked:
                     raise Exception("所有點擊方法失敗")
