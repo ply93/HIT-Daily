@@ -23,8 +23,8 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 cplus_download_dir = os.path.abspath("downloads_cplus")
 barge_download_dir = os.path.abspath("downloads_barge")
-MAX_RETRIES = 2  # 減少重試次數
-DOWNLOAD_TIMEOUT = 10  # 縮短下載超時
+MAX_RETRIES = 2
+DOWNLOAD_TIMEOUT = 5  # 縮短下載超時
 
 def clear_download_dirs():
     for dir_path in [cplus_download_dir, barge_download_dir]:
@@ -82,16 +82,16 @@ def wait_for_new_file(download_dir, initial_files, timeout=DOWNLOAD_TIMEOUT):
     while time.time() - start_time < timeout:
         current_files = set(os.listdir(download_dir))
         new_files = current_files - initial_files
-        if new_files:
+        if new_files and any(os.path.getsize(os.path.join(download_dir, f)) > 0 for f in new_files):  # 確保文件非空
             return new_files
-        time.sleep(0.2)
+        time.sleep(0.1)  # 縮短間隔
     return set()
 
 def handle_popup(driver, wait):
     try:
         error_div = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//div[contains(text(), 'System Error') or contains(text(), 'Loading') or contains(@class, 'error') or contains(@class, 'popup')]")))
         logging.error(f"CPLUS/Barge: 檢測到系統錯誤: {error_div.text}")
-        close_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Close') or contains(text(), 'OK')]")))
+        close_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Close') or contains(text(), 'OK') or contains(text(), 'Download Screenshots')]")))
         driver.execute_script("arguments[0].click();", close_button)
         logging.info("CPLUS/Barge: 關閉系統錯誤彈窗")
         time.sleep(1)
@@ -346,7 +346,7 @@ def process_cplus_house(driver, wait, initial_files):
         driver.save_screenshot("house_load_timeout.png")
         return set(), 0, 0
 
-    time.sleep(0.2)
+    time.sleep(0.1)
     logging.info("CPLUS: 定位並點擊所有 Excel 下載按鈕...")
     local_initial = initial_files.copy()
     new_files = set()
@@ -372,7 +372,7 @@ def process_cplus_house(driver, wait, initial_files):
                 button_xpath = f"(//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button)[{idx+1}]"
                 button = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, button_xpath)))
                 driver.execute_script("arguments[0].scrollIntoView({block: 'center', behavior: 'smooth'});", button)
-                time.sleep(0.2)
+                time.sleep(0.1)
 
                 try:
                     report_name = driver.find_element(By.XPATH, f"(//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[3])[{idx+1}]").text
@@ -380,13 +380,13 @@ def process_cplus_house(driver, wait, initial_files):
                 except:
                     report_name = f"未知報告 {idx+1}"
 
-                # 直接觸發下載並確認
+                # 強制觸發下載並等待
                 driver.execute_script("arguments[0].click();", button)
                 logging.info(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 JS 點擊成功 (重試 {retry_count+1})")
-                handle_popup(driver, wait)
-                time.sleep(0.5)
+                handle_popup(driver, wait)  # 處理可能的系統錯誤
+                time.sleep(1)  # 增加下載觸發等待
 
-                # 檢查下載進度
+                # 檢查下載文件
                 temp_new = wait_for_new_file(cplus_download_dir, local_initial)
                 if temp_new:
                     all_downloaded_files.update(temp_new)
