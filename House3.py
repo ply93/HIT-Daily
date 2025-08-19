@@ -180,24 +180,18 @@ def process_cplus_house(driver, wait, initial_files):
     try:
         WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.XPATH, "//table")))
         rows = WebDriverWait(driver, 30).until(EC.presence_of_all_elements_located((By.XPATH, "//table//tbody//tr")))
-        if len(rows) == 0:
-            logging.warning("CPLUS: 無記錄，嘗試刷新...")
-            driver.refresh()
-            time.sleep(5)
-            WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.XPATH, "//table")))
-            rows = WebDriverWait(driver, 30).until(EC.presence_of_all_elements_located((By.XPATH, "//table//tbody//tr")))
-        logging.info(f"CPLUS: 找到 {len(rows)} 個報告行，耗時 {time.time() - start_time:.1f} 秒")
+        if len(rows) != 6:  # 預期 6 個報告行
+            logging.warning(f"CPLUS: 找到 {len(rows)} 個報告行，預期 6 個，耗時 {time.time() - start_time:.1f} 秒")
+        else:
+            logging.info(f"CPLUS: 找到 {len(rows)} 個報告行，耗時 {time.time() - start_time:.1f} 秒")
     except TimeoutException:
         logging.warning("CPLUS: 表格加載失敗，嘗試備用定位...")
         WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.CSS_SELECTOR, "table")))
         rows = WebDriverWait(driver, 30).until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "table tbody tr")))
-        if len(rows) == 0:
-            logging.error("CPLUS: 表格加載完全失敗，跳過 Housekeeping Reports")
-            driver.save_screenshot("house_load_failure.png")
-            with open("house_load_failure.html", "w", encoding="utf-8") as f:
-                f.write(driver.page_source)
-            return set(), 0, 0
-        logging.info(f"CPLUS: 找到 {len(rows)} 個報告行 (備用定位)，耗時 {time.time() - start_time:.1f} 秒")
+        if len(rows) != 6:
+            logging.warning(f"CPLUS: 找到 {len(rows)} 個報告行 (備用定位)，預期 6 個，耗時 {time.time() - start_time:.1f} 秒")
+        else:
+            logging.info(f"CPLUS: 找到 {len(rows)} 個報告行 (備用定位)，耗時 {time.time() - start_time:.1f} 秒")
 
     if time.time() - start_time > 60:
         logging.warning("CPLUS: Housekeeping Reports 加載時間過長，跳過")
@@ -209,7 +203,17 @@ def process_cplus_house(driver, wait, initial_files):
     local_initial = initial_files.copy()
     new_files = set()
     all_downloaded_files = set()
-    excel_buttons = driver.find_elements(By.XPATH, "//table//tbody//tr//td//button[contains(text(), 'EXCEL')]")  # 使用 contains(text()) 確保文本匹配
+    # 等待按鈕加載
+    try:
+        WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.XPATH, "//table//tbody//tr//td//button[contains(text(), 'EXCEL')]")))
+        excel_buttons = driver.find_elements(By.XPATH, "//table//tbody//tr//td//button[contains(text(), 'EXCEL')]")
+    except TimeoutException:
+        logging.error("CPLUS: 按鈕加載失敗，記錄頁面狀態...")
+        driver.save_screenshot("button_load_failure.png")
+        with open("button_load_failure.html", "w", encoding="utf-8") as f:
+            f.write(driver.page_source)
+        raise Exception("CPLUS: Housekeeping Reports 按鈕加載失敗")
+
     button_count = len(excel_buttons)
     if button_count == 0:
         logging.error("CPLUS: 未找到任何 EXCEL 下載按鈕，記錄頁面狀態...")
