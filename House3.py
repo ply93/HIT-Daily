@@ -17,14 +17,19 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 cplus_download_dir = os.path.abspath("downloads_cplus")
 MAX_RETRIES = 3
-DOWNLOAD_TIMEOUT = 15
+DOWNLOAD_TIMEOUT = 20  # 增加下載超時時間
 
 def clear_download_dirs():
     for dir_path in [cplus_download_dir]:
         if os.path.exists(dir_path):
-            shutil.rmtree(dir_path)
-        os.makedirs(dir_path)
-        logging.info(f"創建下載目錄: {dir_path}")
+            for file in os.listdir(dir_path):
+                file_path = os.path.join(dir_path, file)
+                if os.path.isfile(file_path):
+                    os.remove(file_path)
+            os.makedirs(dir_path, exist_ok=True)
+        else:
+            os.makedirs(dir_path)
+        logging.info(f"創建並清空下載目錄: {dir_path}")
 
 def setup_environment():
     try:
@@ -69,13 +74,19 @@ def get_chrome_options(download_dir):
     chrome_options.binary_location = '/usr/bin/chromium-browser'
     return chrome_options
 
-def wait_for_new_file(download_dir, initial_files, timeout=DOWNLOAD_TIMEOUT):
+def wait_for_new_file(download_dir, initial_files, expected_filename=None, timeout=DOWNLOAD_TIMEOUT):
     start_time = time.time()
     while time.time() - start_time < timeout:
         current_files = set(os.listdir(download_dir))
         new_files = current_files - initial_files
-        if new_files and any(os.path.getsize(os.path.join(download_dir, f)) > 0 for f in new_files if f.endswith(('.csv', '.xlsx'))):
-            return new_files, time.time() - start_time
+        if new_files:
+            for file in new_files:
+                file_path = os.path.join(download_dir, file)
+                if os.path.getsize(file_path) > 0 and file.endswith(('.csv', '.xlsx')):
+                    if expected_filename and file.startswith(expected_filename.split('.')[0]):
+                        return {file}, time.time() - start_time
+                    elif not expected_filename:
+                        return {file}, time.time() - start_time
         time.sleep(0.1)
     return set(), 0
 
@@ -145,11 +156,6 @@ def cplus_login(driver, wait):
 def attempt_click(button, driver):
     methods = [
         ("Standard click", lambda: button.click()),
-        ("ActionChains click", lambda: ActionChains(driver).move_to_element(button).click().perform()),
-        ("ActionChains click_and_hold", lambda: ActionChains(driver).move_to_element(button).click_and_hold().pause(0.1).release().perform()),
-        ("JavaScript click", lambda: driver.execute_script("arguments[0].click();", button)),
-        ("Send Keys ENTER", lambda: ActionChains(driver).move_to_element(button).send_keys(Keys.ENTER).perform()),
-        ("DispatchEvent click", lambda: driver.execute_script("arguments[0].dispatchEvent(new Event('click'));", button))
     ]
     results = {method_name: False for method_name, _ in methods}
     successful = []
@@ -179,13 +185,13 @@ def process_cplus_house(driver, wait, initial_files):
     logging.info("CPLUS: 等待表格加載...")
     start_time = time.time()
     try:
-        WebDriverWait(driver, 90).until(EC.presence_of_element_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]")))
-        rows = WebDriverWait(driver, 90).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
+        WebDriverWait(driver, 120).until(EC.presence_of_element_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]")))
+        rows = WebDriverWait(driver, 120).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
         logging.info(f"CPLUS: 找到 {len(rows)} 個報告行，耗時 {time.time() - start_time:.1f} 秒")
     except TimeoutException:
         logging.warning("CPLUS: 表格加載失敗，嘗試備用定位...")
-        WebDriverWait(driver, 90).until(EC.presence_of_element_located((By.CSS_SELECTOR, "table")))
-        rows = WebDriverWait(driver, 90).until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "table tbody tr")))
+        WebDriverWait(driver, 120).until(EC.presence_of_element_located((By.CSS_SELECTOR, "table")))
+        rows = WebDriverWait(driver, 120).until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "table tbody tr")))
         logging.info(f"CPLUS: 找到 {len(rows)} 個報告行 (備用定位)，耗時 {time.time() - start_time:.1f} 秒")
 
     if time.time() - start_time > 180:
@@ -231,30 +237,21 @@ def process_cplus_house(driver, wait, initial_files):
     click_times = []
     successful_methods = {
         "Standard click": 0,
-        "ActionChains click": 0,
-        "ActionChains click_and_hold": 0,
-        "JavaScript click": 0,
-        "Send Keys ENTER": 0,
-        "DispatchEvent click": 0
     }
 
     for idx in range(button_count):
         success = False
+        report_name = driver.find_element(By.XPATH, f"(//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[3])[{idx+1}]").text
+        expected_filename = f"{report_name.replace(' ', '_').replace('/', '_')}_{time.strftime('%d%m%y')}_CKL"
         for retry_count in range(MAX_RETRIES):
             try:
                 button = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, f"(//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)])[{idx+1}]")))
                 driver.execute_script("arguments[0].scrollIntoView({block: 'center', behavior: 'smooth'});", button)
                 click_time = time.time()
                 click_times.append(click_time)
-                time.sleep(0.1)
+                time.sleep(2)  # 增加下載間隔
 
-                try:
-                    report_name = driver.find_element(By.XPATH, f"(//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[3])[{idx+1}]").text
-                    logging.info(f"CPLUS: 準備點擊第 {idx+1} 個 EXCEL 按鈕，報告名稱: {report_name}")
-                except Exception as e:
-                    report_name = f"未知報告 {idx+1}"
-                    logging.warning(f"CPLUS: 獲取報告名稱失敗: {str(e)}")
-
+                logging.info(f"CPLUS: 準備點擊第 {idx+1} 個 EXCEL 按鈕，報告名稱: {report_name}")
                 clicked, method_names = attempt_click(button, driver)
                 if method_names is None:
                     raise Exception("所有點擊方法失敗")
@@ -268,9 +265,9 @@ def process_cplus_house(driver, wait, initial_files):
                 handle_popup(driver, wait)
                 time.sleep(1)
 
-                temp_new, download_time = wait_for_new_file(cplus_download_dir, local_initial)
+                temp_new, download_time = wait_for_new_file(cplus_download_dir, local_initial, expected_filename)
                 if temp_new:
-                    matched_file = next(f for f in temp_new if f.endswith(('.csv', '.xlsx')))
+                    matched_file = temp_new.pop()
                     all_downloaded_files.add(matched_file)
                     report_file_mapping.append((report_name, matched_file, download_time))
                     local_initial.add(matched_file)
@@ -334,5 +331,4 @@ def main():
                 logging.error(f"CPLUS WebDriver 關閉失敗: {str(e)}")
 
 if __name__ == "__main__":
-    setup_environment()
     main()
