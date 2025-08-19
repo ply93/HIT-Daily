@@ -152,15 +152,16 @@ def attempt_click(button, driver):
         ("DispatchEvent click", lambda: driver.execute_script("arguments[0].dispatchEvent(new Event('click'));", button))
     ]
     results = {method_name: False for method_name, _ in methods}
+    successful = []
     for method_name, method_func in methods:
         try:
             method_func()
             results[method_name] = True
+            successful.append(method_name)
             logging.debug(f"點擊測試方法 {method_name} 成功")
         except Exception as e:
             logging.debug(f"點擊測試方法 {method_name} 失敗: {str(e)}")
-    successful = [name for name, success in results.items() if success]
-    return bool(successful), successful[0] if successful else None
+    return bool(successful), successful if successful else None
 
 def process_cplus_house(driver, wait, initial_files):
     logging.info("CPLUS: 前往 Housekeeping Reports 頁面...")
@@ -178,13 +179,13 @@ def process_cplus_house(driver, wait, initial_files):
     logging.info("CPLUS: 等待表格加載...")
     start_time = time.time()
     try:
-        WebDriverWait(driver, 90).until(EC.presence_of_element_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]")))  # 延長至 90 秒
-        rows = WebDriverWait(driver, 90).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))  # 延長至 90 秒
+        WebDriverWait(driver, 90).until(EC.presence_of_element_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]")))
+        rows = WebDriverWait(driver, 90).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
         logging.info(f"CPLUS: 找到 {len(rows)} 個報告行，耗時 {time.time() - start_time:.1f} 秒")
     except TimeoutException:
         logging.warning("CPLUS: 表格加載失敗，嘗試備用定位...")
-        WebDriverWait(driver, 90).until(EC.presence_of_element_located((By.CSS_SELECTOR, "table")))  # 延長至 90 秒
-        rows = WebDriverWait(driver, 90).until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "table tbody tr")))  # 延長至 90 秒
+        WebDriverWait(driver, 90).until(EC.presence_of_element_located((By.CSS_SELECTOR, "table")))
+        rows = WebDriverWait(driver, 90).until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "table tbody tr")))
         logging.info(f"CPLUS: 找到 {len(rows)} 個報告行 (備用定位)，耗時 {time.time() - start_time:.1f} 秒")
 
     if time.time() - start_time > 180:
@@ -197,9 +198,8 @@ def process_cplus_house(driver, wait, initial_files):
     local_initial = initial_files.copy()
     new_files = set()
     all_downloaded_files = set()
-    # 參考你的代碼，優化按鈕定位
     try:
-        WebDriverWait(driver, 120).until(EC.presence_of_element_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)]")))  # 延長至 120 秒
+        WebDriverWait(driver, 120).until(EC.presence_of_element_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)]")))
         excel_buttons = driver.find_elements(By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)]")
         if not excel_buttons:
             logging.debug("CPLUS: 未找到 Excel 按鈕，嘗試原始定位...")
@@ -256,10 +256,14 @@ def process_cplus_house(driver, wait, initial_files):
                     logging.warning(f"CPLUS: 獲取報告名稱失敗: {str(e)}")
 
                 clicked, method_names = attempt_click(button, driver)
-                if not clicked:
+                if method_names is None:
                     raise Exception("所有點擊方法失敗")
                 for method in method_names:
-                    successful_methods[method] += 1
+                    if method in successful_methods:
+                        successful_methods[method] += 1
+                    else:
+                        logging.warning(f"未知點擊方法: {method}, 已忽略")
+                logging.info(f"成功點擊方法: {', '.join(method_names)}")
 
                 handle_popup(driver, wait)
                 time.sleep(1)
@@ -330,4 +334,5 @@ def main():
                 logging.error(f"CPLUS WebDriver 關閉失敗: {str(e)}")
 
 if __name__ == "__main__":
+    setup_environment()
     main()
