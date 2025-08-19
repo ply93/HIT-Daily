@@ -17,7 +17,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 cplus_download_dir = os.path.abspath("downloads_cplus")
 MAX_RETRIES = 1  # 保持 1 次
-DOWNLOAD_TIMEOUT = 3  # 改為 3 秒
+DOWNLOAD_TIMEOUT = 3  # 保持 3 秒
 
 def clear_download_dirs():
     for dir_path in [cplus_download_dir]:
@@ -191,13 +191,13 @@ def process_cplus_house(driver, wait, initial_files):
     logging.info("CPLUS: 等待表格加載...")
     start_time = time.time()
     try:
-        WebDriverWait(driver, 120).until(EC.presence_of_element_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]")))
-        rows = WebDriverWait(driver, 120).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr[td[3]]")))  # 匹配有報告名稱的行
+        WebDriverWait(driver, 60).until(EC.presence_of_element_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]")))  # 減少至 60 秒
+        rows = WebDriverWait(driver, 60).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr[td[3]]")))  # 匹配有報告名稱的行
         logging.info(f"CPLUS: 找到 {len(rows)} 個報告行，耗時 {time.time() - start_time:.1f} 秒")
     except TimeoutException:
         logging.warning("CPLUS: 表格加載失敗，嘗試備用定位...")
-        WebDriverWait(driver, 120).until(EC.presence_of_element_located((By.CSS_SELECTOR, "table")))
-        rows = WebDriverWait(driver, 120).until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "table tbody tr")))
+        WebDriverWait(driver, 60).until(EC.presence_of_element_located((By.CSS_SELECTOR, "table")))
+        rows = WebDriverWait(driver, 60).until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "table tbody tr")))
         logging.info(f"CPLUS: 找到 {len(rows)} 個報告行 (備用定位)，耗時 {time.time() - start_time:.1f} 秒")
 
     if time.time() - start_time > 180:
@@ -205,14 +205,14 @@ def process_cplus_house(driver, wait, initial_files):
         driver.save_screenshot("house_load_timeout.png")
         return set(), 0, 0
 
-    time.sleep(0.5)
+    time.sleep(2)  # 增加等待確保頁面穩定
     logging.info("CPLUS: 定位並點擊所有 EXCEL 下載按鈕...")
     local_initial = initial_files.copy()
     new_files = set()
     all_downloaded_files = set()
     try:
-        WebDriverWait(driver, 120).until(EC.presence_of_element_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button[contains(@class, 'MuiButton-root') and not(@disabled)]")))
-        excel_buttons = driver.find_elements(By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button[contains(@class, 'MuiButton-root') and not(@disabled)]")
+        WebDriverWait(driver, 60).until(EC.presence_of_element_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button[contains(@class, 'MuiButtonBase-root') and not(@disabled)]")))  # 調整選擇器
+        excel_buttons = driver.find_elements(By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button[contains(@class, 'MuiButtonBase-root') and not(@disabled)]")
         if not excel_buttons:
             logging.debug("CPLUS: 未找到 Excel 按鈕，嘗試原始定位...")
             excel_buttons = driver.find_elements(By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button[not(@disabled)]//svg[@viewBox='0 0 24 24']//path[@fill='#036e11']")
@@ -259,10 +259,10 @@ def process_cplus_house(driver, wait, initial_files):
             expected_filename = f"{report_name.replace(' ', '_').replace('/', '_')}_{time.strftime('%d%m%y')}_CKL"
             for retry_count in range(MAX_RETRIES):
                 try:
-                    button = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, f"(//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button[contains(@class, 'MuiButton-root') and not(@disabled)])[{idx+1}]")))
+                    button = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, f"(//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button[contains(@class, 'MuiButtonBase-root') and not(@disabled)])[{idx+1}]")))
                     driver.execute_script("arguments[0].scrollIntoView({block: 'center', behavior: 'smooth'});", button)
                     click_time = time.time()
-                    time.sleep(0.5)  # 減少至 0.5 秒
+                    time.sleep(0.5)  # 保持 0.5 秒
 
                     logging.info(f"CPLUS: 準備點擊第 {idx+1} 個 EXCEL 按鈕，報告名稱: {report_name}，使用方法: {method}")
                     clicked = attempt_click(button, driver, method)
