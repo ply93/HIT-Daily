@@ -209,9 +209,7 @@ def process_cplus_house(driver, wait, initial_files):
     local_initial = initial_files.copy()
     new_files = set()
     all_downloaded_files = set()
-    excel_buttons = driver.find_elements(By.XPATH, "//table//tbody//tr//td//button[contains(., 'EXCEL')]")
-    if not excel_buttons:
-        excel_buttons = driver.find_elements(By.CSS_SELECTOR, "table tbody tr td button")  # 移除 :contains，改為通用 button
+    excel_buttons = driver.find_elements(By.XPATH, "//table//tbody//tr//td//button[contains(text(), 'EXCEL')]")  # 使用 contains(text()) 確保文本匹配
     button_count = len(excel_buttons)
     if button_count == 0:
         logging.error("CPLUS: 未找到任何 EXCEL 下載按鈕，記錄頁面狀態...")
@@ -219,18 +217,16 @@ def process_cplus_house(driver, wait, initial_files):
         with open("house_button_failure.html", "w", encoding="utf-8") as f:
             f.write(driver.page_source)
         raise Exception("CPLUS: Housekeeping Reports 未找到 EXCEL 下載按鈕")
-    logging.info(f"CPLUS: 找到 {button_count} 個 EXCEL 下載按鈕")
+    logging.info(f"CPLUS: 找到 {button_count} 個 EXCEL 下載按鈕 (預期 6 個)")
 
-    # 過濾出包含 'EXCEL' 的按鈕
-    excel_buttons = [btn for btn in excel_buttons if "EXCEL" in btn.text]
+    # 記錄實際按鈕文本以 debug
+    for idx, btn in enumerate(excel_buttons, 1):
+        btn_text = btn.text or btn.get_attribute("innerText") or "無文本"
+        logging.debug(f"按鈕 {idx} 文本: {btn_text}")
 
-    button_count = len(excel_buttons)
-    if button_count == 0:
-        logging.error("CPLUS: 未找到任何包含 'EXCEL' 的按鈕，記錄頁面狀態...")
-        driver.save_screenshot("house_button_failure.png")
-        with open("house_button_failure.html", "w", encoding="utf-8") as f:
-            f.write(driver.page_source)
-        raise Exception("CPLUS: Housekeeping Reports 未找到包含 'EXCEL' 的按鈕")
+    # 驗證按鈕數量
+    if button_count != 6:
+        logging.warning(f"CPLUS: 檢測到 {button_count} 個 EXCEL 按鈕，預期 6 個，繼續執行但可能有誤")
 
     report_file_mapping = []
     failed_buttons = []
@@ -248,7 +244,7 @@ def process_cplus_house(driver, wait, initial_files):
         success = False
         for retry_count in range(MAX_RETRIES):
             try:
-                button = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, f"(//table//tbody//tr//td//button[contains(., 'EXCEL')])[{idx+1}]")))
+                button = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, f"(//table//tbody//tr//td//button[contains(text(), 'EXCEL')])[{idx+1}]")))
                 driver.execute_script("arguments[0].scrollIntoView({block: 'center', behavior: 'smooth'});", button)
                 click_time = time.time()
                 click_times.append(click_time)
