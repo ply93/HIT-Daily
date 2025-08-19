@@ -16,7 +16,7 @@ import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 cplus_download_dir = os.path.abspath("downloads_cplus")
-DOWNLOAD_TIMEOUT = 2  # 增加至 2 秒
+DOWNLOAD_TIMEOUT = 1  # 保持 1 秒作為備用
 
 # 報告名稱與文件名的映射
 report_to_filename = {
@@ -86,7 +86,7 @@ def get_chrome_options(download_dir):
 
 def wait_for_new_file(download_dir, initial_files, expected_filename=None, timeout=DOWNLOAD_TIMEOUT):
     start_time = time.time()
-    while time.time() - start_time < timeout:
+    def file_available(driver):
         current_files = set(os.listdir(download_dir))
         new_files = current_files - initial_files
         if new_files:
@@ -95,9 +95,16 @@ def wait_for_new_file(download_dir, initial_files, expected_filename=None, timeo
                 if os.path.getsize(file_path) > 0 and file.endswith(('.csv', '.xlsx')):
                     logging.debug(f"檢測到新文件: {file}, 預期: {expected_filename}")
                     return {file}, time.time() - start_time
-        time.sleep(0.1)
-    logging.warning(f"下載超時，當前文件: {list(current_files)}")
-    return set(), 0
+        return False
+    try:
+        result, _ = WebDriverWait(None, 15).until(lambda x: file_available(driver) or (time.time() - start_time >= timeout))
+        if result:
+            return result, _
+        logging.warning(f"下載超時，當前文件: {list(set(os.listdir(download_dir)) - initial_files)}")
+        return set(), 0
+    except TimeoutException:
+        logging.warning(f"下載超時（15s），當前文件: {list(set(os.listdir(download_dir)) - initial_files)}")
+        return set(), 0
 
 def handle_popup(driver, wait):
     max_attempts = 3
@@ -282,7 +289,6 @@ def process_cplus_house(driver, wait, initial_files):
                 logging.info(f"CPLUS: 準備點擊第 {idx+1} 個 EXCEL 按鈕，報告名稱: {report_name}，使用方法: {method}")
                 clicked = attempt_click(button, driver, method)
                 if clicked:
-                    successful_methods[method] += 1
                     logging.info(f"成功點擊方法: {method}")
                 else:
                     raise Exception(f"點擊方法 {method} 失敗")
@@ -290,7 +296,7 @@ def process_cplus_house(driver, wait, initial_files):
                 handle_popup(driver, wait)
                 time.sleep(0.1)
 
-                temp_new, download_time = wait_for_new_file(cplus_download_dir, local_initial)
+                temp_new, download_time = wait_for_new_file(cplus_download_dir, local_initial, expected_filename)
                 if temp_new:
                     matched_file = temp_new.pop()
                     all_downloaded_files.add(matched_file)
@@ -300,7 +306,7 @@ def process_cplus_house(driver, wait, initial_files):
                         local_initial.add(matched_file)
                         new_files.add(matched_file)
                         success = True
-                        successful_methods[method] += 1  # 增加成功下載計數
+                        successful_methods[method] += 1  # 僅在下載成功時增加計數
                         logging.info(f"CPLUS: 第 {idx+1} 個下載成功，文件: {matched_file}, 預期: {expected_filename}, 耗時 {download_time:.1f} 秒，使用方法: {method}")
                     else:
                         logging.warning(f"CPLUS: 文件 {matched_file} 與預期 {expected_filename} 不匹配")
@@ -337,7 +343,7 @@ def process_cplus_house(driver, wait, initial_files):
 
     logging.info("點擊方法穩定性統計:")
     for method, count in successful_methods.items():
-        logging.info(f"{method}: {count} 次成功 (點擊 + 下載)")
+        logging.info(f"{method}: {count} 次成功 (下載)")
 
     return new_files, len(new_files), button_count
 
