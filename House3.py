@@ -16,8 +16,18 @@ import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 cplus_download_dir = os.path.abspath("downloads_cplus")
-MAX_RETRIES = 0  # 移除重試
-DOWNLOAD_TIMEOUT = 1  # 減少至 1 秒
+MAX_RETRIES = 0  # 保持 0 次
+DOWNLOAD_TIMEOUT = 1  # 保持 1 秒
+
+# 報告名稱與文件名的映射
+report_to_filename = {
+    "CONTAINER DAMAGE REPORT (LINE) ENTRY GATE + EXIT GATE": "DM1C_250819_CKL.csv",
+    "CONTAINER LIST (ON HAND)": "IA15_250819_CKL.csv",
+    "CY - GATELOG": "GA1_250819_CKL.csv",
+    "CONTAINER LIST (DAMAGED)": "IA17_250819_CKL.csv",
+    "ACTIVE REEFER CONTAINER ON HAND LIST": "IA5_250819_CKL.csv",
+    "REEFER CONTAINER MONITOR REPORT": "IE2_250819_CKL.csv"
+}
 
 def clear_download_dirs():
     for dir_path in [cplus_download_dir]:
@@ -274,13 +284,13 @@ def process_cplus_house(driver, wait, initial_files):
         for idx in range(button_count):
             success = False
             report_name = driver.find_element(By.XPATH, f"(//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[3])[{idx+1}]").text
-            expected_filename = f"{report_name.replace(' ', '_').replace('/', '_')}_{time.strftime('%d%m%y')}_CKL"
+            expected_filename = report_to_filename.get(report_name, f"{report_name.replace(' ', '_').replace('/', '_')}_{time.strftime('%d%m%y')}_CKL")
             try:
                 button = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, f"(//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)])[{idx+1}]")))
                 driver.execute_script("arguments[0].scrollIntoView({block: 'center', behavior: 'smooth'});", button)
-                driver.execute_script("window.scrollBy(0, 50);")  # 觸發滾動
+                driver.execute_script("window.scrollBy(0, 50);")
                 click_time = time.time()
-                time.sleep(0.2)
+                time.sleep(0.1)  # 減少至 0.1 秒
 
                 logging.info(f"CPLUS: 準備點擊第 {idx+1} 個 EXCEL 按鈕，報告名稱: {report_name}，使用方法: {method}")
                 clicked = attempt_click(button, driver, method)
@@ -291,17 +301,21 @@ def process_cplus_house(driver, wait, initial_files):
                     raise Exception(f"點擊方法 {method} 失敗")
 
                 handle_popup(driver, wait)
-                time.sleep(0.2)
+                time.sleep(0.1)
 
                 temp_new, download_time = wait_for_new_file(cplus_download_dir, local_initial)
                 if temp_new:
                     matched_file = temp_new.pop()
                     all_downloaded_files.add(matched_file)
-                    report_file_mapping.append((report_name, matched_file, download_time))
-                    local_initial.add(matched_file)
-                    new_files.add(matched_file)
-                    success = True
-                    logging.info(f"CPLUS: 第 {idx+1} 個下載成功，文件: {matched_file}, 預期: {expected_filename}, 耗時 {download_time:.1f} 秒，使用方法: {method}")
+                    # 檢查是否與預期文件名匹配
+                    if any(matched_file.startswith(expected_filename.split('.')[0]) or matched_file == expected_filename for expected in [expected_filename] + list(report_to_filename.values())):
+                        report_file_mapping.append((report_name, matched_file, download_time))
+                        local_initial.add(matched_file)
+                        new_files.add(matched_file)
+                        success = True
+                        logging.info(f"CPLUS: 第 {idx+1} 個下載成功，文件: {matched_file}, 預期: {expected_filename}, 耗時 {download_time:.1f} 秒，使用方法: {method}")
+                    else:
+                        logging.warning(f"CPLUS: 文件 {matched_file} 與預期 {expected_filename} 不匹配")
                 else:
                     logging.warning(f"CPLUS: 第 {idx+1} 個未觸發新 EXCEL 文件，使用方法: {method}")
                     driver.save_screenshot(f"house_button_{idx+1}_failure_{method}.png")
