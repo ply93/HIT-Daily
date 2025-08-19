@@ -1,3 +1,12 @@
+# 報告名稱與文件名的映射
+report_to_filename = {
+    "CONTAINER DAMAGE REPORT (LINE) ENTRY GATE + EXIT GATE": "DM1C_250819_CKL.csv",
+    "CONTAINER LIST (ON HAND)": "IA15_250819_CKL.csv",
+    "CY - GATELOG": "GA1_250819_CKL.csv",
+    "CONTAINER LIST (DAMAGED)": "IA17_250819_CKL.csv",
+    "ACTIVE REEFER CONTAINER ON HAND LIST": "IA5_250819_CKL.csv",
+    "REEFER CONTAINER MONITOR REPORT": "IE2_250819_CKL.csv"
+
 import os
 import time
 import shutil
