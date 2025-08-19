@@ -16,7 +16,6 @@ import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 cplus_download_dir = os.path.abspath("downloads_cplus")
-DOWNLOAD_TIMEOUT = 30  # 保持 30 秒
 MAX_RETRIES = 2  # 保持失敗重試次數
 
 # 報告名稱與文件名的映射
@@ -85,7 +84,7 @@ def get_chrome_options(download_dir):
     chrome_options.set_capability('timeouts', {'implicit': 30000, 'pageLoad': 30000, 'script': 30000})
     return chrome_options
 
-def wait_for_new_file(driver, download_dir, initial_files, expected_filename=None, timeout=DOWNLOAD_TIMEOUT):
+def wait_for_new_file(driver, download_dir, initial_files, expected_filename=None):
     start_time = time.time()
     def file_available(_):
         current_files = set(os.listdir(download_dir))
@@ -98,13 +97,13 @@ def wait_for_new_file(driver, download_dir, initial_files, expected_filename=Non
                     return {file}, time.time() - start_time
         return False
     try:
-        result, _ = WebDriverWait(driver, timeout).until(file_available)
+        result, _ = WebDriverWait(driver, 30).until(file_available)
         if result:
             return result, _
-        logging.warning(f"下載超時（{timeout}s），當前文件: {list(set(os.listdir(download_dir)) - initial_files)}")
+        logging.warning(f"下載超時（30s），當前文件: {list(set(os.listdir(download_dir)) - initial_files)}")
         return set(), 0
     except TimeoutException:
-        logging.warning(f"下載超時（{timeout}s），當前文件: {list(set(os.listdir(download_dir)) - initial_files)}")
+        logging.warning(f"下載超時（30s），當前文件: {list(set(os.listdir(download_dir)) - initial_files)}")
         return set(), 0
 
 def handle_popup(driver, wait):
@@ -207,7 +206,7 @@ def process_cplus_house(driver, wait, initial_files):
             logging.info("CPLUS: 前往 Housekeeping Reports 頁面...")
             driver.get("https://cplus.hit.com.hk/app/#/report/housekeepReport")
             try:
-                wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")), 10)  # 增加至 10 秒
+                wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")), 10)
                 logging.info("CPLUS: Housekeeping Reports 頁面加載完成")
             except TimeoutException:
                 logging.error("CPLUS: House 頁面加載失敗，刷新頁面...")
@@ -219,16 +218,16 @@ def process_cplus_house(driver, wait, initial_files):
             logging.info("CPLUS: 等待表格加載...")
             start_time = time.time()
             try:
-                WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]")))  # 增加至 10 秒
+                WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]")))
                 rows = WebDriverWait(driver, 10).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr[td[3]]")))
                 logging.info(f"CPLUS: 找到 {len(rows)} 個報告行，耗時 {time.time() - start_time:.1f} 秒")
             except TimeoutException:
                 logging.warning("CPLUS: 表格加載失敗，嘗試備用定位...")
-                WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.CSS_SELECTOR, "table.MuiTable-root")))  # 改進備用定位
+                WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.CSS_SELECTOR, "table.MuiTable-root")))
                 rows = WebDriverWait(driver, 10).until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "table.MuiTable-root tbody tr")))
                 logging.info(f"CPLUS: 找到 {len(rows)} 個報告行 (備用定位)，耗時 {time.time() - start_time:.1f} 秒")
 
-            if time.time() - start_time > 20:  # 增加至 20 秒
+            if time.time() - start_time > 20:
                 logging.warning("CPLUS: Housekeeping Reports 加載時間過長，跳過")
                 driver.save_screenshot("house_load_timeout.png")
                 return set(), 0, 0
