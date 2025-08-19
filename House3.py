@@ -16,7 +16,7 @@ import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 cplus_download_dir = os.path.abspath("downloads_cplus")
-MAX_RETRIES = 2  # 減少重試次數
+MAX_RETRIES = 1  # 減少至 1 次
 DOWNLOAD_TIMEOUT = 5  # 保持 5 秒
 
 def clear_download_dirs():
@@ -192,7 +192,7 @@ def process_cplus_house(driver, wait, initial_files):
     start_time = time.time()
     try:
         WebDriverWait(driver, 120).until(EC.presence_of_element_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]")))
-        rows = WebDriverWait(driver, 120).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr[td]")))  # 過濾只有 <td> 的 <tr>
+        rows = WebDriverWait(driver, 120).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr[td[3]]")))  # 匹配有報告名稱的行
         logging.info(f"CPLUS: 找到 {len(rows)} 個報告行，耗時 {time.time() - start_time:.1f} 秒")
     except TimeoutException:
         logging.warning("CPLUS: 表格加載失敗，嘗試備用定位...")
@@ -211,8 +211,8 @@ def process_cplus_house(driver, wait, initial_files):
     new_files = set()
     all_downloaded_files = set()
     try:
-        WebDriverWait(driver, 120).until(EC.presence_of_element_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)]")))
-        excel_buttons = driver.find_elements(By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)]")
+        WebDriverWait(driver, 120).until(EC.presence_of_element_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button[not(@disabled)]")))
+        excel_buttons = driver.find_elements(By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button[not(@disabled)]")
         if not excel_buttons:
             logging.debug("CPLUS: 未找到 Excel 按鈕，嘗試原始定位...")
             excel_buttons = driver.find_elements(By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button[not(@disabled)]//svg[@viewBox='0 0 24 24']//path[@fill='#036e11']")
@@ -234,9 +234,9 @@ def process_cplus_house(driver, wait, initial_files):
 
     # 記錄實際按鈕屬性以 debug
     for idx, btn in enumerate(excel_buttons, 1):
-        btn_text = btn.text or btn.get_attribute("innerText") or "無文本"
+        btn_text = btn.text or btn.get_attribute("innerText") or btn.get_attribute("aria-label") or "無文本"
         btn_class = btn.get_attribute("class") or "無類別"
-        logging.debug(f"按鈕 {idx} 文本: {btn_text}, 類別: {btn_class}")
+        logging.debug(f"按鈕 {idx} 文本/aria-label: {btn_text}, 類別: {btn_class}")
 
     click_methods = [
         "Standard click",
@@ -259,10 +259,10 @@ def process_cplus_house(driver, wait, initial_files):
             expected_filename = f"{report_name.replace(' ', '_').replace('/', '_')}_{time.strftime('%d%m%y')}_CKL"
             for retry_count in range(MAX_RETRIES):
                 try:
-                    button = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, f"(//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)])[{idx+1}]")))
+                    button = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, f"(//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button[not(@disabled)])[{idx+1}]")))
                     driver.execute_script("arguments[0].scrollIntoView({block: 'center', behavior: 'smooth'});", button)
                     click_time = time.time()
-                    time.sleep(2)  # 增加下載間隔
+                    time.sleep(1)  # 減少至 1 秒
 
                     logging.info(f"CPLUS: 準備點擊第 {idx+1} 個 EXCEL 按鈕，報告名稱: {report_name}，使用方法: {method}")
                     clicked = attempt_click(button, driver, method)
@@ -275,7 +275,7 @@ def process_cplus_house(driver, wait, initial_files):
                     handle_popup(driver, wait)
                     time.sleep(1)
 
-                    temp_new, download_time = wait_for_new_file(cplus_download_dir, local_initial, expected_filename)
+                    temp_new, download_time = wait_for_new_file(cplus_download_dir, local_initial)
                     if temp_new:
                         matched_file = temp_new.pop()
                         all_downloaded_files.add(matched_file)
