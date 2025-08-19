@@ -17,7 +17,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 cplus_download_dir = os.path.abspath("downloads_cplus")
 MAX_RETRIES = 3
-DOWNLOAD_TIMEOUT = 30  # 下載超時時間
+DOWNLOAD_TIMEOUT = 5  # 改為 5 秒
 
 def clear_download_dirs():
     for dir_path in [cplus_download_dir]:
@@ -83,11 +83,13 @@ def wait_for_new_file(download_dir, initial_files, expected_filename=None, timeo
             for file in new_files:
                 file_path = os.path.join(download_dir, file)
                 if os.path.getsize(file_path) > 0 and file.endswith(('.csv', '.xlsx')):
+                    logging.debug(f"檢測到新文件: {file}")
                     if expected_filename and file.startswith(expected_filename.split('.')[0]):
                         return {file}, time.time() - start_time
                     elif not expected_filename:
                         return {file}, time.time() - start_time
         time.sleep(0.1)
+    logging.warning(f"下載超時，當前文件: {list(current_files)}")
     return set(), 0
 
 def handle_popup(driver, wait):
@@ -187,7 +189,7 @@ def process_cplus_house(driver, wait, initial_files):
     start_time = time.time()
     try:
         WebDriverWait(driver, 120).until(EC.presence_of_element_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]")))
-        rows = WebDriverWait(driver, 120).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
+        rows = WebDriverWait(driver, 120).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr[td]")))  # 過濾只有 <td> 的 <tr>
         logging.info(f"CPLUS: 找到 {len(rows)} 個報告行，耗時 {time.time() - start_time:.1f} 秒")
     except TimeoutException:
         logging.warning("CPLUS: 表格加載失敗，嘗試備用定位...")
