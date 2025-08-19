@@ -16,8 +16,7 @@ import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 cplus_download_dir = os.path.abspath("downloads_cplus")
-MAX_RETRIES = 0  # 保持 0 次
-DOWNLOAD_TIMEOUT = 1  # 保持 1 秒
+DOWNLOAD_TIMEOUT = 2  # 增加至 2 秒
 
 # 報告名稱與文件名的映射
 report_to_filename = {
@@ -179,11 +178,6 @@ def cplus_login(driver, wait):
 def attempt_click(button, driver, method_name):
     methods = {
         "Standard click": lambda: button.click(),
-        "ActionChains click": lambda: ActionChains(driver).move_to_element(button).click().perform(),
-        "ActionChains click_and_hold": lambda: ActionChains(driver).move_to_element(button).click_and_hold().pause(0.1).release().perform(),
-        "JavaScript click": lambda: driver.execute_script("arguments[0].click();", button),
-        "Send Keys ENTER": lambda: ActionChains(driver).move_to_element(button).send_keys(Keys.ENTER).perform(),
-        "DispatchEvent click": lambda: driver.execute_script("arguments[0].dispatchEvent(new Event('click'));", button)
     }
     try:
         if not button.is_enabled() or not button.is_displayed():
@@ -266,14 +260,7 @@ def process_cplus_house(driver, wait, initial_files):
         btn_class = btn.get_attribute("class") or "無類別"
         logging.debug(f"按鈕 {idx} 文本/title/aria-label: {btn_text}, 類別: {btn_class}")
 
-    click_methods = [
-        "Standard click",
-        "ActionChains click",
-        "ActionChains click_and_hold",
-        "JavaScript click",
-        "Send Keys ENTER",
-        "DispatchEvent click"
-    ]
+    click_methods = ["Standard click"]  # 只保留 Standard click
     successful_methods = {method: 0 for method in click_methods}
     report_file_mapping = []
     failed_buttons = []
@@ -290,7 +277,7 @@ def process_cplus_house(driver, wait, initial_files):
                 driver.execute_script("arguments[0].scrollIntoView({block: 'center', behavior: 'smooth'});", button)
                 driver.execute_script("window.scrollBy(0, 50);")
                 click_time = time.time()
-                time.sleep(0.1)  # 減少至 0.1 秒
+                time.sleep(0.1)
 
                 logging.info(f"CPLUS: 準備點擊第 {idx+1} 個 EXCEL 按鈕，報告名稱: {report_name}，使用方法: {method}")
                 clicked = attempt_click(button, driver, method)
@@ -313,6 +300,7 @@ def process_cplus_house(driver, wait, initial_files):
                         local_initial.add(matched_file)
                         new_files.add(matched_file)
                         success = True
+                        successful_methods[method] += 1  # 增加成功下載計數
                         logging.info(f"CPLUS: 第 {idx+1} 個下載成功，文件: {matched_file}, 預期: {expected_filename}, 耗時 {download_time:.1f} 秒，使用方法: {method}")
                     else:
                         logging.warning(f"CPLUS: 文件 {matched_file} 與預期 {expected_filename} 不匹配")
@@ -336,7 +324,7 @@ def process_cplus_house(driver, wait, initial_files):
                 time.sleep(2)
             if not success:
                 failed_buttons.append((idx, method))
-        logging.info(f"CPLUS: 點擊方法 {method} 測試完成，成功下載: {sum(1 for r, f, _ in report_file_mapping if f != 'N/A' and method in f)} 個")
+        logging.info(f"CPLUS: 點擊方法 {method} 測試完成，成功下載: {successful_methods[method]} 個")
 
     if new_files:
         logging.info(f"CPLUS: Housekeeping Reports 下載完成，共 {len(new_files)} 個文件，找到 {button_count} 個 EXCEL 按鈕")
@@ -349,7 +337,7 @@ def process_cplus_house(driver, wait, initial_files):
 
     logging.info("點擊方法穩定性統計:")
     for method, count in successful_methods.items():
-        logging.info(f"{method}: {count} 次成功")
+        logging.info(f"{method}: {count} 次成功 (點擊 + 下載)")
 
     return new_files, len(new_files), button_count
 
