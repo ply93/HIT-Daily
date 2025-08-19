@@ -134,7 +134,7 @@ def cplus_login(driver, wait):
     logging.info("CPLUS: LOGIN 按鈕點擊成功")
     try:
         handle_popup(driver, wait)
-        WebDriverWait(driver, 30).until(EC.url_contains("https://cplus.hit.com.hk/app/#/"))  # 改為 30 秒
+        WebDriverWait(driver, 30).until(EC.url_contains("https://cplus.hit.com.hk/app/#/"))
         logging.info("CPLUS: 檢測到主界面 URL，登錄成功")
     except TimeoutException:
         logging.warning("CPLUS: 登錄後主界面加載失敗，但繼續執行")
@@ -178,19 +178,19 @@ def process_cplus_house(driver, wait, initial_files):
     logging.info("CPLUS: 等待表格加載...")
     start_time = time.time()
     try:
-        WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.XPATH, "//table")))  # 改為 30 秒
-        rows = WebDriverWait(driver, 30).until(EC.presence_of_all_elements_located((By.XPATH, "//table//tbody//tr")))  # 改為 30 秒
+        WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.XPATH, "//table")))
+        rows = WebDriverWait(driver, 30).until(EC.presence_of_all_elements_located((By.XPATH, "//table//tbody//tr")))
         if len(rows) == 0:
             logging.warning("CPLUS: 無記錄，嘗試刷新...")
             driver.refresh()
             time.sleep(5)
-            WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.XPATH, "//table")))  # 改為 30 秒
-            rows = WebDriverWait(driver, 30).until(EC.presence_of_all_elements_located((By.XPATH, "//table//tbody//tr")))  # 改為 30 秒
+            WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.XPATH, "//table")))
+            rows = WebDriverWait(driver, 30).until(EC.presence_of_all_elements_located((By.XPATH, "//table//tbody//tr")))
         logging.info(f"CPLUS: 找到 {len(rows)} 個報告行，耗時 {time.time() - start_time:.1f} 秒")
     except TimeoutException:
         logging.warning("CPLUS: 表格加載失敗，嘗試備用定位...")
-        WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.CSS_SELECTOR, "table")))  # 改為 30 秒
-        rows = WebDriverWait(driver, 30).until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "table tbody tr")))  # 改為 30 秒
+        WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.CSS_SELECTOR, "table")))
+        rows = WebDriverWait(driver, 30).until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "table tbody tr")))
         if len(rows) == 0:
             logging.error("CPLUS: 表格加載完全失敗，跳過 Housekeeping Reports")
             driver.save_screenshot("house_load_failure.png")
@@ -199,7 +199,7 @@ def process_cplus_house(driver, wait, initial_files):
             return set(), 0, 0
         logging.info(f"CPLUS: 找到 {len(rows)} 個報告行 (備用定位)，耗時 {time.time() - start_time:.1f} 秒")
 
-    if time.time() - start_time > 60:  # 總超時縮短為 60 秒
+    if time.time() - start_time > 60:
         logging.warning("CPLUS: Housekeeping Reports 加載時間過長，跳過")
         driver.save_screenshot("house_load_timeout.png")
         return set(), 0, 0
@@ -211,7 +211,7 @@ def process_cplus_house(driver, wait, initial_files):
     all_downloaded_files = set()
     excel_buttons = driver.find_elements(By.XPATH, "//table//tbody//tr//td//button[contains(., 'EXCEL')]")
     if not excel_buttons:
-        excel_buttons = driver.find_elements(By.CSS_SELECTOR, "table tbody tr td button:contains('EXCEL')")
+        excel_buttons = driver.find_elements(By.CSS_SELECTOR, "table tbody tr td button")  # 移除 :contains，改為通用 button
     button_count = len(excel_buttons)
     if button_count == 0:
         logging.error("CPLUS: 未找到任何 EXCEL 下載按鈕，記錄頁面狀態...")
@@ -220,6 +220,17 @@ def process_cplus_house(driver, wait, initial_files):
             f.write(driver.page_source)
         raise Exception("CPLUS: Housekeeping Reports 未找到 EXCEL 下載按鈕")
     logging.info(f"CPLUS: 找到 {button_count} 個 EXCEL 下載按鈕")
+
+    # 過濾出包含 'EXCEL' 的按鈕
+    excel_buttons = [btn for btn in excel_buttons if "EXCEL" in btn.text]
+
+    button_count = len(excel_buttons)
+    if button_count == 0:
+        logging.error("CPLUS: 未找到任何包含 'EXCEL' 的按鈕，記錄頁面狀態...")
+        driver.save_screenshot("house_button_failure.png")
+        with open("house_button_failure.html", "w", encoding="utf-8") as f:
+            f.write(driver.page_source)
+        raise Exception("CPLUS: Housekeeping Reports 未找到包含 'EXCEL' 的按鈕")
 
     report_file_mapping = []
     failed_buttons = []
@@ -310,7 +321,7 @@ def main():
         driver = webdriver.Chrome(options=get_chrome_options(cplus_download_dir))
         logging.info("CPLUS WebDriver 初始化成功")
         driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-        wait = WebDriverWait(driver, 30)  # 改為 30 秒
+        wait = WebDriverWait(driver, 30)
         cplus_login(driver, wait)
         new_files, house_file_count, house_button_count = process_cplus_house(driver, wait, initial_files)
         logging.info(f"總下載文件: {len(new_files)} 個")
