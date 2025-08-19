@@ -16,8 +16,8 @@ import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 cplus_download_dir = os.path.abspath("downloads_cplus")
-MAX_RETRIES = 3
-DOWNLOAD_TIMEOUT = 5  # 改為 5 秒
+MAX_RETRIES = 2  # 減少重試次數
+DOWNLOAD_TIMEOUT = 5  # 保持 5 秒
 
 def clear_download_dirs():
     for dir_path in [cplus_download_dir]:
@@ -84,10 +84,7 @@ def wait_for_new_file(download_dir, initial_files, expected_filename=None, timeo
                 file_path = os.path.join(download_dir, file)
                 if os.path.getsize(file_path) > 0 and file.endswith(('.csv', '.xlsx')):
                     logging.debug(f"檢測到新文件: {file}")
-                    if expected_filename and file.startswith(expected_filename.split('.')[0]):
-                        return {file}, time.time() - start_time
-                    elif not expected_filename:
-                        return {file}, time.time() - start_time
+                    return {file}, time.time() - start_time
         time.sleep(0.1)
     logging.warning(f"下載超時，當前文件: {list(current_files)}")
     return set(), 0
@@ -165,9 +162,15 @@ def attempt_click(button, driver, method_name):
         "DispatchEvent click": lambda: driver.execute_script("arguments[0].dispatchEvent(new Event('click'));", button)
     }
     try:
+        if not button.is_enabled() or not button.is_displayed():
+            logging.warning(f"按鈕不可點擊: {method_name}")
+            return False
         methods[method_name]()
         logging.debug(f"點擊測試方法 {method_name} 成功")
         return True
+    except WebDriverException as e:
+        logging.error(f"WebDriverException 發生: {str(e)}，方法: {method_name}")
+        return False
     except Exception as e:
         logging.debug(f"點擊測試方法 {method_name} 失敗: {str(e)}")
         return False
@@ -287,13 +290,21 @@ def process_cplus_house(driver, wait, initial_files):
                         driver.save_screenshot(f"house_button_{idx+1}_failure_{method}_{retry_count}.png")
                         with open(f"house_button_{idx+1}_failure_{method}_{retry_count}.html", "w", encoding="utf-8") as f:
                             f.write(driver.page_source)
-                except (TimeoutException, NoSuchElementException, ElementClickInterceptedException, WebDriverException) as e:
+                except (TimeoutException, NoSuchElementException, ElementClickInterceptedException) as e:
                     logging.error(f"CPLUS: 第 {idx+1} 個失敗: {str(e)}，使用方法: {method}")
                     driver.save_screenshot(f"house_button_{idx+1}_failure_{method}_{retry_count}.png")
                     if retry_count < MAX_RETRIES - 1:
                         logging.info(f"CPLUS: 刷新頁面重試第 {idx+1} 個...")
                         driver.refresh()
                         time.sleep(5)
+                except WebDriverException as e:
+                    logging.error(f"WebDriver 異常: {str(e)}，關閉並重試...")
+                    driver.quit()
+                    driver = webdriver.Chrome(options=get_chrome_options(cplus_download_dir))
+                    wait = WebDriverWait(driver, 30)
+                    cplus_login(driver, wait)
+                    driver.get("https://cplus.hit.com.hk/app/#/report/housekeepReport")
+                    time.sleep(5)
             if not success:
                 failed_buttons.append((idx, method))
         logging.info(f"CPLUS: 點擊方法 {method} 測試完成，成功下載: {sum(1 for r, f, _ in report_file_mapping if f != 'N/A' and method in f)} 個")
