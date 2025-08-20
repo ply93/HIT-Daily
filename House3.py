@@ -2,8 +2,8 @@ import os
 import time
 import shutil
 import subprocess
+import threading
 from datetime import datetime
-from selenium.webdriver.common.keys import Keys
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
@@ -15,17 +15,17 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.action_chains import ActionChains
-from selenium.common.exceptions import TimeoutException, ElementClickInterceptedException, NoSuchElementException, WebDriverException
+from selenium.common.exceptions import TimeoutException, ElementClickInterceptedException, NoSuchElementException
 from webdriver_manager.chrome import ChromeDriverManager
 import logging
 from dotenv import load_dotenv
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(module)s:%(funcName)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 cplus_download_dir = os.path.abspath("downloads_cplus")
 barge_download_dir = os.path.abspath("downloads_barge")
-MAX_RETRIES = 2
-DOWNLOAD_TIMEOUT = 30  # 確保定義
+MAX_RETRIES = 3
+DOWNLOAD_TIMEOUT = 30  # 延長至 30 秒
 
 def clear_download_dirs():
     for dir_path in [cplus_download_dir, barge_download_dir]:
@@ -595,21 +595,24 @@ def main():
     barge_files = set()
     cplus_driver = None
     barge_driver = None
-
-    # 循序執行 CPLUS
-    cplus_result = process_cplus()
-    files, count, button_count, drv = cplus_result
-    cplus_files.update(files)
-    house_file_count[0] = count
-    house_button_count[0] = button_count
-    cplus_driver = drv
-
-    # 循序執行 Barge
-    barge_result = process_barge()
-    files, drv = barge_result
-    barge_files.update(files)
-    barge_driver = drv
-
+    def update_cplus(result):
+        files, count, button_count, drv = result
+        cplus_files.update(files)
+        house_file_count[0] = count
+        house_button_count[0] = button_count
+        nonlocal cplus_driver
+        cplus_driver = drv
+    def update_barge(result):
+        files, drv = result
+        barge_files.update(files)
+        nonlocal barge_driver
+        barge_driver = drv
+    cplus_thread = threading.Thread(target=lambda: update_cplus(process_cplus()))
+    barge_thread = threading.Thread(target=lambda: update_barge(process_barge()))
+    cplus_thread.start()
+    barge_thread.start()
+    cplus_thread.join()
+    barge_thread.join()
     logging.info("檢查所有下載文件...")
     downloaded_files = [f for f in os.listdir(cplus_download_dir) if f.endswith(('.csv', '.xlsx'))] + [f for f in os.listdir(barge_download_dir) if f.endswith(('.csv', '.xlsx'))]
     logging.info(f"總下載文件: {len(downloaded_files)} 個")
@@ -700,3 +703,6 @@ def main():
         barge_driver.quit()
         logging.info("Barge WebDriver 關閉")
     logging.info("腳本完成")
+if __name__ == "__main__":
+    setup_environment()
+    main()
