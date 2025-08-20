@@ -71,7 +71,7 @@ def get_chrome_options(download_dir):
     }
     chrome_options.add_experimental_option("prefs", prefs)
     chrome_options.binary_location = '/usr/bin/chromium-browser'
-    chrome_options.set_capability('timeouts', {'implicit': 30000, 'pageLoad': 5000, 'script': 5000})  # 調整超時
+    chrome_options.set_capability('timeouts', {'implicit': 30000, 'pageLoad': 15000, 'script': 5000})  # 調整 pageLoad 至 15 秒
     return chrome_options
 
 def wait_for_new_file(driver, download_dir, initial_files, expected_filename=None):
@@ -122,9 +122,10 @@ def handle_popup(driver, wait):
             time.sleep(0.2)
 
 def cplus_login(driver, wait):
+    start_time = time.time()
     logging.info("CPLUS: 嘗試打開網站 https://cplus.hit.com.hk/frontpage/#/")
     driver.get("https://cplus.hit.com.hk/frontpage/#/")
-    logging.info(f"CPLUS: 網站已成功打開，當前 URL: {driver.current_url}")
+    logging.info(f"CPLUS: 網站已成功打開，當前 URL: {driver.current_url}，耗時 {time.time() - start_time:.1f} 秒")
     time.sleep(0.2)
 
     logging.info("CPLUS: 點擊登錄前按鈕...")
