@@ -37,20 +37,26 @@ def clear_download_dirs():
 def setup_environment():
     os.environ.pop('TZ', None)
     try:
-        result = subprocess.run(['which', 'chromium-browser'], capture_output=True, text=True)
+        # 檢查 Chromium 和 Chromedriver
+        result = subprocess.run(['which', 'chromium'], capture_output=True, text=True)
         if result.returncode != 0:
             subprocess.run(['sudo', 'apt-get', 'update', '-qq'], check=True)
-            subprocess.run(['sudo', 'apt-get', 'install', '-y', 'chromium-browser', 'chromium-chromedriver'], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(['sudo', 'apt-get', 'install', '-y', 'chromium', 'chromium-driver'], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             logging.info("Chromium 及 ChromeDriver 已安裝")
         else:
             logging.info("Chromium 及 ChromeDriver 已存在，跳過安裝")
+            chromedriver_version = subprocess.run(['chromedriver', '--version'], capture_output=True, text=True).stdout
+            logging.info(f"Chromedriver 版本: {chromedriver_version}")
 
-        result = subprocess.run(['pip', 'show', 'selenium'], capture_output=True, text=True)
-        if "selenium" not in result.stdout or "webdriver-manager" not in subprocess.run(['pip', 'show', 'webdriver-manager'], capture_output=True, text=True).stdout:
-            subprocess.run(['pip', 'install', 'selenium', 'webdriver-manager'], check=True)
-            logging.info("Selenium 及 WebDriver Manager 已安裝")
-        else:
-            logging.info("Selenium 及 WebDriver Manager 已存在，跳過安裝")
+        # 檢查 Python 依賴
+        required_packages = ['selenium', 'webdriver-manager', 'python-dotenv']
+        for package in required_packages:
+            result = subprocess.run(['pip', 'show', package], capture_output=True, text=True)
+            if package not in result.stdout:
+                logging.info(f"安裝 {package}...")
+                subprocess.run(['pip', 'install', package], check=True)
+            else:
+                logging.info(f"{package} 已存在，跳過安裝")
     except subprocess.CalledProcessError as e:
         logging.error(f"環境準備失敗: {e}")
         raise
