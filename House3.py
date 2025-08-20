@@ -71,7 +71,7 @@ def get_chrome_options(download_dir):
     }
     chrome_options.add_experimental_option("prefs", prefs)
     chrome_options.binary_location = '/usr/bin/chromium-browser'
-    chrome_options.set_capability('timeouts', {'implicit': 10000, 'pageLoad': 10000, 'script': 10000})
+    chrome_options.set_capability('timeouts', {'implicit': 10000, 'pageLoad': 10000, 'script': 10000})  # 改為 10 秒
     return chrome_options
 
 def wait_for_new_file(driver, download_dir, initial_files, expected_filename=None):
@@ -187,19 +187,19 @@ def process_cplus_house(driver, wait, initial_files):
     logging.info("CPLUS: 前往 Housekeeping Reports 頁面...")
     driver.get("https://cplus.hit.com.hk/app/#/report/housekeepReport")
     try:
-        wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")), 5)  # 縮短至 5 秒
+        wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")), 5)
         logging.info("CPLUS: Housekeeping Reports 頁面加載完成")
     except TimeoutException:
         logging.error("CPLUS: House 頁面加載失敗，刷新頁面...")
         driver.refresh()
-        time.sleep(1)  # 縮短至 1 秒
+        time.sleep(1)
         wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")), 5)
         logging.info("CPLUS: Housekeeping Reports 頁面加載完成 (刷新後)")
 
     logging.info("CPLUS: 等待表格加載...")
     start_time = time.time()
     try:
-        WebDriverWait(driver, 3).until(EC.presence_of_element_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]")))  # 縮短至 3 秒
+        WebDriverWait(driver, 3).until(EC.presence_of_element_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]")))
         rows = WebDriverWait(driver, 3).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr[td[3]]")))
         logging.info(f"CPLUS: 找到 {len(rows)} 個報告行，耗時 {time.time() - start_time:.1f} 秒")
     except TimeoutException:
@@ -218,7 +218,7 @@ def process_cplus_house(driver, wait, initial_files):
     new_files = set()
     all_downloaded_files = set()
     try:
-        WebDriverWait(driver, 3).until(EC.presence_of_element_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)]")))  # 縮短至 3 秒
+        WebDriverWait(driver, 3).until(EC.presence_of_element_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)]")))
         excel_buttons = driver.find_elements(By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)]")
         button_count = len(excel_buttons)
         logging.info(f"CPLUS: 找到 {button_count} 個 Excel 下載按鈕")
@@ -263,7 +263,7 @@ def process_cplus_house(driver, wait, initial_files):
             expected_filename = f"{report_name.replace(' ', '_').replace('/', '_')}_{time.strftime('%d%m%y')}_CKL"
             for retry in range(MAX_RETRIES + 1):  # 僅重試失敗的按鈕
                 try:
-                    button = WebDriverWait(driver, 3).until(EC.element_to_be_clickable((By.XPATH, f"(//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)])[{idx+1}]")))  # 縮短至 3 秒
+                    button = WebDriverWait(driver, 3).until(EC.element_to_be_clickable((By.XPATH, f"(//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)])[{idx+1}]")))
                     # 檢查並關閉可能的對話框
                     try:
                         dialog = driver.find_element(By.CSS_SELECTOR, ".MuiDialog-container")
@@ -335,7 +335,7 @@ def process_cplus_house(driver, wait, initial_files):
                     wait = WebDriverWait(driver, 5)
                     cplus_login(driver, wait)
                     driver.get("https://cplus.hit.com.hk/app/#/report/housekeepReport")
-                    time.sleep(1)  # 縮短至 1 秒
+                    time.sleep(1)
             if not success:
                 failed_buttons.append((idx, method))
         logging.info(f"CPLUS: 點擊方法 {method} 測試完成，成功下載: {successful_methods[method]} 個")
