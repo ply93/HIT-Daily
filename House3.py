@@ -16,7 +16,7 @@ import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 cplus_download_dir = os.path.abspath("downloads_cplus")
-MAX_RETRIES = 2  # 保持失敗重試次數
+MAX_RETRIES = 3  # 增加重試次數
 
 def clear_download_dirs():
     for dir_path in [cplus_download_dir]:
@@ -71,7 +71,6 @@ def get_chrome_options(download_dir):
     }
     chrome_options.add_experimental_option("prefs", prefs)
     chrome_options.binary_location = '/usr/bin/chromium-browser'
-    # 移除超時設置，使用默認值
     return chrome_options
 
 def wait_for_new_file(driver, download_dir, initial_files, expected_filename=None):
@@ -102,7 +101,7 @@ def wait_for_new_file(driver, download_dir, initial_files, expected_filename=Non
         return list(set(os.listdir(download_dir)) - initial_files), 0
 
 def handle_popup(driver, wait):
-    max_attempts = 5
+    max_attempts = 10  # 增加重試次數
     attempt = 0
     while attempt < max_attempts:
         try:
@@ -111,9 +110,9 @@ def handle_popup(driver, wait):
             close_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Close') or contains(text(), 'OK')]")))
             driver.execute_script("arguments[0].click();", close_button)
             logging.info("CPLUS: 關閉系統錯誤彈窗")
-            time.sleep(0.5)
-            driver.save_screenshot("system_error.png")
-            with open("system_error.html", "w", encoding="utf-8") as f:
+            time.sleep(1)  # 增加延遲確保關閉
+            driver.save_screenshot(f"system_error_attempt{attempt}.png")
+            with open(f"system_error_attempt{attempt}.html", "w", encoding="utf-8") as f:
                 f.write(driver.page_source)
             attempt += 1
         except (TimeoutException, StaleElementReferenceException):
@@ -195,7 +194,7 @@ def attempt_click(button, driver, method_name):
         # 確保點擊後頁面狀態更新
         WebDriverWait(driver, 2).until(lambda d: d.execute_script("return document.readyState") == "complete")
         logging.debug(f"點擊測試方法 {method_name} 成功")
-        time.sleep(3)  # 增加延遲至 3 秒
+        time.sleep(3)  # 增加點擊間隔至 3 秒
         return True
     except WebDriverException as e:
         logging.error(f"WebDriverException 發生: {str(e)}，方法: {method_name}")
@@ -285,15 +284,16 @@ def process_cplus_house(driver, wait, initial_files):
         for idx, button in enumerate(excel_buttons, 1):
             success = False
             report_name = driver.find_element(By.XPATH, f"(//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[3])[{idx}]").text
-            expected_filename_prefix = report_name.replace(' ', '_').replace('/', '_')[:6]
+            expected_filename_prefix = report_name.replace(' ', '_').replace('/', '_')[:4]  # 調整為前 4 個字符
             for retry in range(MAX_RETRIES + 1):
                 try:
                     # 檢查並關閉可能的對話框
+                    handle_popup(driver, wait)  # 在每次重試前檢查彈窗
                     try:
                         dialog = driver.find_element(By.CSS_SELECTOR, ".MuiDialog-container")
                         close_button = driver.find_element(By.XPATH, "//button[contains(text(), 'Close') or contains(text(), 'OK')]")
                         driver.execute_script("arguments[0].click();", close_button)
-                        logging.info("CPLUS: 關閉對話框")
+                        logging.info("CPLUS: 額外關閉對話框")
                         time.sleep(0.5)
                     except NoSuchElementException:
                         pass
@@ -374,7 +374,7 @@ def process_cplus_house(driver, wait, initial_files):
             if idx in [fb[0] for fb in failed_buttons]:
                 continue
             report_name = driver.find_element(By.XPATH, f"(//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[3])[{idx}]").text
-            expected_filename_prefix = report_name.replace(' ', '_').replace('/', '_')[:6]
+            expected_filename_prefix = report_name.replace(' ', '_').replace('/', '_')[:4]
             temp_new, download_time = wait_for_new_file(driver, cplus_download_dir, local_initial)
             if temp_new:
                 for matched_file in temp_new:
