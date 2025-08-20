@@ -55,7 +55,17 @@ def setup_environment():
         logging.error(f"環境準備失敗: {e}")
         raise
 
-import pandas as pd
+def check_file(file_path):
+    try:
+        if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
+            logging.info(f"檔案 {file_path} 存在且大小非零")
+            return True
+        else:
+            logging.warning(f"檔案 {file_path} 不存在或大小為零")
+            return False
+    except Exception as e:
+        logging.error(f"檢查檔案 {file_path} 失敗: {str(e)}")
+        return False
 
 def check_env_vars():
     required_vars = ['SITE_PASSWORD', 'BARGE_PASSWORD', 'ZOHO_EMAIL', 'ZOHO_PASSWORD', 'RECEIVER_EMAILS']
@@ -63,18 +73,6 @@ def check_env_vars():
     if missing:
         logging.error(f"缺少環境變量: {', '.join(missing)}")
         raise EnvironmentError(f"缺少環境變量: {', '.join(missing)}")
-
-def verify_file(file_path):
-    try:
-        if file_path.endswith('.csv'):
-            pd.read_csv(file_path, nrows=1)
-        elif file_path.endswith('.xlsx'):
-            pd.read_excel(file_path, nrows=1)
-        logging.info(f"檔案 {file_path} 格式正確")
-        return True
-    except Exception as e:
-        logging.error(f"檔案 {file_path} 損壞或格式錯誤: {str(e)}")
-        return False
 
 def cleanup_downloads():
     for dir_path in [cplus_download_dir, barge_download_dir]:
