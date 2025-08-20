@@ -45,10 +45,6 @@ jobs:
           ZOHO_PASSWORD: ${{ secrets.ZOHO_PASSWORD }}
           BARGE_PASSWORD: ${{ secrets.BARGE_PASSWORD }}
           RECEIVER_EMAILS: ${{ secrets.RECEIVER_EMAILS }}
-          CC_EMAILS: ${{ secrets.CC_EMAILS }}  # 可選
-          SMTP_SERVER: ${{ secrets.SMTP_SERVER }}  # 可選
-          SMTP_PORT: ${{ secrets.SMTP_PORT }}  # 可選
-          DRY_RUN: ${{ secrets.DRY_RUN }}  # 可選
         run: python House3.py
       - name: Upload artifacts
         if: always()
