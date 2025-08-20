@@ -71,7 +71,7 @@ def get_chrome_options(download_dir):
     }
     chrome_options.add_experimental_option("prefs", prefs)
     chrome_options.binary_location = '/usr/bin/chromium-browser'
-    chrome_options.set_capability('timeouts', {'implicit': 5000, 'pageLoad': 30000, 'script': 5000})  # 改為 10 秒
+    chrome_options.set_capability('timeouts', {'implicit': 30000, 'pageLoad': 2000, 'script': 2000})  # 改為 10 秒
     return chrome_options
 
 def wait_for_new_file(driver, download_dir, initial_files, expected_filename=None):
