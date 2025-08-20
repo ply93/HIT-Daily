@@ -20,20 +20,22 @@ from webdriver_manager.chrome import ChromeDriverManager
 import logging
 from dotenv import load_dotenv
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(module)s:%(funcName)s - %(message)s')
+# 更新 get_chrome_options
+def get_chrome_options(download_dir):
+    chrome_options = Options()
+    chrome_options.add_argument('--headless')
+    chrome_options.add_argument('--no-sandbox')
+    chrome_options.add_argument('--disable-dev-shm-usage')
+    chrome_options.add_experimental_option('excludeSwitches', ['enable-automation'])
+    chrome_options.add_experimental_option('prefs', {
+        "download.default_directory": download_dir,
+        "download.prompt_for_download": False,
+        "safebrowsing.enabled": False
+    })
+    chrome_options.binary_location = os.path.expanduser('~/chromium-bin/chromium-browser')  # 匹配 .yml 中的路徑
+    return chrome_options
 
-cplus_download_dir = os.path.abspath("downloads_cplus")
-barge_download_dir = os.path.abspath("downloads_barge")
-MAX_RETRIES = 2
-DOWNLOAD_TIMEOUT = 5
-
-def clear_download_dirs():
-    for dir_path in [cplus_download_dir, barge_download_dir]:
-        if os.path.exists(dir_path):
-            shutil.rmtree(dir_path)
-        os.makedirs(dir_path)
-        logging.info(f"創建下載目錄: {dir_path}")
-
+# 更新 setup_environment
 def setup_environment():
     os.environ.pop('TZ', None)
     try:
@@ -65,6 +67,14 @@ def setup_environment():
         logging.error(f"環境準備失敗: {e}")
         raise
 
+# 確保 check_env_vars 和 check_file 存在
+def check_env_vars():
+    required_vars = ['SITE_PASSWORD', 'BARGE_PASSWORD', 'ZOHO_EMAIL', 'ZOHO_PASSWORD', 'RECEIVER_EMAILS']
+    missing = [var for var in required_vars if not os.environ.get(var)]
+    if missing:
+        logging.error(f"缺少環境變量: {', '.join(missing)}")
+        raise EnvironmentError(f"缺少環境變量: {', '.join(missing)}")
+
 def check_file(file_path):
     try:
         if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
@@ -76,13 +86,6 @@ def check_file(file_path):
     except Exception as e:
         logging.error(f"檢查檔案 {file_path} 失敗: {str(e)}")
         return False
-
-def check_env_vars():
-    required_vars = ['SITE_PASSWORD', 'BARGE_PASSWORD', 'ZOHO_EMAIL', 'ZOHO_PASSWORD', 'RECEIVER_EMAILS']
-    missing = [var for var in required_vars if not os.environ.get(var)]
-    if missing:
-        logging.error(f"缺少環境變量: {', '.join(missing)}")
-        raise EnvironmentError(f"缺少環境變量: {', '.join(missing)}")
 
 def cleanup_downloads():
     for dir_path in [cplus_download_dir, barge_download_dir]:
