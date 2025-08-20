@@ -16,6 +16,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.common.exceptions import TimeoutException, ElementClickInterceptedException, NoSuchElementException, WebDriverException
+from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 import logging
 from dotenv import load_dotenv
@@ -25,7 +26,6 @@ barge_download_dir = os.path.abspath("downloads_barge")
 MAX_RETRIES = 2
 DOWNLOAD_TIMEOUT = 30  # 設置為 30 秒，避免下載超時
 
-# 更新 get_chrome_options
 def get_chrome_options(download_dir):
     chrome_options = Options()
     chrome_options.add_argument('--headless')
@@ -37,27 +37,13 @@ def get_chrome_options(download_dir):
         "download.prompt_for_download": False,
         "safebrowsing.enabled": False
     })
-    chrome_options.binary_location = os.path.expanduser('~/chromium-bin/chromium-browser')
+
     return chrome_options
 
-# 更新 setup_environment
 def setup_environment():
     os.environ.pop('TZ', None)
     try:
-        chromium_path = os.path.expanduser('~/chromium-bin/chromium-browser')
-        chromedriver_path = os.path.expanduser('~/chromium-bin/chromedriver')
-        if not os.path.exists(chromium_path) or not os.path.exists(chromedriver_path):
-            subprocess.run(['sudo', 'apt-get', 'update', '-qq'], check=True)
-            subprocess.run(['sudo', 'apt-get', 'install', '-y', 'chromium-browser', 'chromium-chromedriver'], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            os.makedirs(os.path.expanduser('~/chromium-bin'), exist_ok=True)
-            subprocess.run(['sudo', 'cp', '/usr/bin/chromium-browser', chromium_path], check=True)
-            subprocess.run(['sudo', 'cp', '/usr/bin/chromedriver', chromedriver_path], check=True)
-            logging.info("Chromium 及 ChromeDriver 已安裝")
-        else:
-            logging.info("Chromium 及 ChromeDriver 已存在，跳過安裝")
-            chromedriver_version = subprocess.run([chromedriver_path, '--version'], capture_output=True, text=True).stdout
-            logging.info(f"Chromedriver 版本: {chromedriver_version}")
-
+        # 僅檢查 Python 依賴，移除 Chromium/Chromedriver 手動安裝
         required_packages = ['selenium', 'webdriver-manager', 'python-dotenv', 'pytz']
         for package in required_packages:
             result = subprocess.run(['pip', 'show', package], capture_output=True, text=True)
@@ -492,7 +478,7 @@ def process_cplus():
     house_file_count = 0
     house_button_count = 0
     try:
-        driver = webdriver.Chrome(options=get_chrome_options(cplus_download_dir))
+        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=get_chrome_options(cplus_download_dir))
         logging.info("CPLUS WebDriver 初始化成功")
         driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
         wait = WebDriverWait(driver, 60)
@@ -526,7 +512,7 @@ def process_cplus():
                 logging.error(f"CPLUS {section_name} 經過 {MAX_RETRIES} 次嘗試失敗")
         process_cplus_logout(driver, wait)
         return downloaded_files, house_file_count, house_button_count, driver
-    except Exception as e:
+except Exception as e:
         logging.error(f"CPLUS 總錯誤: {str(e)}")
         return downloaded_files, house_file_count, house_button_count, driver
     finally:
@@ -536,6 +522,7 @@ def process_cplus():
                 logging.info("CPLUS WebDriver 關閉")
             except Exception as e:
                 logging.error(f"CPLUS WebDriver 關閉失敗: {str(e)}")
+    return downloaded_files, house_file_count, house_button_count, driver
 
 def barge_login(driver, wait):
     logging.info("Barge: 嘗試打開網站 https://barge.oneport.com/login...")
@@ -701,7 +688,7 @@ def process_barge():
     downloaded_files = set()
     initial_files = set(os.listdir(barge_download_dir))
     try:
-        driver = webdriver.Chrome(options=get_chrome_options(barge_download_dir))
+        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=get_chrome_options(barge_download_dir))
         logging.info("Barge WebDriver 初始化成功")
         driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
         wait = WebDriverWait(driver, 60)
@@ -711,7 +698,7 @@ def process_barge():
         initial_files.update(new_files)
         process_barge_logout(driver, wait)
         return downloaded_files, driver
-    except Exception as e:
+except Exception as e:
         logging.error(f"Barge 總錯誤: {str(e)}")
         return downloaded_files, driver
     finally:
@@ -721,6 +708,7 @@ def process_barge():
                 logging.info("Barge WebDriver 關閉")
             except Exception as e:
                 logging.error(f"Barge WebDriver 關閉失敗: {str(e)}")
+    return downloaded_files, driver
 
 def main():
     load_dotenv()
