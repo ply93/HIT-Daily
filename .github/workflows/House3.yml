@@ -23,13 +23,14 @@ jobs:
           python-version: '3.9'
       - name: Install dependencies
         run: |
-          pip install --no-cache-dir selenium webdriver-manager pytz
+          python -m pip install --upgrade pip
+          pip install --no-cache-dir selenium webdriver-manager python-dotenv pytz
           mkdir -p ~/chromium-bin
           if [ ! -f ~/chromium-bin/chromium-browser ] || [ ! -f ~/chromium-bin/chromedriver ]; then
-            sudo apt-get update -qq || true
-            sudo apt-get install -y chromium-browser chromium-chromedriver || true
-            sudo cp /usr/bin/chromium-browser ~/chromium-bin/ || cp /usr/bin/chromium-browser ~/chromium-bin/
-            sudo cp /usr/bin/chromedriver ~/chromium-bin/ || cp /usr/bin/chromedriver ~/chromium-bin/
+            sudo apt-get update -qq
+            sudo apt-get install -y chromium-browser chromium-chromedriver
+            sudo cp /usr/bin/chromium-browser ~/chromium-bin/chromium-browser
+            sudo cp /usr/bin/chromedriver ~/chromium-bin/chromedriver
           fi
       - name: Set timezone to HKT
         run: |
@@ -43,13 +44,21 @@ jobs:
           ZOHO_EMAIL: ${{ secrets.ZOHO_EMAIL }}
           ZOHO_PASSWORD: ${{ secrets.ZOHO_PASSWORD }}
           BARGE_PASSWORD: ${{ secrets.BARGE_PASSWORD }}
+          RECEIVER_EMAILS: ${{ secrets.RECEIVER_EMAILS }}
+          CC_EMAILS: ${{ secrets.CC_EMAILS }}  # 可選
+          SMTP_SERVER: ${{ secrets.SMTP_SERVER }}  # 可選
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}  # 可選
+          DRY_RUN: ${{ secrets.DRY_RUN }}  # 可選
         run: python House3.py
-      - name: Upload artifacts # 新加步驟
-        if: always() # 即使失敗都上傳
+      - name: Upload artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: debug-files
           path: |
+            downloads_cplus/
+            downloads_barge/
             *.png
             *.html
-            *.txt # 上傳 screenshot, html, logs
+            *.txt
+          retention-days: 7
