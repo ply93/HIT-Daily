@@ -513,17 +513,16 @@ def process_cplus():
         process_cplus_logout(driver, wait)
         return downloaded_files, house_file_count, house_button_count, driver
     except Exception as e:
-            logging.error(f"CPLUS 總錯誤: {str(e)}")
-            return downloaded_files, house_file_count, house_button_count, driver
-        finally:
-            if driver:
-                try:
-                    driver.quit()
-                    logging.info("CPLUS WebDriver 關閉")
-                except Exception as e:
-                    logging.error(f"CPLUS WebDriver 關閉失敗: {str(e)}")
+        logging.error(f"CPLUS 總錯誤: {str(e)}")
         return downloaded_files, house_file_count, house_button_count, driver
-
+    finally:
+        if driver:
+            try:
+                driver.quit()
+                logging.info("CPLUS WebDriver 關閉")
+            except Exception as e:
+                logging.error(f"CPLUS WebDriver 關閉失敗: {str(e)}")
+                
 def barge_login(driver, wait):
     logging.info("Barge: 嘗試打開網站 https://barge.oneport.com/login...")
     driver.get("https://barge.oneport.com/login")
