@@ -86,17 +86,17 @@ def wait_for_new_file(driver, download_dir, initial_files, expected_filename=Non
                     valid_files.append(file)
             if valid_files:
                 return valid_files, time.time() - start_time
-        if time.time() - start_time >= 90:
+        if time.time() - start_time >= 30:  # 每個文件獨立 30 秒超時
             return False
         return None
     try:
-        result, _ = WebDriverWait(driver, 90).until(file_available)
+        result, _ = WebDriverWait(driver, 30).until(file_available)
         if result:
             return result, _
-        logging.warning(f"下載超時（90s），當前文件: {list(set(os.listdir(download_dir)) - initial_files)}")
+        logging.warning(f"下載超時（30s），當前文件: {list(set(os.listdir(download_dir)) - initial_files)}")
         return list(set(os.listdir(download_dir)) - initial_files), 0
     except TimeoutException:
-        logging.warning(f"下載超時（90s），當前文件: {list(set(os.listdir(download_dir)) - initial_files)}")
+        logging.warning(f"下載超時（30s），當前文件: {list(set(os.listdir(download_dir)) - initial_files)}")
         return list(set(os.listdir(download_dir)) - initial_files), 0
 
 def handle_popup(driver, wait):
@@ -282,7 +282,7 @@ def process_cplus_house(driver, wait, initial_files):
     for method in click_methods:
         logging.info(f"CPLUS: 開始測試點擊方法: {method}")
         local_initial = initial_files.copy()
-        # 一次性點擊所有按鈕
+        # 按順序點擊並等待每個文件
         for idx, button in enumerate(excel_buttons, 1):
             success = False
             report_name = driver.find_element(By.XPATH, f"(//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[3])[{idx}]").text
@@ -342,50 +342,21 @@ def process_cplus_house(driver, wait, initial_files):
                     driver.get("https://cplus.hit.com.hk/app/#/report/housekeepReport")
                     time.sleep(2)
 
-        # 統一等待所有文件下載
-        start_time = time.time()
-        expected_file_count = button_count - len(failed_buttons)
-        downloaded_files = set()
-        while time.time() - start_time < 90:
-            current_files = set(os.listdir(cplus_download_dir))
-            new_files = current_files - local_initial
-            for file in new_files:
-                file_path = os.path.join(cplus_download_dir, file)
-                if os.path.getsize(file_path) > 0 and file.endswith(('.csv', '.xlsx')):
-                    downloaded_files.add(file)
-            if len(downloaded_files) >= expected_file_count:
-                break
-            time.sleep(1)
-        else:
-            logging.warning(f"下載超時（90s），僅檢測到 {len(downloaded_files)} 個文件，預期 {expected_file_count} 個")
-            driver.save_screenshot("download_timeout.png")
-            with open("download_timeout.html", "w", encoding="utf-8") as f:
-                f.write(driver.page_source)
-
-        # 匹配下載文件與報告
-        local_initial = initial_files.copy()
-        all_matched_files = set()
-        for idx, button in enumerate(excel_buttons, 1):
-            if idx in [fb[0] for fb in failed_buttons]:
-                continue
-            report_name = driver.find_element(By.XPATH, f"(//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[3])[{idx}]").text
-            expected_filename_prefix = report_prefix_map.get(report_name, report_name.replace(' ', '_').replace('/', '_')[:4])
-            temp_new, download_time = wait_for_new_file(driver, cplus_download_dir, local_initial)
+            # 為每個按鈕獨立等待對應文件
+            local_initial = set(os.listdir(cplus_download_dir))  # 更新初始文件集
+            temp_new, download_time = wait_for_new_file(driver, cplus_download_dir, local_initial, expected_filename_prefix)
             if temp_new:
                 for matched_file in temp_new:
-                    if matched_file not in all_matched_files:
-                        all_downloaded_files.add(matched_file)
-                        if (matched_file.startswith(expected_filename_prefix) or
-                            any(matched_file.startswith(prefix) for prefix in ['DM1C', 'IA15', 'GA1', 'IA17', 'IA5', 'IE2']) and
-                            matched_file.endswith(f"_{time.strftime('%d%m%y')}_CKL.csv")):
-                            report_file_mapping.append((report_name, matched_file, download_time))
-                            local_initial.add(matched_file)
-                            new_files.add(matched_file)
-                            all_matched_files.add(matched_file)
-                            successful_methods[method] += 1
-                            logging.info(f"CPLUS: 第 {idx} 個下載成功，文件: {matched_file}, 預期前綴: {expected_filename_prefix}, 耗時 {download_time:.1f} 秒，使用方法: {method}")
-                        else:
-                            logging.warning(f"CPLUS: 文件 {matched_file} 與預期前綴 {expected_filename_prefix} 不匹配")
+                    all_downloaded_files.add(matched_file)
+                    if (matched_file.startswith(expected_filename_prefix) or
+                        any(matched_file.startswith(prefix) for prefix in ['DM1C', 'IA15', 'GA1', 'IA17', 'IA5', 'IE2']) and
+                        matched_file.endswith(f"_{time.strftime('%d%m%y')}_CKL.csv")):
+                        report_file_mapping.append((report_name, matched_file, download_time))
+                        new_files.add(matched_file)
+                        successful_methods[method] += 1
+                        logging.info(f"CPLUS: 第 {idx} 個下載成功，文件: {matched_file}, 預期前綴: {expected_filename_prefix}, 耗時 {download_time:.1f} 秒，使用方法: {method}")
+                    else:
+                        logging.warning(f"CPLUS: 文件 {matched_file} 與預期前綴 {expected_filename_prefix} 不匹配")
             else:
                 logging.warning(f"CPLUS: 第 {idx} 個未觸發新 EXCEL 文件，使用方法: {method}")
                 driver.save_screenshot(f"house_button_{idx}_failure_{method}.png")
