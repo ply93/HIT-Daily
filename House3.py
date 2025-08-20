@@ -16,7 +16,7 @@ import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 cplus_download_dir = os.path.abspath("downloads_cplus")
-MAX_RETRIES = 3  # 增加重試次數
+MAX_RETRIES = 3  # 保持重試次數
 
 def clear_download_dirs():
     for dir_path in [cplus_download_dir]:
@@ -85,7 +85,6 @@ def wait_for_new_file(driver, download_dir, initial_files, expected_filename=Non
                 if os.path.getsize(file_path) > 0 and file.endswith(('.csv', '.xlsx')):
                     valid_files.append(file)
             if valid_files:
-                logging.debug(f"檢測到新文件: {valid_files}, 預期: {expected_filename}")
                 return valid_files, time.time() - start_time
         if time.time() - start_time >= 90:
             return False
@@ -101,7 +100,7 @@ def wait_for_new_file(driver, download_dir, initial_files, expected_filename=Non
         return list(set(os.listdir(download_dir)) - initial_files), 0
 
 def handle_popup(driver, wait):
-    max_attempts = 10  # 增加重試次數
+    max_attempts = 10
     attempt = 0
     while attempt < max_attempts:
         try:
@@ -110,7 +109,7 @@ def handle_popup(driver, wait):
             close_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Close') or contains(text(), 'OK')]")))
             driver.execute_script("arguments[0].click();", close_button)
             logging.info("CPLUS: 關閉系統錯誤彈窗")
-            time.sleep(1)  # 增加延遲確保關閉
+            time.sleep(1)
             driver.save_screenshot(f"system_error_attempt{attempt}.png")
             with open(f"system_error_attempt{attempt}.html", "w", encoding="utf-8") as f:
                 f.write(driver.page_source)
@@ -191,10 +190,9 @@ def attempt_click(button, driver, method_name):
             logging.warning(f"按鈕不可點擊: {method_name}, 狀態: enabled={button.is_enabled()}, displayed={button.is_displayed()}")
             return False
         methods[method_name]()
-        # 確保點擊後頁面狀態更新
         WebDriverWait(driver, 2).until(lambda d: d.execute_script("return document.readyState") == "complete")
         logging.debug(f"點擊測試方法 {method_name} 成功")
-        time.sleep(3)  # 增加點擊間隔至 3 秒
+        time.sleep(3)  # 保持 3 秒延遲
         return True
     except WebDriverException as e:
         logging.error(f"WebDriverException 發生: {str(e)}，方法: {method_name}")
@@ -266,13 +264,17 @@ def process_cplus_house(driver, wait, initial_files):
         raise Exception("CPLUS: Housekeeping Reports 未找到 Excel 下載按鈕")
     logging.info(f"CPLUS: 最終找到 {button_count} 個 Excel 下載按鈕")
 
-    # 記錄實際按鈕屬性以 debug
-    for idx, btn in enumerate(excel_buttons, 1):
-        btn_text = btn.text or btn.get_attribute("innerText") or btn.get_attribute("title") or btn.get_attribute("aria-label") or "無文本"
-        btn_class = btn.get_attribute("class") or "無類別"
-        logging.debug(f"按鈕 {idx} 文本/title/aria-label: {btn_text}, 類別: {btn_class}")
+    # 定義報告與前綴的映射
+    report_prefix_map = {
+        "CONTAINER DAMAGE REPORT (LINE) ENTRY GATE + EXIT GATE": "DM1C",
+        "CONTAINER LIST (ON HAND)": "IA15",
+        "CY - GATELOG": "GA1",
+        "CONTAINER LIST (DAMAGED)": "IA17",
+        "ACTIVE REEFER CONTAINER ON HAND LIST": "IA5",
+        "REEFER CONTAINER MONITOR REPORT": "IE2"
+    }
 
-    click_methods = ["Standard click"]  # 只保留 Standard click
+    click_methods = ["Standard click"]
     successful_methods = {method: 0 for method in click_methods}
     report_file_mapping = []
     failed_buttons = []
@@ -284,11 +286,10 @@ def process_cplus_house(driver, wait, initial_files):
         for idx, button in enumerate(excel_buttons, 1):
             success = False
             report_name = driver.find_element(By.XPATH, f"(//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[3])[{idx}]").text
-            expected_filename_prefix = report_name.replace(' ', '_').replace('/', '_')[:4]  # 調整為前 4 個字符
+            expected_filename_prefix = report_prefix_map.get(report_name, report_name.replace(' ', '_').replace('/', '_')[:4])
             for retry in range(MAX_RETRIES + 1):
                 try:
-                    # 檢查並關閉可能的對話框
-                    handle_popup(driver, wait)  # 在每次重試前檢查彈窗
+                    handle_popup(driver, wait)
                     try:
                         dialog = driver.find_element(By.CSS_SELECTOR, ".MuiDialog-container")
                         close_button = driver.find_element(By.XPATH, "//button[contains(text(), 'Close') or contains(text(), 'OK')]")
@@ -352,14 +353,8 @@ def process_cplus_house(driver, wait, initial_files):
                 file_path = os.path.join(cplus_download_dir, file)
                 if os.path.getsize(file_path) > 0 and file.endswith(('.csv', '.xlsx')):
                     downloaded_files.add(file)
-            logging.info(f"CPLUS: 當前檢測到 {len(downloaded_files)} 個下載文件，預期 {expected_file_count} 個，文件列表: {list(downloaded_files)}")
             if len(downloaded_files) >= expected_file_count:
-                logging.info(f"CPLUS: 檢測到 {len(downloaded_files)} 個下載文件，達到預期 {expected_file_count} 個")
                 break
-            try:
-                WebDriverWait(driver, 1).until(lambda d: len(set(os.listdir(cplus_download_dir)) - local_initial) == len(downloaded_files))
-            except TimeoutException:
-                logging.warning("CPLUS: 頁面狀態更新超時，繼續等待...")
             time.sleep(1)
         else:
             logging.warning(f"下載超時（90s），僅檢測到 {len(downloaded_files)} 個文件，預期 {expected_file_count} 個")
@@ -374,7 +369,7 @@ def process_cplus_house(driver, wait, initial_files):
             if idx in [fb[0] for fb in failed_buttons]:
                 continue
             report_name = driver.find_element(By.XPATH, f"(//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[3])[{idx}]").text
-            expected_filename_prefix = report_name.replace(' ', '_').replace('/', '_')[:4]
+            expected_filename_prefix = report_prefix_map.get(report_name, report_name.replace(' ', '_').replace('/', '_')[:4])
             temp_new, download_time = wait_for_new_file(driver, cplus_download_dir, local_initial)
             if temp_new:
                 for matched_file in temp_new:
