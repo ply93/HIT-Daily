@@ -1,3 +1,4 @@
+# 確保無 pandas 導入
 import os
 import time
 import shutil
@@ -32,14 +33,13 @@ def get_chrome_options(download_dir):
         "download.prompt_for_download": False,
         "safebrowsing.enabled": False
     })
-    chrome_options.binary_location = os.path.expanduser('~/chromium-bin/chromium-browser')  # 匹配 .yml 中的路徑
+    chrome_options.binary_location = os.path.expanduser('~/chromium-bin/chromium-browser')
     return chrome_options
 
 # 更新 setup_environment
 def setup_environment():
     os.environ.pop('TZ', None)
     try:
-        # 檢查 Chromium 和 Chromedriver
         chromium_path = os.path.expanduser('~/chromium-bin/chromium-browser')
         chromedriver_path = os.path.expanduser('~/chromium-bin/chromedriver')
         if not os.path.exists(chromium_path) or not os.path.exists(chromedriver_path):
@@ -54,7 +54,6 @@ def setup_environment():
             chromedriver_version = subprocess.run([chromedriver_path, '--version'], capture_output=True, text=True).stdout
             logging.info(f"Chromedriver 版本: {chromedriver_version}")
 
-        # 檢查 Python 依賴
         required_packages = ['selenium', 'webdriver-manager', 'python-dotenv', 'pytz']
         for package in required_packages:
             result = subprocess.run(['pip', 'show', package], capture_output=True, text=True)
