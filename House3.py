@@ -78,7 +78,7 @@ def wait_for_new_file(driver, download_dir, initial_files, expected_filename=Non
     start_time = time.time()
     current_files = set(os.listdir(download_dir))
     new_files = current_files - initial_files
-    while time.time() - start_time < 30:  # 改為 30 秒
+    while time.time() - start_time < 45:  # 改為 45 秒
         current_files = set(os.listdir(download_dir))
         new_files = current_files - initial_files
         if new_files:
@@ -91,7 +91,7 @@ def wait_for_new_file(driver, download_dir, initial_files, expected_filename=Non
                         logging.debug(f"檢測到新文件: {file}, 預期: {expected_filename}, 耗時: {time.time() - start_time:.2f} 秒")
                         return {file}, time.time() - start_time
         time.sleep(0.005)  # 保持高頻率檢測
-    logging.warning(f"下載超時（30s），當前文件: {list(set(os.listdir(download_dir)) - initial_files)}")
+    logging.warning(f"下載超時（45s），當前文件: {list(set(os.listdir(download_dir)) - initial_files)}")
     return set(), 0
 
 def handle_popup(driver, wait):
