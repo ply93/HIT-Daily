@@ -17,7 +17,6 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.common.exceptions import TimeoutException, ElementClickInterceptedException, NoSuchElementException, WebDriverException
 from webdriver_manager.chrome import ChromeDriverManager
-driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=get_chrome_options(download_dir))
 import logging
 from dotenv import load_dotenv
 
