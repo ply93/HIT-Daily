@@ -288,18 +288,16 @@ def process_cplus_onhand(driver, wait, initial_files):
 def process_cplus_house(driver, wait, initial_files):
     logging.info("CPLUS: 前往 Housekeeping Reports 頁面...")
     driver.get("https://cplus.hit.com.hk/app/#/report/housekeepReport")
-    time.sleep(1)
     wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
     logging.info("CPLUS: Housekeeping Reports 頁面加載完成")
 
     logging.info("CPLUS: 等待表格加載...")
     try:
-        wait = WebDriverWait(driver, 20)
         rows = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
         if len(rows) == 0 or all(not row.text.strip() for row in rows):
             logging.debug("表格數據空或無效，刷新頁面...")
             driver.refresh()
-            time.sleep(2)
+            wait.until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
             rows = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
             if len(rows) < 6:
                 logging.warning("刷新後表格數據仍不足，記錄頁面狀態...")
@@ -311,11 +309,10 @@ def process_cplus_house(driver, wait, initial_files):
     except TimeoutException:
         logging.warning("CPLUS: 表格未加載，嘗試刷新頁面...")
         driver.refresh()
-        time.sleep(2)
         wait.until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
         logging.info("CPLUS: 表格加載完成 (after refresh)")
 
-    logging.info("CPLUS: 定位並點擊所有 Excel 下載按鈕...")
+    logging.info("CPLUS: 定位 Excel 下載按鈕...")
     local_initial = initial_files.copy()
     new_files = set()
     excel_buttons = driver.find_elements(By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)]")
@@ -323,55 +320,57 @@ def process_cplus_house(driver, wait, initial_files):
     logging.info(f"CPLUS: 找到 {button_count} 個 Excel 下載按鈕")
 
     if button_count == 0:
-        logging.debug("CPLUS: 未找到 Excel 按鈕，嘗試原始定位...")
+        logging.debug("CPLUS: 未找到 Excel 按鈕，嘗試備用定位...")
         excel_buttons = driver.find_elements(By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button[not(@disabled)]//svg[@viewBox='0 0 24 24']//path[@fill='#036e11']")
         button_count = len(excel_buttons)
-        logging.info(f"CPLUS: 原始定位找到 {button_count} 個 Excel 下載按鈕")
+        logging.info(f"CPLUS: 備用定位找到 {button_count} 個 Excel 下載按鈕")
 
-    for idx in range(button_count):
+    for idx, button in enumerate(excel_buttons, 1):
         success = False
         try:
-            button_xpath = f"(//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button[not(@disabled)])[{idx+1}]"
-            button = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, button_xpath)))
-            driver.execute_script("arguments[0].scrollIntoView(true);", button)
-            time.sleep(5)
-
+            # 確保按鈕可見同可點擊
+            wait.until(EC.element_to_be_clickable(button))
+            driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", button)
+            
+            # 獲取報告名稱
             try:
-                report_name = driver.find_element(By.XPATH, f"//table[contains(@class, 'MuiTable-root')]//tbody//tr[{idx+1}]//td[3]").text
-                logging.info(f"CPLUS: 準備點擊第 {idx+1} 個 Excel 按鈕，報告名稱: {report_name}")
+                report_name = driver.find_element(By.XPATH, f"//table[contains(@class, 'MuiTable-root')]//tbody//tr[{idx}]//td[3]").text
+                logging.info(f"CPLUS: 準備點擊第 {idx} 個 Excel 按鈕，報告名稱: {report_name}")
             except:
-                logging.debug(f"CPLUS: 無法獲取第 {idx+1} 個按鈕的報告名稱")
+                logging.debug(f"CPLUS: 無法獲取第 {idx} 個按鈕的報告名稱")
 
-            driver.execute_script("arguments[0].click();", button)
-            logging.info(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 JavaScript 點擊成功")
-            time.sleep(1.5)
-
+            # 用標準 click() 方法
+            button.click()
+            logging.info(f"CPLUS: 第 {idx} 個 Excel 下載按鈕標準點擊成功")
+            
+            # 處理彈出框
             handle_popup(driver, wait)
-
-            ActionChains(driver).move_to_element(button).pause(0.5).click().perform()
-            logging.info(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 ActionChains 點擊成功")
-            time.sleep(2)
-
-            handle_popup(driver, wait)
-
+            
+            # 等待新文件下載
             temp_new = wait_for_new_file(cplus_download_dir, local_initial)
             if temp_new:
-                logging.info(f"CPLUS: 第 {idx+1} 個按鈕下載新文件: {', '.join(temp_new)}")
+                logging.info(f"CPLUS: 第 {idx} 個按鈕下載新文件: {', '.join(temp_new)}")
                 local_initial.update(temp_new)
                 new_files.update(temp_new)
                 success = True
             else:
-                logging.warning(f"CPLUS: 第 {idx+1} 個按鈕未觸發新文件下載")
-                driver.save_screenshot(f"house_button_{idx+1}_failure.png")
-                with open(f"house_button_{idx+1}_failure.html", "w", encoding="utf-8") as f:
+                logging.warning(f"CPLUS: 第 {idx} 個按鈕未觸發新文件下載")
+                driver.save_screenshot(f"house_button_{idx}_failure.png")
+                with open(f"house_button_{idx}_failure.html", "w", encoding="utf-8") as f:
                     f.write(driver.page_source)
+        except ElementClickInterceptedException as e:
+            logging.error(f"CPLUS: 第 {idx} 個按鈕點擊被阻擋: {str(e)}")
+            driver.save_screenshot(f"house_button_{idx}_failure.png")
+            with open(f"house_button_{idx}_failure.html", "w", encoding="utf-8") as f:
+                f.write(driver.page_source)
         except Exception as e:
-            logging.error(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕點擊失敗: {str(e)}")
-            driver.save_screenshot(f"house_button_{idx+1}_failure.png")
-            with open(f"house_button_{idx+1}_failure.html", "w", encoding="utf-8") as f:
+            logging.error(f"CPLUS: 第 {idx} 個按鈕點擊失敗: {str(e)}")
+            driver.save_screenshot(f"house_button_{idx}_failure.png")
+            with open(f"house_button_{idx}_failure.html", "w", encoding="utf-8") as f:
                 f.write(driver.page_source)
         if not success:
-            logging.warning(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕失敗")
+            logging.warning(f"CPLUS: 第 {idx} 個 Excel 下載按鈕失敗")
+
     if new_files:
         logging.info(f"CPLUS: Housekeeping Reports 下載完成，共 {len(new_files)} 個文件，預期 {button_count} 個")
         return new_files, len(new_files), button_count
