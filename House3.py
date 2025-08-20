@@ -772,7 +772,7 @@ def main():
         logging.warning(f"文件不齊全: 缺少必須文件 (has_required={has_required}) 或 House文件不足 (download={house_download_count}, button={cplus_house_button_count})")
 
     cleanup_downloads()  # 清理臨時檔案
-    logging.info("腳本完成")
+
     if cplus_driver:
         cplus_driver.quit()
         logging.info("CPLUS WebDriver 關閉")
