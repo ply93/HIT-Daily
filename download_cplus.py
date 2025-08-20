@@ -2,8 +2,8 @@ import os
 import time
 import shutil
 import subprocess
-import threading
 from datetime import datetime
+from selenium.webdriver.common.keys import Keys
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
@@ -15,17 +15,17 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.action_chains import ActionChains
-from selenium.common.exceptions import TimeoutException, ElementClickInterceptedException, NoSuchElementException
+from selenium.common.exceptions import TimeoutException, ElementClickInterceptedException, NoSuchElementException, WebDriverException
 from webdriver_manager.chrome import ChromeDriverManager
 import logging
 from dotenv import load_dotenv
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(module)s:%(funcName)s - %(message)s')
 
 cplus_download_dir = os.path.abspath("downloads_cplus")
 barge_download_dir = os.path.abspath("downloads_barge")
-MAX_RETRIES = 3
-DOWNLOAD_TIMEOUT = 30  # 延長至 30 秒
+MAX_RETRIES = 2
+DOWNLOAD_TIMEOUT = 30  # 確保定義
 
 def clear_download_dirs():
     for dir_path in [cplus_download_dir, barge_download_dir]:
