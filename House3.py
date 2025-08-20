@@ -750,11 +750,11 @@ def main():
     for file in downloaded_files:
         logging.info(f"找到檔案: {file}")
 
-    # 驗證檔案
+    # 檢查檔案
     for file in downloaded_files:
         file_path = os.path.join(cplus_download_dir if file in cplus_files else barge_download_dir, file)
-        if not verify_file(file_path):
-            logging.warning(f"檔案 {file} 驗證失敗")
+        if not check_file(file_path):
+            logging.warning(f"檔案 {file} 檢查失敗")
 
     # 檢查必須檔案
     required_patterns = {'movement': 'cntrMoveLog', 'onhand': 'data_', 'barge': 'ContainerDetailReport'}
