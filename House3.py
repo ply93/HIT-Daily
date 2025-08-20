@@ -339,6 +339,7 @@ def process_cplus_house(driver, wait, initial_files):
                 file_path = os.path.join(cplus_download_dir, file)
                 if os.path.getsize(file_path) > 0 and file.endswith(('.csv', '.xlsx')):
                     downloaded_files.add(file)
+            logging.info(f"CPLUS: 當前檢測到 {len(downloaded_files)} 個下載文件，預期 {expected_file_count} 個")
             if len(downloaded_files) >= expected_file_count:
                 logging.info(f"CPLUS: 檢測到 {len(downloaded_files)} 個下載文件，達到預期 {expected_file_count} 個")
                 break
@@ -355,19 +356,20 @@ def process_cplus_house(driver, wait, initial_files):
             if idx in [fb[0] for fb in failed_buttons]:
                 continue
             report_name = driver.find_element(By.XPATH, f"(//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[3])[{idx}]").text
-            expected_filename = f"{report_name.replace(' ', '_').replace('/', '_')}_{time.strftime('%d%m%y')}_CKL"
-            temp_new, download_time = wait_for_new_file(driver, cplus_download_dir, local_initial, expected_filename)
+            expected_filename_prefix = report_name.replace(' ', '_').replace('/', '_').split('_')[0]  # 使用前綴匹配
+            temp_new, download_time = wait_for_new_file(driver, cplus_download_dir, local_initial)
             if temp_new:
                 matched_file = temp_new.pop()
                 all_downloaded_files.add(matched_file)
-                if matched_file.startswith(expected_filename.split('.')[0]) or matched_file == expected_filename:
+                # 改進匹配邏輯，使用前綴匹配
+                if matched_file.startswith(expected_filename_prefix) and matched_file.endswith(f"_{time.strftime('%d%m%y')}_CKL.csv"):
                     report_file_mapping.append((report_name, matched_file, download_time))
                     local_initial.add(matched_file)
                     new_files.add(matched_file)
                     successful_methods[method] += 1
-                    logging.info(f"CPLUS: 第 {idx} 個下載成功，文件: {matched_file}, 預期: {expected_filename}, 耗時 {download_time:.1f} 秒，使用方法: {method}")
+                    logging.info(f"CPLUS: 第 {idx} 個下載成功，文件: {matched_file}, 預期前綴: {expected_filename_prefix}, 耗時 {download_time:.1f} 秒，使用方法: {method}")
                 else:
-                    logging.warning(f"CPLUS: 文件 {matched_file} 與預期 {expected_filename} 不匹配")
+                    logging.warning(f"CPLUS: 文件 {matched_file} 與預期前綴 {expected_filename_prefix} 不匹配")
             else:
                 logging.warning(f"CPLUS: 第 {idx} 個未觸發新 EXCEL 文件，使用方法: {method}")
                 driver.save_screenshot(f"house_button_{idx}_failure_{method}.png")
