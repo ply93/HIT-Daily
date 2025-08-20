@@ -1,4 +1,4 @@
-name: Combine 3
+name: Combine 4
 on:
   workflow_dispatch:
 jobs:
@@ -43,17 +43,13 @@ jobs:
           ZOHO_EMAIL: ${{ secrets.ZOHO_EMAIL }}
           ZOHO_PASSWORD: ${{ secrets.ZOHO_PASSWORD }}
           BARGE_PASSWORD: ${{ secrets.BARGE_PASSWORD }}
-          RECEIVER_EMAILS: ${{ secrets.RECEIVER_EMAILS }}
-        run: python House3.py
-      - name: Upload artifacts
-        if: always()
+        run: python download_cplus.py
+      - name: Upload artifacts # 新加步驟
+        if: always() # 即使失敗都上傳
         uses: actions/upload-artifact@v4
         with:
           name: debug-files
           path: |
-            downloads_cplus/
-            downloads_barge/
             *.png
             *.html
-            *.txt
-          retention-days: 7
+            *.txt # 上傳 screenshot, html, logs
