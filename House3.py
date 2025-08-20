@@ -195,7 +195,7 @@ def attempt_click(button, driver, method_name):
         # 確保點擊後頁面狀態更新
         WebDriverWait(driver, 2).until(lambda d: d.execute_script("return document.readyState") == "complete")
         logging.debug(f"點擊測試方法 {method_name} 成功")
-        time.sleep(1)  # 保持 1 秒延遲
+        time.sleep(3)  # 增加延遲至 3 秒
         return True
     except WebDriverException as e:
         logging.error(f"WebDriverException 發生: {str(e)}，方法: {method_name}")
