@@ -683,28 +683,52 @@ def process_barge():
 
 def main():
     load_dotenv()
+    check_env_vars()  # 檢查環境變量
     clear_download_dirs()
 
-    # 單線程執行 CPLUS 後執行 Barge
-    cplus_files, cplus_house_file_count, cplus_house_button_count, cplus_driver = process_cplus()
-    barge_files, barge_driver = process_barge()
+    # 並行執行 CPLUS 和 Barge
+    cplus_files, cplus_house_file_count, cplus_house_button_count = set(), 0, 0
+    barge_files = set()
+    
+    def process_cplus_thread():
+        nonlocal cplus_files, cplus_house_file_count, cplus_house_button_count
+        cplus_files, cplus_house_file_count, cplus_house_button_count, cplus_driver = process_cplus()
+        if cplus_driver:
+            cplus_driver.quit()
+
+    def process_barge_thread():
+        nonlocal barge_files
+        barge_files, barge_driver = process_barge()
+        if barge_driver:
+            barge_driver.quit()
+
+    cplus_thread = threading.Thread(target=process_cplus_thread)
+    barge_thread = threading.Thread(target=process_barge_thread)
+    cplus_thread.start()
+    barge_thread.start()
+    cplus_thread.join()
+    barge_thread.join()
 
     downloaded_files = cplus_files.union(barge_files)
-    logging.info("檢查所有下載文件...")
     logging.info(f"總下載文件: {len(downloaded_files)} 個")
     for file in downloaded_files:
         logging.info(f"找到檔案: {file}")
 
-    required_patterns = {'movement': 'cntrMoveLog', 'onhand': 'data_', 'barge': 'ContainerDetailReport'}
-    housekeep_prefixes = ['IA5_', 'DM1C_', 'IA15_', 'GA1_', 'IA15_', 'IA17_']  # 根據報告名稱調整前綴
+    # 驗證檔案
+    for file in downloaded_files:
+        file_path = os.path.join(cplus_download_dir if file in cplus_files else barge_download_dir, file)
+        if not verify_file(file_path):
+            logging.warning(f"檔案 {file} 驗證失敗")
 
+    # 檢查必須檔案
+    required_patterns = {'movement': 'cntrMoveLog', 'onhand': 'data_', 'barge': 'ContainerDetailReport'}
+    housekeep_prefixes = ['IA5_', 'DM1C_', 'IA15_', 'GA1_', 'IA15_', 'IA17_']
     has_required = all(any(pattern in f for f in downloaded_files) for pattern in required_patterns.values())
     house_files = [f for f in downloaded_files if any(p in f for p in housekeep_prefixes)]
     house_download_count = len(set(house_files))
     house_ok = (house_download_count >= cplus_house_button_count - 1) or (cplus_house_button_count == 0)
 
     if has_required and house_ok:
-        logging.info("所有必須文件齊全且 Housekeep 文件數量匹配按鈕數，開始發送郵件...")
         try:
             smtp_server = os.environ.get('SMTP_SERVER', 'smtp.zoho.com')
             smtp_port = int(os.environ.get('SMTP_PORT', 587))
@@ -713,8 +737,7 @@ def main():
             receiver_emails = os.environ.get('RECEIVER_EMAILS', 'paklun@ckline.com.hk').split(',')
             cc_emails = os.environ.get('CC_EMAILS', '').split(',') if os.environ.get('CC_EMAILS') else []
             dry_run = os.environ.get('DRY_RUN', 'False').lower() == 'true'
-            if dry_run:
-                logging.info("Dry run 模式：只打印郵件內容，不發送。")
+
             house_report_names = ["REEFER CONTAINER MONITOR REPORT", "CONTAINER DAMAGE REPORT (LINE) ENTRY GATE + EXIT GATE", "CONTAINER LIST (ON HAND)", "CY - GATELOG", "CONTAINER LIST (DAMAGED)", "ACTIVE REEFER CONTAINER ON HAND LIST"]
             house_status = ['✓' if [f for f in house_files if p in f] else '-' for p in housekeep_prefixes]
             house_file_names = [', '.join([f for f in house_files if p in f]) if [f for f in house_files if p in f] else 'N/A' for p in housekeep_prefixes]
@@ -743,13 +766,13 @@ def main():
                 sender_password,
                 dry_run
             )
-        except KeyError as ke:
-            logging.error(f"缺少環境變量: {ke}")
         except Exception as e:
             logging.error(f"郵件發送失敗: {str(e)}")
     else:
         logging.warning(f"文件不齊全: 缺少必須文件 (has_required={has_required}) 或 House文件不足 (download={house_download_count}, button={cplus_house_button_count})")
 
+    cleanup_downloads()  # 清理臨時檔案
+    logging.info("腳本完成")
     if cplus_driver:
         cplus_driver.quit()
         logging.info("CPLUS WebDriver 關閉")
