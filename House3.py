@@ -697,7 +697,7 @@ def process_barge():
         initial_files.update(new_files)
         process_barge_logout(driver, wait)
         return downloaded_files, driver
-except Exception as e:
+    except Exception as e:
         logging.error(f"Barge 總錯誤: {str(e)}")
         return downloaded_files, driver
     finally:
