@@ -1,4 +1,3 @@
-# 確保無 pandas 導入
 import os
 import time
 import shutil
