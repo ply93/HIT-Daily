@@ -38,18 +38,22 @@ def setup_environment():
     os.environ.pop('TZ', None)
     try:
         # 檢查 Chromium 和 Chromedriver
-        result = subprocess.run(['which', 'chromium'], capture_output=True, text=True)
-        if result.returncode != 0:
+        chromium_path = os.path.expanduser('~/chromium-bin/chromium-browser')
+        chromedriver_path = os.path.expanduser('~/chromium-bin/chromedriver')
+        if not os.path.exists(chromium_path) or not os.path.exists(chromedriver_path):
             subprocess.run(['sudo', 'apt-get', 'update', '-qq'], check=True)
-            subprocess.run(['sudo', 'apt-get', 'install', '-y', 'chromium', 'chromium-driver'], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(['sudo', 'apt-get', 'install', '-y', 'chromium-browser', 'chromium-chromedriver'], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            os.makedirs(os.path.expanduser('~/chromium-bin'), exist_ok=True)
+            subprocess.run(['sudo', 'cp', '/usr/bin/chromium-browser', chromium_path], check=True)
+            subprocess.run(['sudo', 'cp', '/usr/bin/chromedriver', chromedriver_path], check=True)
             logging.info("Chromium 及 ChromeDriver 已安裝")
         else:
             logging.info("Chromium 及 ChromeDriver 已存在，跳過安裝")
-            chromedriver_version = subprocess.run(['chromedriver', '--version'], capture_output=True, text=True).stdout
+            chromedriver_version = subprocess.run([chromedriver_path, '--version'], capture_output=True, text=True).stdout
             logging.info(f"Chromedriver 版本: {chromedriver_version}")
 
         # 檢查 Python 依賴
-        required_packages = ['selenium', 'webdriver-manager', 'python-dotenv']
+        required_packages = ['selenium', 'webdriver-manager', 'python-dotenv', 'pytz']
         for package in required_packages:
             result = subprocess.run(['pip', 'show', package], capture_output=True, text=True)
             if package not in result.stdout:
@@ -98,7 +102,7 @@ def get_chrome_options(download_dir):
         "download.prompt_for_download": False,
         "safebrowsing.enabled": False
     })
-    chrome_options.binary_location = '/usr/bin/chromium-browser'
+    chrome_options.binary_location = os.path.expanduser('~/chromium-bin/chromium-browser')  # 更新路徑
     return chrome_options
 
 def wait_for_new_file(download_dir, initial_files, timeout=DOWNLOAD_TIMEOUT):
