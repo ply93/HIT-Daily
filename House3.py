@@ -85,30 +85,30 @@ def wait_for_new_file(driver, download_dir, initial_files, expected_filename=Non
                 if os.path.getsize(file_path) > 0 and file.endswith(('.csv', '.xlsx')):
                     logging.debug(f"檢測到新文件: {file}, 預期: {expected_filename}")
                     return {file}, time.time() - start_time
-        if time.time() - start_time >= 45:  # 45 秒超時
+        if time.time() - start_time >= 60:  # 增加至 60 秒
             return False
         return None  # 繼續等待
     try:
-        result, _ = WebDriverWait(driver, 45).until(file_available)
+        result, _ = WebDriverWait(driver, 60).until(file_available)
         if result:
             return result, _
-        logging.warning(f"下載超時（45s），當前文件: {list(set(os.listdir(download_dir)) - initial_files)}")
+        logging.warning(f"下載超時（60s），當前文件: {list(set(os.listdir(download_dir)) - initial_files)}")
         return set(), 0
     except TimeoutException:
-        logging.warning(f"下載超時（45s），當前文件: {list(set(os.listdir(download_dir)) - initial_files)}")
+        logging.warning(f"下載超時（60s），當前文件: {list(set(os.listdir(download_dir)) - initial_files)}")
         return set(), 0
 
 def handle_popup(driver, wait):
-    max_attempts = 3
+    max_attempts = 5  # 增加重試次數
     attempt = 0
     while attempt < max_attempts:
         try:
-            error_div = WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.XPATH, "//div[contains(text(), 'System Error') or contains(text(), 'Loading') or contains(@class, 'error') or contains(@class, 'popup')]")))
+            error_div = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//div[contains(text(), 'System Error') or contains(text(), 'Loading') or contains(@class, 'error') or contains(@class, 'popup')]")))
             logging.error(f"CPLUS: 檢測到系統錯誤: {error_div.text}")
             close_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Close') or contains(text(), 'OK')]")))
             driver.execute_script("arguments[0].click();", close_button)
             logging.info("CPLUS: 關閉系統錯誤彈窗")
-            time.sleep(0.2)
+            time.sleep(0.5)
             driver.save_screenshot("system_error.png")
             with open("system_error.html", "w", encoding="utf-8") as f:
                 f.write(driver.page_source)
@@ -119,7 +119,12 @@ def handle_popup(driver, wait):
         except Exception as e:
             logging.warning(f"彈窗處理失敗: {str(e)}，嘗試下一個...")
             attempt += 1
-            time.sleep(0.2)
+            time.sleep(1)
+    if attempt >= max_attempts:
+        logging.error("CPLUS: 彈窗處理多次失敗，記錄頁面狀態...")
+        driver.save_screenshot("popup_failure.png")
+        with open("popup_failure.html", "w", encoding="utf-8") as f:
+            f.write(driver.page_source)
 
 def cplus_login(driver, wait):
     start_time = time.time()
@@ -185,6 +190,7 @@ def attempt_click(button, driver, method_name):
             return False
         methods[method_name]()
         logging.debug(f"點擊測試方法 {method_name} 成功")
+        time.sleep(0.5)  # 增加短暫延遲確保觸發
         return True
     except WebDriverException as e:
         logging.error(f"WebDriverException 發生: {str(e)}，方法: {method_name}")
@@ -272,7 +278,7 @@ def process_cplus_house(driver, wait, initial_files):
         for idx, button in enumerate(excel_buttons, 1):
             success = False
             report_name = driver.find_element(By.XPATH, f"(//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[3])[{idx}]").text
-            expected_filename = f"{report_name.replace(' ', '_').replace('/', '_')}_{time.strftime('%d%m%y')}_CKL"
+            expected_filename_prefix = report_name.replace(' ', '_').replace('/', '_')[:5]  # 使用前 5 個字符作為前綴
             for retry in range(MAX_RETRIES + 1):  # 僅重試失敗的按鈕
                 try:
                     # 檢查並關閉可能的對話框
@@ -332,7 +338,7 @@ def process_cplus_house(driver, wait, initial_files):
         start_time = time.time()
         expected_file_count = button_count - len(failed_buttons)
         downloaded_files = set()
-        while time.time() - start_time < 45:
+        while time.time() - start_time < 60:  # 增加至 60 秒
             current_files = set(os.listdir(cplus_download_dir))
             new_files = current_files - local_initial
             for file in new_files:
@@ -345,7 +351,7 @@ def process_cplus_house(driver, wait, initial_files):
                 break
             time.sleep(0.1)
         else:
-            logging.warning(f"下載超時（45s），僅檢測到 {len(downloaded_files)} 個文件，預期 {expected_file_count} 個")
+            logging.warning(f"下載超時（60s），僅檢測到 {len(downloaded_files)} 個文件，預期 {expected_file_count} 個")
             driver.save_screenshot("download_timeout.png")
             with open("download_timeout.html", "w", encoding="utf-8") as f:
                 f.write(driver.page_source)
@@ -356,7 +362,7 @@ def process_cplus_house(driver, wait, initial_files):
             if idx in [fb[0] for fb in failed_buttons]:
                 continue
             report_name = driver.find_element(By.XPATH, f"(//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[3])[{idx}]").text
-            expected_filename_prefix = report_name.replace(' ', '_').replace('/', '_').split('_')[0]  # 使用前綴匹配
+            expected_filename_prefix = report_name.replace(' ', '_').replace('/', '_')[:5]  # 使用前 5 個字符作為前綴
             temp_new, download_time = wait_for_new_file(driver, cplus_download_dir, local_initial)
             if temp_new:
                 matched_file = temp_new.pop()
