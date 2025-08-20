@@ -55,12 +55,33 @@ def setup_environment():
         logging.error(f"環境準備失敗: {e}")
         raise
 
+import pandas as pd
+
 def check_env_vars():
     required_vars = ['SITE_PASSWORD', 'BARGE_PASSWORD', 'ZOHO_EMAIL', 'ZOHO_PASSWORD', 'RECEIVER_EMAILS']
     missing = [var for var in required_vars if not os.environ.get(var)]
     if missing:
         logging.error(f"缺少環境變量: {', '.join(missing)}")
         raise EnvironmentError(f"缺少環境變量: {', '.join(missing)}")
+
+def verify_file(file_path):
+    try:
+        if file_path.endswith('.csv'):
+            pd.read_csv(file_path, nrows=1)
+        elif file_path.endswith('.xlsx'):
+            pd.read_excel(file_path, nrows=1)
+        logging.info(f"檔案 {file_path} 格式正確")
+        return True
+    except Exception as e:
+        logging.error(f"檔案 {file_path} 損壞或格式錯誤: {str(e)}")
+        return False
+
+def cleanup_downloads():
+    for dir_path in [cplus_download_dir, barge_download_dir]:
+        if os.path.exists(dir_path):
+            shutil.rmtree(dir_path)
+            os.makedirs(dir_path)
+            logging.info(f"清理下載目錄: {dir_path}")
 
 def get_chrome_options(download_dir):
     chrome_options = Options()
