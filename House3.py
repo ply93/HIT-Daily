@@ -710,16 +710,22 @@ def process_barge():
 
 def main():
     load_dotenv()
+    logging.info("開始執行 House3.py")
     check_env_vars()  # 檢查環境變量
     clear_download_dirs()
+    logging.info("下載目錄已清理")
 
-    # 並行執行 CPLUS 和 Barge
-    cplus_files, cplus_house_file_count, cplus_house_button_count = set(), 0, 0
-    barge_files = set()
+    # 順序執行 CPLUS 和 Barge
+    cplus_files, cplus_house_file_count, cplus_house_button_count, cplus_driver = set(), 0, 0, None
+    barge_files, barge_driver = set(), None
 
-    def process_cplus_thread():
-        nonlocal cplus_files, cplus_house_file_count, cplus_house_button_count
+    try:
+        logging.info("開始處理 CPLUS")
         cplus_files, cplus_house_file_count, cplus_house_button_count, cplus_driver = process_cplus()
+        logging.info("CPLUS 處理完成")
+    except Exception as e:
+        logging.error(f"CPLUS 處理失敗: {str(e)}")
+    finally:
         if cplus_driver:
             try:
                 cplus_driver.quit()
@@ -727,22 +733,19 @@ def main():
             except Exception as e:
                 logging.error(f"CPLUS WebDriver 關閉失敗: {str(e)}")
 
-    def process_barge_thread():
-        nonlocal barge_files
+    try:
+        logging.info("開始處理 Barge")
         barge_files, barge_driver = process_barge()
+        logging.info("Barge 處理完成")
+    except Exception as e:
+        logging.error(f"Barge 處理失敗: {str(e)}")
+    finally:
         if barge_driver:
             try:
                 barge_driver.quit()
                 logging.info("Barge WebDriver 關閉")
             except Exception as e:
                 logging.error(f"Barge WebDriver 關閉失敗: {str(e)}")
-
-    cplus_thread = threading.Thread(target=process_cplus_thread)
-    barge_thread = threading.Thread(target=process_barge_thread)
-    cplus_thread.start()
-    barge_thread.start()
-    cplus_thread.join()
-    barge_thread.join()
 
     downloaded_files = cplus_files.union(barge_files)
     logging.info(f"總下載文件: {len(downloaded_files)} 個")
@@ -764,6 +767,7 @@ def main():
     house_ok = (house_download_count >= cplus_house_button_count - 1) or (cplus_house_button_count == 0)
 
     if has_required and house_ok:
+        logging.info("所有必須文件齊全，準備發送郵件")
         try:
             smtp_server = os.environ.get('SMTP_SERVER', 'smtp.zoho.com')
             smtp_port = int(os.environ.get('SMTP_PORT', 587))
@@ -801,10 +805,11 @@ def main():
                 sender_password,
                 dry_run
             )
+            logging.info("郵件發送完成")
         except Exception as e:
             logging.error(f"郵件發送失敗: {str(e)}")
     else:
         logging.warning(f"文件不齊全: 缺少必須文件 (has_required={has_required}) 或 House文件不足 (download={house_download_count}, button={cplus_house_button_count})")
 
-    cleanup_downloads()  # 清理臨時檔案
-    logging.info("腳本完成")
+    cleanup_downloads()
+    logging.info("腳本執行完成")
