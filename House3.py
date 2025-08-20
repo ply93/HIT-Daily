@@ -18,16 +18,6 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 cplus_download_dir = os.path.abspath("downloads_cplus")
 MAX_RETRIES = 2  # 保持失敗重試次數
 
-# 報告名稱與文件名的映射
-report_to_filename = {
-    "CONTAINER DAMAGE REPORT (LINE) ENTRY GATE + EXIT GATE": "DM1C_250819_CKL.csv",
-    "CONTAINER LIST (ON HAND)": "IA15_250819_CKL.csv",
-    "CY - GATELOG": "GA1_250819_CKL.csv",
-    "CONTAINER LIST (DAMAGED)": "IA17_250819_CKL.csv",
-    "ACTIVE REEFER CONTAINER ON HAND LIST": "IA5_250819_CKL.csv",
-    "REEFER CONTAINER MONITOR REPORT": "IE2_250819_CKL.csv"
-}
-
 def clear_download_dirs():
     for dir_path in [cplus_download_dir]:
         if os.path.exists(dir_path):
@@ -81,7 +71,7 @@ def get_chrome_options(download_dir):
     }
     chrome_options.add_experimental_option("prefs", prefs)
     chrome_options.binary_location = '/usr/bin/chromium-browser'
-    chrome_options.set_capability('timeouts', {'implicit': 30000, 'pageLoad': 30000, 'script': 30000})
+    # 移除超時設置，使用默認值
     return chrome_options
 
 def wait_for_new_file(driver, download_dir, initial_files, expected_filename=None):
@@ -95,15 +85,17 @@ def wait_for_new_file(driver, download_dir, initial_files, expected_filename=Non
                 if os.path.getsize(file_path) > 0 and file.endswith(('.csv', '.xlsx')):
                     logging.debug(f"檢測到新文件: {file}, 預期: {expected_filename}")
                     return {file}, time.time() - start_time
-        return False
+        if time.time() - start_time >= 45:  # 45 秒超時
+            return False
+        return None  # 繼續等待
     try:
-        result, _ = WebDriverWait(driver, 30).until(file_available)
+        result, _ = WebDriverWait(driver, 45).until(file_available)
         if result:
             return result, _
-        logging.warning(f"下載超時（30s），當前文件: {list(set(os.listdir(download_dir)) - initial_files)}")
+        logging.warning(f"下載超時（45s），當前文件: {list(set(os.listdir(download_dir)) - initial_files)}")
         return set(), 0
     except TimeoutException:
-        logging.warning(f"下載超時（30s），當前文件: {list(set(os.listdir(download_dir)) - initial_files)}")
+        logging.warning(f"下載超時（45s），當前文件: {list(set(os.listdir(download_dir)) - initial_files)}")
         return set(), 0
 
 def handle_popup(driver, wait):
@@ -113,7 +105,7 @@ def handle_popup(driver, wait):
         try:
             error_div = WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.XPATH, "//div[contains(text(), 'System Error') or contains(text(), 'Loading') or contains(@class, 'error') or contains(@class, 'popup')]")))
             logging.error(f"CPLUS: 檢測到系統錯誤: {error_div.text}")
-            close_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Close') or contains(text(), 'OK') or contains(text(), 'Download Screenshots')]")))
+            close_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Close') or contains(text(), 'OK')]")))
             driver.execute_script("arguments[0].click();", close_button)
             logging.info("CPLUS: 關閉系統錯誤彈窗")
             time.sleep(0.2)
@@ -130,9 +122,10 @@ def handle_popup(driver, wait):
             time.sleep(0.2)
 
 def cplus_login(driver, wait):
+    start_time = time.time()
     logging.info("CPLUS: 嘗試打開網站 https://cplus.hit.com.hk/frontpage/#/")
     driver.get("https://cplus.hit.com.hk/frontpage/#/")
-    logging.info(f"CPLUS: 網站已成功打開，當前 URL: {driver.current_url}")
+    logging.info(f"CPLUS: 網站已成功打開，當前 URL: {driver.current_url}，耗時 {time.time() - start_time:.1f} 秒")
     time.sleep(0.2)
 
     logging.info("CPLUS: 點擊登錄前按鈕...")
@@ -201,163 +194,199 @@ def attempt_click(button, driver, method_name):
         return False
 
 def process_cplus_house(driver, wait, initial_files):
-    for retry in range(MAX_RETRIES + 1):  # 增加外層重試
-        try:
-            logging.info("CPLUS: 前往 Housekeeping Reports 頁面...")
-            driver.get("https://cplus.hit.com.hk/app/#/report/housekeepReport")
-            try:
-                wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")), 10)
-                logging.info("CPLUS: Housekeeping Reports 頁面加載完成")
-            except TimeoutException:
-                logging.error("CPLUS: House 頁面加載失敗，刷新頁面...")
-                driver.refresh()
-                time.sleep(2)
-                wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")), 10)
-                logging.info("CPLUS: Housekeeping Reports 頁面加載完成 (刷新後)")
+    logging.info("CPLUS: 前往 Housekeeping Reports 頁面...")
+    driver.get("https://cplus.hit.com.hk/app/#/report/housekeepReport")
+    try:
+        wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")), 10)
+        logging.info("CPLUS: Housekeeping Reports 頁面加載完成")
+    except TimeoutException:
+        logging.error("CPLUS: House 頁面加載失敗，刷新頁面...")
+        driver.refresh()
+        time.sleep(2)
+        wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")), 10)
+        logging.info("CPLUS: Housekeeping Reports 頁面加載完成 (刷新後)")
 
-            logging.info("CPLUS: 等待表格加載...")
-            start_time = time.time()
-            try:
-                WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]")))
-                rows = WebDriverWait(driver, 10).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr[td[3]]")))
-                logging.info(f"CPLUS: 找到 {len(rows)} 個報告行，耗時 {time.time() - start_time:.1f} 秒")
-            except TimeoutException:
-                logging.warning("CPLUS: 表格加載失敗，嘗試備用定位...")
-                WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.CSS_SELECTOR, "table.MuiTable-root")))
-                rows = WebDriverWait(driver, 10).until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "table.MuiTable-root tbody tr")))
-                logging.info(f"CPLUS: 找到 {len(rows)} 個報告行 (備用定位)，耗時 {time.time() - start_time:.1f} 秒")
+    logging.info("CPLUS: 等待表格加載...")
+    start_time = time.time()
+    try:
+        WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]")))
+        rows = WebDriverWait(driver, 10).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr[td[3]]")))
+        logging.info(f"CPLUS: 找到 {len(rows)} 個報告行，耗時 {time.time() - start_time:.1f} 秒")
+    except TimeoutException:
+        logging.warning("CPLUS: 表格加載失敗，嘗試備用定位...")
+        WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.CSS_SELECTOR, "table.MuiTable-root")))
+        rows = WebDriverWait(driver, 10).until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "table.MuiTable-root tbody tr")))
+        logging.info(f"CPLUS: 找到 {len(rows)} 個報告行 (備用定位)，耗時 {time.time() - start_time:.1f} 秒")
 
-            if time.time() - start_time > 20:
-                logging.warning("CPLUS: Housekeeping Reports 加載時間過長，跳過")
-                driver.save_screenshot("house_load_timeout.png")
-                return set(), 0, 0
+    if time.time() - start_time > 20:
+        logging.warning("CPLUS: Housekeeping Reports 加載時間過長，跳過")
+        driver.save_screenshot("house_load_timeout.png")
+        return set(), 0, 0
 
-            time.sleep(0.2)
-            logging.info("CPLUS: 定位並點擊所有 Excel 下載按鈕...")
-            local_initial = initial_files.copy()
-            new_files = set()
-            all_downloaded_files = set()
-            try:
-                WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)]")))
-                excel_buttons = driver.find_elements(By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)]")
-                button_count = len(excel_buttons)
-                logging.info(f"CPLUS: 找到 {button_count} 個 Excel 下載按鈕")
-                if button_count == 0:
-                    logging.debug("CPLUS: 未找到 Excel 按鈕，嘗試原始定位...")
-                    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button[not(@disabled)]//svg[@viewBox='0 0 24 24']//path[@fill='#036e11']")))
-                    excel_buttons = driver.find_elements(By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button[not(@disabled)]//svg[@viewBox='0 0 24 24']//path[@fill='#036e11']")
-                    button_count = len(excel_buttons)
-                    logging.info(f"CPLUS: 原始定位找到 {button_count} 個 Excel 下載按鈕")
-            except TimeoutException:
-                logging.error("CPLUS: 按鈕加載失敗，記錄頁面狀態...")
-                driver.save_screenshot("button_load_failure.png")
-                with open("button_load_failure.html", "w", encoding="utf-8") as f:
-                    f.write(driver.page_source)
-                raise Exception("CPLUS: Housekeeping Reports 按鈕加載失敗")
+    time.sleep(0.2)
+    logging.info("CPLUS: 定位並點擊所有 Excel 下載按鈕...")
+    local_initial = initial_files.copy()
+    new_files = set()
+    all_downloaded_files = set()
+    try:
+        WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)]")))
+        excel_buttons = driver.find_elements(By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)]")
+        button_count = len(excel_buttons)
+        logging.info(f"CPLUS: 找到 {button_count} 個 Excel 下載按鈕")
+        if button_count == 0:
+            logging.debug("CPLUS: 未找到 Excel 按鈕，嘗試原始定位...")
+            WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button[not(@disabled)]//svg[@viewBox='0 0 24 24']//path[@fill='#036e11']")))
+            excel_buttons = driver.find_elements(By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button[not(@disabled)]//svg[@viewBox='0 0 24 24']//path[@fill='#036e11']")
+            button_count = len(excel_buttons)
+            logging.info(f"CPLUS: 原始定位找到 {button_count} 個 Excel 下載按鈕")
+    except TimeoutException:
+        logging.error("CPLUS: 按鈕加載失敗，記錄頁面狀態...")
+        driver.save_screenshot("button_load_failure.png")
+        with open("button_load_failure.html", "w", encoding="utf-8") as f:
+            f.write(driver.page_source)
+        raise Exception("CPLUS: Housekeeping Reports 按鈕加載失敗")
 
-            if button_count == 0:
-                logging.error("CPLUS: 未找到任何 Excel 下載按鈕，記錄頁面狀態...")
-                driver.save_screenshot("house_button_failure.png")
-                with open("house_button_failure.html", "w", encoding="utf-8") as f:
-                    f.write(driver.page_source)
-                raise Exception("CPLUS: Housekeeping Reports 未找到 Excel 下載按鈕")
-            logging.info(f"CPLUS: 最終找到 {button_count} 個 Excel 下載按鈕")
+    if button_count == 0:
+        logging.error("CPLUS: 未找到任何 Excel 下載按鈕，記錄頁面狀態...")
+        driver.save_screenshot("house_button_failure.png")
+        with open("house_button_failure.html", "w", encoding="utf-8") as f:
+            f.write(driver.page_source)
+        raise Exception("CPLUS: Housekeeping Reports 未找到 Excel 下載按鈕")
+    logging.info(f"CPLUS: 最終找到 {button_count} 個 Excel 下載按鈕")
 
-            # 記錄實際按鈕屬性以 debug
-            for idx, btn in enumerate(excel_buttons, 1):
-                btn_text = btn.text or btn.get_attribute("innerText") or btn.get_attribute("title") or btn.get_attribute("aria-label") or "無文本"
-                btn_class = btn.get_attribute("class") or "無類別"
-                logging.debug(f"按鈕 {idx} 文本/title/aria-label: {btn_text}, 類別: {btn_class}")
+    # 記錄實際按鈕屬性以 debug
+    for idx, btn in enumerate(excel_buttons, 1):
+        btn_text = btn.text or btn.get_attribute("innerText") or btn.get_attribute("title") or btn.get_attribute("aria-label") or "無文本"
+        btn_class = btn.get_attribute("class") or "無類別"
+        logging.debug(f"按鈕 {idx} 文本/title/aria-label: {btn_text}, 類別: {btn_class}")
 
-            click_methods = ["Standard click"]  # 只保留 Standard click
-            successful_methods = {method: 0 for method in click_methods}
-            report_file_mapping = []
-            failed_buttons = []
+    click_methods = ["Standard click"]  # 只保留 Standard click
+    successful_methods = {method: 0 for method in click_methods}
+    report_file_mapping = []
+    failed_buttons = []
 
-            for method in click_methods:
-                logging.info(f"CPLUS: 開始測試點擊方法: {method}")
-                local_initial = initial_files.copy()
-                for idx in range(button_count):
-                    success = False
-                    report_name = driver.find_element(By.XPATH, f"(//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[3])[{idx+1}]").text
-                    expected_filename = report_to_filename.get(report_name, f"{report_name.replace(' ', '_').replace('/', '_')}_{time.strftime('%d%m%y')}_CKL")
-                    for retry in range(MAX_RETRIES + 1):  # 增加重試
-                        try:
-                            button = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, f"(//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)])[{idx+1}]")))
-                            driver.execute_script("arguments[0].scrollIntoView({block: 'center', behavior: 'smooth'});", button)
-                            driver.execute_script("window.scrollBy(0, 50);")
-                            click_time = time.time()
-                            time.sleep(0.1)
+    for method in click_methods:
+        logging.info(f"CPLUS: 開始測試點擊方法: {method}")
+        local_initial = initial_files.copy()
+        # 一次性點擊所有按鈕
+        for idx, button in enumerate(excel_buttons, 1):
+            success = False
+            report_name = driver.find_element(By.XPATH, f"(//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[3])[{idx}]").text
+            expected_filename = f"{report_name.replace(' ', '_').replace('/', '_')}_{time.strftime('%d%m%y')}_CKL"
+            for retry in range(MAX_RETRIES + 1):  # 僅重試失敗的按鈕
+                try:
+                    # 檢查並關閉可能的對話框
+                    try:
+                        dialog = driver.find_element(By.CSS_SELECTOR, ".MuiDialog-container")
+                        close_button = driver.find_element(By.XPATH, "//button[contains(text(), 'Close') or contains(text(), 'OK')]")
+                        driver.execute_script("arguments[0].click();", close_button)
+                        logging.info("CPLUS: 關閉對話框")
+                        time.sleep(0.5)
+                    except NoSuchElementException:
+                        pass
 
-                            logging.info(f"CPLUS: 準備點擊第 {idx+1} 個 EXCEL 按鈕，報告名稱: {report_name}，使用方法: {method} (重試 {retry+1}/{MAX_RETRIES+1})")
-                            clicked = attempt_click(button, driver, method)
-                            if clicked:
-                                logging.info(f"成功點擊方法: {method}")
-                            else:
-                                raise Exception(f"點擊方法 {method} 失敗")
+                    driver.execute_script("arguments[0].scrollIntoView({block: 'center', behavior: 'smooth'});", button)
+                    driver.execute_script("window.scrollBy(0, 50);")
+                    click_time = time.time()
+                    time.sleep(0.1)
 
-                            handle_popup(driver, wait)
-                            time.sleep(0.1)
-
-                            temp_new, download_time = wait_for_new_file(driver, cplus_download_dir, local_initial, expected_filename)
-                            if temp_new:
-                                matched_file = temp_new.pop()
-                                all_downloaded_files.add(matched_file)
-                                # 檢查是否與預期文件名匹配
-                                if any(matched_file.startswith(expected_filename.split('.')[0]) or matched_file == expected_filename for expected in [expected_filename] + list(report_to_filename.values())):
-                                    report_file_mapping.append((report_name, matched_file, download_time))
-                                    local_initial.add(matched_file)
-                                    new_files.add(matched_file)
-                                    success = True
-                                    successful_methods[method] += 1  # 僅在下載成功時增加計數
-                                    logging.info(f"CPLUS: 第 {idx+1} 個下載成功，文件: {matched_file}, 預期: {expected_filename}, 耗時 {download_time:.1f} 秒，使用方法: {method}")
-                                else:
-                                    logging.warning(f"CPLUS: 文件 {matched_file} 與預期 {expected_filename} 不匹配")
-                            else:
-                                logging.warning(f"CPLUS: 第 {idx+1} 個未觸發新 EXCEL 文件，使用方法: {method}")
-                                driver.save_screenshot(f"house_button_{idx+1}_failure_{method}.png")
-                                with open(f"house_button_{idx+1}_failure_{method}.html", "w", encoding="utf-8") as f:
-                                    f.write(driver.page_source)
-                            break  # 成功或失敗後退出重試
-                        except (TimeoutException, NoSuchElementException, StaleElementReferenceException) as e:
-                            logging.error(f"CPLUS: 第 {idx+1} 個失敗: {str(e)}，使用方法: {method} (重試 {retry+1}/{MAX_RETRIES+1})")
-                            driver.save_screenshot(f"house_button_{idx+1}_failure_{method}_retry{retry}.png")
-                            with open(f"house_button_{idx+1}_failure_{method}_retry{retry}.html", "w", encoding="utf-8") as f:
-                                f.write(driver.page_source)
-                            if retry < MAX_RETRIES:
-                                logging.info(f"CPLUS: 重試第 {idx+1} 個按鈕...")
-                                time.sleep(1)
-                            else:
-                                raise
-                        except WebDriverException as e:
-                            logging.error(f"WebDriver 異常: {str(e)}，關閉並重試...")
-                            driver.quit()
-                            driver = webdriver.Chrome(options=get_chrome_options(cplus_download_dir))
-                            wait = WebDriverWait(driver, 5)
-                            cplus_login(driver, wait)
-                            driver.get("https://cplus.hit.com.hk/app/#/report/housekeepReport")
-                            time.sleep(2)
-                    if not success:
+                    logging.info(f"CPLUS: 準備點擊第 {idx} 個 EXCEL 按鈕，報告名稱: {report_name}，使用方法: {method} (重試 {retry+1}/{MAX_RETRIES+1})")
+                    clicked = attempt_click(button, driver, method)
+                    if clicked:
+                        logging.info(f"成功點擊第 {idx} 個方法: {method}")
+                    else:
+                        raise Exception(f"點擊方法 {method} 失敗")
+                    break  # 點擊成功後退出重試
+                except (TimeoutException, NoSuchElementException, StaleElementReferenceException) as e:
+                    logging.error(f"CPLUS: 第 {idx} 個失敗: {str(e)}，使用方法: {method} (重試 {retry+1}/{MAX_RETRIES+1})")
+                    driver.save_screenshot(f"house_button_{idx}_failure_{method}_retry{retry}.png")
+                    with open(f"house_button_{idx}_failure_{method}_retry{retry}.html", "w", encoding="utf-8") as f:
+                        f.write(driver.page_source)
+                    if retry < MAX_RETRIES:
+                        logging.info(f"CPLUS: 重試第 {idx} 個按鈕...")
+                        time.sleep(1)
+                    else:
                         failed_buttons.append((idx, method))
-                logging.info(f"CPLUS: 點擊方法 {method} 測試完成，成功下載: {successful_methods[method]} 個")
+                        break
+                except ElementClickInterceptedException as e:
+                    logging.error(f"CPLUS: 第 {idx} 個點擊被阻斷: {str(e)}，使用方法: {method} (重試 {retry+1}/{MAX_RETRIES+1})")
+                    driver.save_screenshot(f"house_button_{idx}_failure_{method}_retry{retry}.png")
+                    with open(f"house_button_{idx}_failure_{method}_retry{retry}.html", "w", encoding="utf-8") as f:
+                        f.write(driver.page_source)
+                    if retry < MAX_RETRIES:
+                        logging.info(f"CPLUS: 重試第 {idx} 個按鈕...")
+                        time.sleep(1)
+                    else:
+                        failed_buttons.append((idx, method))
+                        break
+                except WebDriverException as e:
+                    logging.error(f"WebDriver 異常: {str(e)}，關閉並重試...")
+                    driver.quit()
+                    driver = webdriver.Chrome(options=get_chrome_options(cplus_download_dir))
+                    wait = WebDriverWait(driver, 5)
+                    cplus_login(driver, wait)
+                    driver.get("https://cplus.hit.com.hk/app/#/report/housekeepReport")
+                    time.sleep(2)
 
-            if new_files:
-                logging.info(f"CPLUS: Housekeeping Reports 下載完成，共 {len(new_files)} 個文件，找到 {button_count} 個 EXCEL 按鈕")
-                for report, files, _ in report_file_mapping:
-                    logging.info(f"報告: {report}, 文件: {files}")
-                if failed_buttons:
-                    logging.warning(f"CPLUS: 失敗按鈕: {failed_buttons}")
-            else:
-                logging.warning("CPLUS: Housekeeping Reports 無任何 EXCEL 下載")
+        # 統一等待所有文件下載
+        start_time = time.time()
+        expected_file_count = button_count - len(failed_buttons)
+        downloaded_files = set()
+        while time.time() - start_time < 45:
+            current_files = set(os.listdir(cplus_download_dir))
+            new_files = current_files - local_initial
+            for file in new_files:
+                file_path = os.path.join(cplus_download_dir, file)
+                if os.path.getsize(file_path) > 0 and file.endswith(('.csv', '.xlsx')):
+                    downloaded_files.add(file)
+            if len(downloaded_files) >= expected_file_count:
+                logging.info(f"CPLUS: 檢測到 {len(downloaded_files)} 個下載文件，達到預期 {expected_file_count} 個")
+                break
+            time.sleep(0.1)
+        else:
+            logging.warning(f"下載超時（45s），僅檢測到 {len(downloaded_files)} 個文件，預期 {expected_file_count} 個")
+            driver.save_screenshot("download_timeout.png")
+            with open("download_timeout.html", "w", encoding="utf-8") as f:
+                f.write(driver.page_source)
 
-            return new_files, len(new_files), button_count
-        except Exception as e:
-            logging.error(f"處理 Housekeeping Reports 失敗: {str(e)}")
-            if retry < MAX_RETRIES:
-                logging.info(f"重試 Housekeeping Reports 頁面加載...")
-                time.sleep(2)
+        # 匹配下載文件與報告
+        local_initial = initial_files.copy()
+        for idx, button in enumerate(excel_buttons, 1):
+            if idx in [fb[0] for fb in failed_buttons]:
+                continue
+            report_name = driver.find_element(By.XPATH, f"(//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[3])[{idx}]").text
+            expected_filename = f"{report_name.replace(' ', '_').replace('/', '_')}_{time.strftime('%d%m%y')}_CKL"
+            temp_new, download_time = wait_for_new_file(driver, cplus_download_dir, local_initial, expected_filename)
+            if temp_new:
+                matched_file = temp_new.pop()
+                all_downloaded_files.add(matched_file)
+                if matched_file.startswith(expected_filename.split('.')[0]) or matched_file == expected_filename:
+                    report_file_mapping.append((report_name, matched_file, download_time))
+                    local_initial.add(matched_file)
+                    new_files.add(matched_file)
+                    successful_methods[method] += 1
+                    logging.info(f"CPLUS: 第 {idx} 個下載成功，文件: {matched_file}, 預期: {expected_filename}, 耗時 {download_time:.1f} 秒，使用方法: {method}")
+                else:
+                    logging.warning(f"CPLUS: 文件 {matched_file} 與預期 {expected_filename} 不匹配")
             else:
-                raise
+                logging.warning(f"CPLUS: 第 {idx} 個未觸發新 EXCEL 文件，使用方法: {method}")
+                driver.save_screenshot(f"house_button_{idx}_failure_{method}.png")
+                with open(f"house_button_{idx}_failure_{method}.html", "w", encoding="utf-8") as f:
+                    f.write(driver.page_source)
+                failed_buttons.append((idx, method))
+
+        logging.info(f"CPLUS: 點擊方法 {method} 測試完成，成功下載: {successful_methods[method]} 個")
+
+    if new_files:
+        logging.info(f"CPLUS: Housekeeping Reports 下載完成，共 {len(new_files)} 個文件，找到 {button_count} 個 EXCEL 按鈕")
+        for report, files, _ in report_file_mapping:
+            logging.info(f"報告: {report}, 文件: {files}")
+        if failed_buttons:
+            logging.warning(f"CPLUS: 失敗按鈕: {failed_buttons}")
+    else:
+        logging.warning("CPLUS: Housekeeping Reports 無任何 EXCEL 下載")
+
+    return new_files, len(new_files), button_count
 
 def main():
     load_dotenv()
