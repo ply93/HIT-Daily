@@ -21,6 +21,11 @@ from webdriver_manager.chrome import ChromeDriverManager
 import logging
 from dotenv import load_dotenv
 
+cplus_download_dir = os.path.abspath("downloads_cplus")
+barge_download_dir = os.path.abspath("downloads_barge")
+MAX_RETRIES = 2
+DOWNLOAD_TIMEOUT = 30  # 設置為 30 秒，避免下載超時
+
 # 更新 get_chrome_options
 def get_chrome_options(download_dir):
     chrome_options = Options()
