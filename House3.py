@@ -55,6 +55,13 @@ def setup_environment():
         logging.error(f"環境準備失敗: {e}")
         raise
 
+def check_env_vars():
+    required_vars = ['SITE_PASSWORD', 'BARGE_PASSWORD', 'ZOHO_EMAIL', 'ZOHO_PASSWORD', 'RECEIVER_EMAILS']
+    missing = [var for var in required_vars if not os.environ.get(var)]
+    if missing:
+        logging.error(f"缺少環境變量: {', '.join(missing)}")
+        raise EnvironmentError(f"缺少環境變量: {', '.join(missing)}")
+
 def get_chrome_options(download_dir):
     chrome_options = Options()
     chrome_options.add_argument('--headless')
@@ -688,18 +695,26 @@ def main():
     # 並行執行 CPLUS 和 Barge
     cplus_files, cplus_house_file_count, cplus_house_button_count = set(), 0, 0
     barge_files = set()
-    
+
     def process_cplus_thread():
         nonlocal cplus_files, cplus_house_file_count, cplus_house_button_count
         cplus_files, cplus_house_file_count, cplus_house_button_count, cplus_driver = process_cplus()
         if cplus_driver:
-            cplus_driver.quit()
+            try:
+                cplus_driver.quit()
+                logging.info("CPLUS WebDriver 關閉")
+            except Exception as e:
+                logging.error(f"CPLUS WebDriver 關閉失敗: {str(e)}")
 
     def process_barge_thread():
         nonlocal barge_files
         barge_files, barge_driver = process_barge()
         if barge_driver:
-            barge_driver.quit()
+            try:
+                barge_driver.quit()
+                logging.info("Barge WebDriver 關閉")
+            except Exception as e:
+                logging.error(f"Barge WebDriver 關閉失敗: {str(e)}")
 
     cplus_thread = threading.Thread(target=process_cplus_thread)
     barge_thread = threading.Thread(target=process_barge_thread)
@@ -771,16 +786,4 @@ def main():
         logging.warning(f"文件不齊全: 缺少必須文件 (has_required={has_required}) 或 House文件不足 (download={house_download_count}, button={cplus_house_button_count})")
 
     cleanup_downloads()  # 清理臨時檔案
-
-    if cplus_driver:
-        cplus_driver.quit()
-        logging.info("CPLUS WebDriver 關閉")
-    if barge_driver:
-        barge_driver.quit()
-        logging.info("Barge WebDriver 關閉")
-
     logging.info("腳本完成")
-
-if __name__ == "__main__":
-    setup_environment()
-    main()
