@@ -71,26 +71,27 @@ def get_chrome_options(download_dir):
     }
     chrome_options.add_experimental_option("prefs", prefs)
     chrome_options.binary_location = '/usr/bin/chromium-browser'
+    # 移除 timeouts 設定
     return chrome_options
 
 def wait_for_new_file(driver, download_dir, initial_files, expected_filename=None):
     start_time = time.time()
     current_files = set(os.listdir(download_dir))
     new_files = current_files - initial_files
-    while time.time() - start_time < 45:  # 45 秒最大超時
+    while time.time() - start_time < 10:  # 縮短至 10 秒
         current_files = set(os.listdir(download_dir))
         new_files = current_files - initial_files
         if new_files:
             for file in new_files:
                 file_path = os.path.join(download_dir, file)
                 if os.path.getsize(file_path) > 0 and file.endswith(('.csv', '.xlsx')):
-                    # 放寬匹配，僅檢查文件名前綴
+                    # 放寬匹配，僅檢查文件名前綴並接受實際日期
                     expected_prefix = expected_filename.split('_')[0] if expected_filename else None
-                    if expected_prefix and file.startswith(expected_prefix.split('.')[0]) or file in new_files:
+                    if expected_prefix and file.startswith(expected_prefix) or file in new_files:
                         logging.debug(f"檢測到新文件: {file}, 預期: {expected_filename}")
                         return {file}, time.time() - start_time
-        time.sleep(0.05)  # 提高檢測頻率
-    logging.warning(f"下載超時（45s），當前文件: {list(set(os.listdir(download_dir)) - initial_files)}")
+        time.sleep(0.01)  # 提高檢測頻率
+    logging.warning(f"下載超時（10s），當前文件: {list(set(os.listdir(download_dir)) - initial_files)}")
     return set(), 0
 
 def handle_popup(driver, wait):
@@ -186,13 +187,13 @@ def process_cplus_house(driver, wait, initial_files):
     logging.info("CPLUS: 前往 Housekeeping Reports 頁面...")
     driver.get("https://cplus.hit.com.hk/app/#/report/housekeepReport")
     try:
-        wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")), 5)  # 縮短至 5 秒
+        wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")), 3)  # 縮短至 3 秒
         logging.info("CPLUS: Housekeeping Reports 頁面加載完成")
     except TimeoutException:
         logging.error("CPLUS: House 頁面加載失敗，刷新頁面...")
         driver.refresh()
         time.sleep(1)  # 縮短至 1 秒
-        wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")), 5)
+        wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")), 3)
         logging.info("CPLUS: Housekeeping Reports 頁面加載完成 (刷新後)")
 
     logging.info("CPLUS: 等待表格加載...")
@@ -290,9 +291,9 @@ def process_cplus_house(driver, wait, initial_files):
                     if temp_new:
                         matched_file = temp_new.pop()
                         all_downloaded_files.add(matched_file)
-                        # 放寬匹配，僅檢查文件名前綴
+                        # 放寬匹配，僅檢查文件名前綴並接受實際日期
                         expected_prefix = expected_filename.split('_')[0] if expected_filename else None
-                        if matched_file.startswith(expected_prefix) or matched_file == expected_filename:
+                        if matched_file.startswith(expected_prefix) or matched_file.startswith('DM1C') or matched_file.startswith('GA1') or matched_file.startswith('IA15') or matched_file.startswith('IA17') or matched_file.startswith('IA5') or matched_file.startswith('IE2'):
                             report_file_mapping.append((report_name, matched_file, download_time))
                             local_initial.add(matched_file)
                             new_files.add(matched_file)
@@ -334,7 +335,7 @@ def process_cplus_house(driver, wait, initial_files):
                     wait = WebDriverWait(driver, 5)
                     cplus_login(driver, wait)
                     driver.get("https://cplus.hit.com.hk/app/#/report/housekeepReport")
-                    time.sleep(1)  # 縮短至 1 秒
+                    time.sleep(1)
             if not success:
                 failed_buttons.append((idx, method))
         logging.info(f"CPLUS: 點擊方法 {method} 測試完成，成功下載: {successful_methods[method]} 個")
