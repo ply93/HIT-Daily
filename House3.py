@@ -4,11 +4,12 @@ import shutil
 import subprocess
 import logging
 import re
+import json
+import uuid
+import tempfile
 import traceback
 from datetime import datetime
 import smtplib
-import tempfile
-import uuid
 from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
 from email.mime.text import MIMEText
@@ -25,11 +26,11 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 # 全局變量
 download_dir = os.path.abspath("downloads")
-CPLUS_MOVEMENT_COUNT = 1
-CPLUS_ONHAND_COUNT = 1
-BARGE_COUNT = 1
+CPLUS_MOVEMENT_COUNT = 1  # Container Movement Log
+CPLUS_ONHAND_COUNT = 1    # OnHandContainerList
+BARGE_COUNT = 1           # Barge
 MAX_RETRIES = 2
-DOWNLOAD_TIMEOUT = 30
+DOWNLOAD_TIMEOUT = 30     # 延長至 30 秒
 HOUSEKEEP_FILE_PATTERNS = [r"housekeeping.*\.xlsx", r"report.*\.xlsx"]
 
 def clear_download_dir():
@@ -59,7 +60,7 @@ def setup_environment():
 
 def get_chrome_options(download_dir, instance_id=None):
     chrome_options = Options()
-    # 禁用頭模式（暫時測試）
+    # 暫時禁用頭模式，測試後可恢復
     # chrome_options.add_argument('--headless')
     chrome_options.add_argument('--no-sandbox')
     chrome_options.add_argument('--disable-dev-shm-usage')
@@ -71,7 +72,6 @@ def get_chrome_options(download_dir, instance_id=None):
     chrome_options.add_argument('--disable-blink-features=AutomationControlled')
     chrome_options.add_experimental_option('excludeSwitches', ['enable-automation'])
     chrome_options.add_experimental_option("useAutomationExtension", False)
-    # 為每個實例生成唯一用戶數據目錄
     if instance_id is None:
         instance_id = str(uuid.uuid4())
     user_data_dir = os.path.join(tempfile.gettempdir(), f"chrome_user_data_{instance_id}")
@@ -84,7 +84,14 @@ def get_chrome_options(download_dir, instance_id=None):
     }
     chrome_options.add_experimental_option("prefs", prefs)
     chrome_options.binary_location = '/usr/bin/chromium-browser'
-    return chrome_options
+    return chrome_options, user_data_dir
+
+def check_javascript_enabled(driver):
+    try:
+        driver.execute_script("return true;")
+        return True
+    except:
+        return False
 
 def wait_for_new_file(download_dir, initial_files, timeout=DOWNLOAD_TIMEOUT):
     start_time = time.time()
@@ -96,13 +103,7 @@ def wait_for_new_file(download_dir, initial_files, timeout=DOWNLOAD_TIMEOUT):
         time.sleep(0.5)
     return set()
 
-def check_javascript_enabled(driver):
-    try:
-        driver.execute_script("return true;")
-        return True
-    except:
-        return False
-
+# CPLUS 登入
 def cplus_login(driver, wait):
     for attempt in range(3):
         print(f"CPLUS: 嘗試打開網站 https://cplus.hit.com.hk/frontpage/#/ (嘗試 {attempt+1}/3)...", flush=True)
@@ -110,32 +111,38 @@ def cplus_login(driver, wait):
             driver.get("https://cplus.hit.com.hk/frontpage/#/")
             wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
             print(f"CPLUS: 網站已成功打開，當前 URL: {driver.current_url}", flush=True)
-            time.sleep(1) 
+            time.sleep(1)
             print("CPLUS: 點擊登錄前按鈕...", flush=True)
             login_button_pre = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
-            ActionChains(driver).move_to_element(login_button_pre).click().perform()
+            ActionChains(driver).move_to_element(login_button_pre).pause(0.5).click().perform()
             print("CPLUS: 登錄前按鈕點擊成功", flush=True)
-            time.sleep(0.5)
+            time.sleep(1)
             print("CPLUS: 輸入 COMPANY CODE...", flush=True)
             company_code_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='companyCode']")))
-            company_code_field.send_keys("CKL")
+            for char in "CKL":
+                company_code_field.send_keys(char)
+                time.sleep(0.1)
             print("CPLUS: COMPANY CODE 輸入完成", flush=True)
-            time.sleep(0.5)
+            time.sleep(1)
             print("CPLUS: 輸入 USER ID...", flush=True)
             user_id_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='userId']")))
-            user_id_field.send_keys("KEN")
+            for char in "KEN":
+                user_id_field.send_keys(char)
+                time.sleep(0.1)
             print("CPLUS: USER ID 輸入完成", flush=True)
-            time.sleep(0.5)
+            time.sleep(1)
             print("CPLUS: 輸入 PASSWORD...", flush=True)
             password_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='passwd']")))
-            password_field.send_keys(os.environ.get('SITE_PASSWORD'))
+            password = os.environ.get('SITE_PASSWORD')
+            for char in password or "":
+                password_field.send_keys(char)
+                time.sleep(0.1)
             print("CPLUS: PASSWORD 輸入完成", flush=True)
-            time.sleep(0.5)
+            time.sleep(1)
             print("CPLUS: 點擊 LOGIN 按鈕...", flush=True)
             login_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/div[2]/div/div/form/button/span[1]")))
-            ActionChains(driver).move_to_element(login_button).click().perform()
+            ActionChains(driver).move_to_element(login_button).pause(0.5).click().perform()
             print("CPLUS: LOGIN 按鈕點擊成功", flush=True)
-            # 驗證登入後的頁面
             wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[2]")))
             print("CPLUS: 登入後頁面驗證成功", flush=True)
             return
@@ -150,13 +157,14 @@ def cplus_login(driver, wait):
     driver.save_screenshot("cplus_login_failure.png")
     raise Exception("CPLUS: 登入失敗")
 
+# CPLUS Container Movement Log
 def process_cplus_movement(driver, wait, initial_files):
     for page_attempt in range(3):
         print(f"CPLUS: 直接前往 Container Movement Log (嘗試 {page_attempt+1}/3)...", flush=True)
         driver.get("https://cplus.hit.com.hk/app/#/enquiry/ContainerMovementLog")
-        time.sleep(2)  # 增加初始等待
+        time.sleep(2)
         try:
-            wait = WebDriverWait(driver, 10)  # 增加超時時間
+            wait = WebDriverWait(driver, 10)
             wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
             wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[2]//form")))
             print("CPLUS: Container Movement Log 頁面加載完成", flush=True)
@@ -254,12 +262,12 @@ def process_cplus_movement(driver, wait, initial_files):
 
 # CPLUS OnHandContainerList
 def process_cplus_onhand(driver, wait, initial_files):
-    for page_attempt in range(3):  # 最多重試頁面 3 次
+    for page_attempt in range(3):
         print(f"CPLUS: 前往 OnHandContainerList 頁面 (嘗試 {page_attempt+1}/3)...", flush=True)
         driver.get("https://cplus.hit.com.hk/app/#/enquiry/OnHandContainerList")
         time.sleep(1)
         try:
-            wait = WebDriverWait(driver, 5)
+            wait = WebDriverWait(driver, 10)
             wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
             print("CPLUS: OnHandContainerList 頁面加載完成", flush=True)
         except TimeoutException:
@@ -352,12 +360,12 @@ def process_cplus_house(driver, wait, initial_files):
     new_files = set()
     button_count = 0
     downloaded_file_names = set()
-    for page_attempt in range(2):  # 最多重試頁面 2 次
+    for page_attempt in range(2):
         print(f"CPLUS: 前往 Housekeeping Reports 頁面 (嘗試 {page_attempt+1}/2)...", flush=True)
         driver.get("https://cplus.hit.com.hk/app/#/report/housekeepReport")
         time.sleep(1)
         try:
-            wait = WebDriverWait(driver, 5)
+            wait = WebDriverWait(driver, 10)
             wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
             print("CPLUS: Housekeeping Reports 頁面加載完成", flush=True)
         except TimeoutException:
@@ -372,7 +380,7 @@ def process_cplus_house(driver, wait, initial_files):
         driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
         time.sleep(0.5)
         try:
-            wait = WebDriverWait(driver, 5)
+            wait = WebDriverWait(driver, 10)
             wait.until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
             print("CPLUS: 表格加載完成", flush=True)
         except TimeoutException:
@@ -380,7 +388,7 @@ def process_cplus_house(driver, wait, initial_files):
             driver.refresh()
             time.sleep(0.5)
             try:
-                wait = WebDriverWait(driver, 5)
+                wait = WebDriverWait(driver, 10)
                 wait.until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
                 print("CPLUS: 表格加載完成 (after refresh)", flush=True)
             except TimeoutException:
@@ -467,6 +475,7 @@ def process_cplus_house(driver, wait, initial_files):
         f.write(driver.page_source)
     raise Exception("CPLUS: Housekeeping Reports 未下載任何文件")
 
+# CPLUS 操作
 def process_cplus():
     driver = None
     downloaded_files = set()
@@ -474,15 +483,17 @@ def process_cplus():
     house_file_count = 0
     house_button_count = 0
     try:
-        chrome_options = get_chrome_options(download_dir, instance_id="cplus")
-        driver = webdriver.Chrome(options=chrome_options)
-    except Exception as e:
-        logging.error(f"CPLUS: WebDriver 初始化失敗: {str(e)}, 嘗試清理並重試")
-        if os.path.exists(user_data_dir):
-            shutil.rmtree(user_data_dir, ignore_errors=True)
-        chrome_options = get_chrome_options(download_dir, instance_id=str(uuid.uuid4()))  # 使用新 ID 重試
-        driver = webdriver.Chrome(options=chrome_options)
-    
+        chrome_options, user_data_dir = get_chrome_options(download_dir, instance_id="cplus")
+        try:
+            driver = webdriver.Chrome(options=chrome_options)
+        except Exception as e:
+            logging.error(f"CPLUS: WebDriver 初始化失敗: {str(e)}, 嘗試清理並重試")
+            if os.path.exists(user_data_dir):
+                shutil.rmtree(user_data_dir, ignore_errors=True)
+                logging.info(f"CPLUS: 已清理用戶數據目錄 {user_data_dir}")
+            chrome_options, new_user_data_dir = get_chrome_options(download_dir, instance_id=str(uuid.uuid4()))
+            driver = webdriver.Chrome(options=chrome_options)
+            user_data_dir = new_user_data_dir
         print("CPLUS WebDriver 初始化成功", flush=True)
         driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
         driver.execute_script("window.navigator.chrome = { runtime: {}, };")
@@ -543,11 +554,11 @@ def process_cplus():
                         f.write(driver.page_source)
                     if attempt < 2:
                         continue
-            driver.quit()
-            print("CPLUS WebDriver 關閉", flush=True)
             if os.path.exists(user_data_dir):
                 shutil.rmtree(user_data_dir, ignore_errors=True)
                 logging.info(f"CPLUS: 已清理用戶數據目錄 {user_data_dir}")
+            driver.quit()
+            print("CPLUS WebDriver 關閉", flush=True)
 
 def barge_login(driver, wait):
     logging.info("Barge: 嘗試打開網站 https://barge.oneport.com/login...")
@@ -617,8 +628,75 @@ def process_barge():
     downloaded_files = set()
     initial_files = set(os.listdir(download_dir))
     try:
-        chrome_options = get_chrome_options(download_dir, instance_id="barge")
-        driver = webdriver.Chrome(options=chrome_options)
+        chrome_options, user_data_dir = get_chrome_options(download_dir, instance_id="barge")
+        try:
+            driver = webdriver.Chrome(options=chrome_options)
+        except Exception as e:
+            logging.error(f"Barge: WebDriver 初始化失敗: {str(e)}, 嘗試清理並重試")
+            if os.path.exists(user_data_dir):
+                shutil.rmtree(user_data_dir, ignore_errors=True)
+                logging.info(f"Barge: 已清理用戶數據目錄 {user_data_dir}")
+            chrome_options, new_user_data_dir = get_chrome_options(download_dir, instance_id=str(uuid.uuid4()))
+            driver = webdriver.Chrome(options=chrome_options)
+            user_data_dir = new_user_data_dir
+        logging.info("Barge WebDriver 初始化成功")
+        driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+        wait = WebDriverWait(driver, 20)
+        barge_login(driver, wait)
+        success = False
+        for attempt in range(MAX_RETRIES):
+            try:
+                new_files = process_barge_download(driver, wait, initial_files)
+                downloaded_files.update(new_files)
+                initial_files.update(new_files)
+                success = True
+                break
+            except Exception as e:
+                logging.error(f"Barge 下載嘗試 {attempt+1}/{MAX_RETRIES} 失敗: {str(e)}")
+                if attempt < MAX_RETRIES - 1:
+                    time.sleep(5)
+        if not success:
+            logging.error(f"Barge 下載經過 {MAX_RETRIES} 次嘗試失敗")
+        return downloaded_files, driver
+    except Exception as e:
+        logging.error(f"Barge 總錯誤: {str(e)}")
+        return downloaded_files, driver
+    finally:
+        try:
+            if driver:
+                logging.info("Barge: 點擊工具欄進行登出...")
+                try:
+                    logout_toolbar_barge = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='main-toolbar']/button[4]/span[1]")))
+                    driver.execute_script("arguments[0].scrollIntoView(true);", logout_toolbar_barge)
+                    time.sleep(1)
+                    driver.execute_script("arguments[0].click();", logout_toolbar_barge)
+                    logging.info("Barge: 工具欄點擊成功")
+                except TimeoutException:
+                    logging.debug("Barge: 主工具欄登出按鈕未找到，嘗試備用定位...")
+                    raise
+                time.sleep(2)
+                logging.info("Barge: 點擊 Logout 選項...")
+                try:
+                    logout_span_xpath = "//div[contains(@class, 'mat-menu-panel')]//button//span[contains(text(), 'Logout')]"
+                    logout_button_barge = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, logout_span_xpath)))
+                    driver.execute_script("arguments[0].scrollIntoView(true);", logout_button_barge)
+                    time
+def process_barge():
+    driver = None
+    downloaded_files = set()
+    initial_files = set(os.listdir(download_dir))
+    try:
+        chrome_options, user_data_dir = get_chrome_options(download_dir, instance_id="barge")
+        try:
+            driver = webdriver.Chrome(options=chrome_options)
+        except Exception as e:
+            logging.error(f"Barge: WebDriver 初始化失敗: {str(e)}, 嘗試清理並重試")
+            if os.path.exists(user_data_dir):
+                shutil.rmtree(user_data_dir, ignore_errors=True)
+                logging.info(f"Barge: 已清理用戶數據目錄 {user_data_dir}")
+            chrome_options, new_user_data_dir = get_chrome_options(download_dir, instance_id=str(uuid.uuid4()))
+            driver = webdriver.Chrome(options=chrome_options)
+            user_data_dir = new_user_data_dir
         logging.info("Barge WebDriver 初始化成功")
         driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
         wait = WebDriverWait(driver, 20)
@@ -676,6 +754,9 @@ def process_barge():
             logging.error(f"Barge: 登出失敗: {str(e)}")
         finally:
             if driver:
+                if os.path.exists(user_data_dir):
+                    shutil.rmtree(user_data_dir, ignore_errors=True)
+                    logging.info(f"Barge: 已清理用戶數據目錄 {user_data_dir}")
                 driver.quit()
                 logging.info("Barge WebDriver 關閉")
 
