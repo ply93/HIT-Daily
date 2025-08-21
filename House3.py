@@ -143,11 +143,11 @@ def cplus_login(driver, wait):
 def check_page_errors(driver, wait):
     """檢查頁面是否有錯誤提示或彈窗並嘗試關閉"""
     try:
-        error_elements = driver.find_elements(By.CSS_SELECTOR, "div.MuiAlert-root, div.error, div.alert")
+        error_elements = driver.find_elements(By.CSS_SELECTOR, "div.MuiAlert-root, div.error, div.alert, div[role='alert']")
         if error_elements:
             logging.warning(f"頁面檢測到錯誤提示: {[elem.text for elem in error_elements]}")
             try:
-                close_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Close')]")))
+                close_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Close') or contains(text(), 'Download Screenshots')]")))
                 close_button.click()
                 logging.info("成功關閉錯誤彈窗")
                 time.sleep(1)  # 等待彈窗關閉
@@ -162,7 +162,7 @@ def check_page_errors(driver, wait):
         return True
 
 def wait_for_new_file(download_dir, initial_files, timeout=30):
-    """等待新文件生成，縮短超時時間"""
+    """等待新文件生成"""
     start_time = time.time()
     while time.time() - start_time < timeout:
         current_files = set(f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx')))
@@ -196,12 +196,13 @@ def process_cplus_movement(driver, wait, initial_files):
     local_initial = initial_files.copy()
     search_selectors = [
         (By.CSS_SELECTOR, "button.MuiButton-containedPrimary"),
-        (By.XPATH, "//button[contains(text(), 'Search')]")
+        (By.XPATH, "//button[contains(text(), 'Search')]"),
+        (By.CSS_SELECTOR, "button[role='button'][type='submit']")
     ]
     for attempt in range(MAX_RETRIES):
         for selector_type, selector in search_selectors:
             try:
-                search_button = wait.until(EC.element_to_be_clickable((selector_type, selector)), timeout=20)
+                search_button = wait.until(EC.element_to_be_clickable((selector_type, selector)))
                 driver.execute_script("arguments[0].scrollIntoView(true);", search_button)
                 ActionChains(driver).move_to_element(search_button).click().perform()
                 logging.info(f"CPLUS: Search 按鈕點擊成功 (使用 {selector_type}: {selector})")
@@ -227,7 +228,7 @@ def process_cplus_movement(driver, wait, initial_files):
     for attempt in range(MAX_RETRIES):
         for selector_type, selector in download_selectors:
             try:
-                download_button = wait.until(EC.element_to_be_clickable((selector_type, selector)), timeout=20)
+                download_button = wait.until(EC.element_to_be_clickable((selector_type, selector)))
                 driver.execute_script("arguments[0].scrollIntoView(true);", download_button)
                 ActionChains(driver).move_to_element(download_button).click().perform()
                 logging.info(f"CPLUS: Download 按鈕點擊成功 (使用 {selector_type}: {selector})")
@@ -284,12 +285,13 @@ def process_cplus_onhand(driver, wait, initial_files):
     local_initial = initial_files.copy()
     search_selectors = [
         (By.CSS_SELECTOR, "button.MuiButton-containedPrimary"),
-        (By.XPATH, "//button[contains(text(), 'Search')]")
+        (By.XPATH, "//button[contains(text(), 'Search')]"),
+        (By.CSS_SELECTOR, "button[role='button'][type='submit']")
     ]
     for attempt in range(MAX_RETRIES):
         for selector_type, selector in search_selectors:
             try:
-                search_button = wait.until(EC.element_to_be_clickable((selector_type, selector)), timeout=20)
+                search_button = wait.until(EC.element_to_be_clickable((selector_type, selector)))
                 driver.execute_script("arguments[0].scrollIntoView(true);", search_button)
                 ActionChains(driver).move_to_element(search_button).click().perform()
                 logging.info(f"CPLUS: Search 按鈕點擊成功 (使用 {selector_type}: {selector})")
@@ -315,7 +317,7 @@ def process_cplus_onhand(driver, wait, initial_files):
     for attempt in range(MAX_RETRIES):
         for selector_type, selector in export_selectors:
             try:
-                export_button = wait.until(EC.element_to_be_clickable((selector_type, selector)), timeout=20)
+                export_button = wait.until(EC.element_to_be_clickable((selector_type, selector)))
                 driver.execute_script("arguments[0].scrollIntoView(true);", export_button)
                 ActionChains(driver).move_to_element(export_button).click().perform()
                 logging.info(f"CPLUS: Export 按鈕點擊成功 (使用 {selector_type}: {selector})")
@@ -341,7 +343,7 @@ def process_cplus_onhand(driver, wait, initial_files):
     for attempt in range(MAX_RETRIES):
         for selector_type, selector in export_csv_selectors:
             try:
-                export_csv_button = wait.until(EC.element_to_be_clickable((selector_type, selector)), timeout=20)
+                export_csv_button = wait.until(EC.element_to_be_clickable((selector_type, selector)))
                 driver.execute_script("arguments[0].scrollIntoView(true);", export_csv_button)
                 ActionChains(driver).move_to_element(export_csv_button).click().perform()
                 logging.info(f"CPLUS: Export as CSV 按鈕點擊成功 (使用 {selector_type}: {selector})")
@@ -403,12 +405,12 @@ def process_cplus_house(driver, wait, initial_files):
     for attempt in range(MAX_RETRIES):
         for selector_type, selector in table_selectors:
             try:
-                rows = wait.until(EC.presence_of_all_elements_located((selector_type, selector)), timeout=20)
+                rows = wait.until(EC.presence_of_all_elements_located((selector_type, selector)))
                 if len(rows) == 0 or all(not row.text.strip() for row in rows):
                     logging.debug("表格數據空或無效，刷新頁面...")
                     driver.refresh()
                     wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "#root")))
-                    rows = wait.until(EC.presence_of_all_elements_located((selector_type, selector)), timeout=20)
+                    rows = wait.until(EC.presence_of_all_elements_located((selector_type, selector)))
                 if len(rows) < 6:
                     logging.warning(f"表格數據不足，僅找到 {len(rows)} 行")
                     driver.save_screenshot(f"house_table_load_failure_attempt_{attempt+1}.png")
@@ -470,7 +472,7 @@ def process_cplus_house(driver, wait, initial_files):
                     logging.debug(f"CPLUS: 無法獲取第 {idx} 個按鈕的報告名稱")
 
                 driver.execute_script("arguments[0].scrollIntoView(true);", button)
-                wait.until(EC.element_to_be_clickable(button), timeout=20)
+                wait.until(EC.element_to_be_clickable(button))
                 driver.execute_script("arguments[0].click();", button)
                 logging.info(f"CPLUS: 第 {idx} 個 Excel 下載按鈕 (報告: {report_name}) JavaScript 點擊成功")
 
@@ -524,7 +526,6 @@ def process_cplus_house(driver, wait, initial_files):
         with open("house_download_failure.html", "w", encoding="utf-8") as f:
             f.write(driver.page_source)
         raise Exception("CPLUS: Housekeeping Reports 未下載任何文件")
-
 def process_cplus():
     driver = None
     downloaded_files = set()
