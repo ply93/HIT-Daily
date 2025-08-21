@@ -622,65 +622,7 @@ def process_barge_download(driver, wait, initial_files):
         logging.warning("Barge: Container Detail 未觸發新文件下載，記錄頁面狀態...")
         driver.save_screenshot("barge_download_failure.png")
         raise Exception("Barge: Container Detail 未觸發新文件下載")
-
-def process_barge():
-    driver = None
-    downloaded_files = set()
-    initial_files = set(os.listdir(download_dir))
-    try:
-        chrome_options, user_data_dir = get_chrome_options(download_dir, instance_id="barge")
-        try:
-            driver = webdriver.Chrome(options=chrome_options)
-        except Exception as e:
-            logging.error(f"Barge: WebDriver 初始化失敗: {str(e)}, 嘗試清理並重試")
-            if os.path.exists(user_data_dir):
-                shutil.rmtree(user_data_dir, ignore_errors=True)
-                logging.info(f"Barge: 已清理用戶數據目錄 {user_data_dir}")
-            chrome_options, new_user_data_dir = get_chrome_options(download_dir, instance_id=str(uuid.uuid4()))
-            driver = webdriver.Chrome(options=chrome_options)
-            user_data_dir = new_user_data_dir
-        logging.info("Barge WebDriver 初始化成功")
-        driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-        wait = WebDriverWait(driver, 20)
-        barge_login(driver, wait)
-        success = False
-        for attempt in range(MAX_RETRIES):
-            try:
-                new_files = process_barge_download(driver, wait, initial_files)
-                downloaded_files.update(new_files)
-                initial_files.update(new_files)
-                success = True
-                break
-            except Exception as e:
-                logging.error(f"Barge 下載嘗試 {attempt+1}/{MAX_RETRIES} 失敗: {str(e)}")
-                if attempt < MAX_RETRIES - 1:
-                    time.sleep(5)
-        if not success:
-            logging.error(f"Barge 下載經過 {MAX_RETRIES} 次嘗試失敗")
-        return downloaded_files, driver
-    except Exception as e:
-        logging.error(f"Barge 總錯誤: {str(e)}")
-        return downloaded_files, driver
-    finally:
-        try:
-            if driver:
-                logging.info("Barge: 點擊工具欄進行登出...")
-                try:
-                    logout_toolbar_barge = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='main-toolbar']/button[4]/span[1]")))
-                    driver.execute_script("arguments[0].scrollIntoView(true);", logout_toolbar_barge)
-                    time.sleep(1)
-                    driver.execute_script("arguments[0].click();", logout_toolbar_barge)
-                    logging.info("Barge: 工具欄點擊成功")
-                except TimeoutException:
-                    logging.debug("Barge: 主工具欄登出按鈕未找到，嘗試備用定位...")
-                    raise
-                time.sleep(2)
-                logging.info("Barge: 點擊 Logout 選項...")
-                try:
-                    logout_span_xpath = "//div[contains(@class, 'mat-menu-panel')]//button//span[contains(text(), 'Logout')]"
-                    logout_button_barge = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, logout_span_xpath)))
-                    driver.execute_script("arguments[0].scrollIntoView(true);", logout_button_barge)
-                    time
+        
 def process_barge():
     driver = None
     downloaded_files = set()
