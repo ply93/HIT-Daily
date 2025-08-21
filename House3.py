@@ -57,9 +57,10 @@ def setup_environment():
         logging.error(f"環境準備失敗: {e}")
         raise
 
-def get_chrome_options(download_dir):
+def get_chrome_options(download_dir, instance_id=None):
     chrome_options = Options()
-    # chrome_options.add_argument('--headless')  # 暫時註釋
+    # 禁用頭模式（暫時測試）
+    # chrome_options.add_argument('--headless')
     chrome_options.add_argument('--no-sandbox')
     chrome_options.add_argument('--disable-dev-shm-usage')
     chrome_options.add_argument('--ignore-certificate-errors')
@@ -67,6 +68,15 @@ def get_chrome_options(download_dir):
     chrome_options.add_argument('--disable-extensions')
     chrome_options.add_argument('--no-first-run')
     chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36')
+    chrome_options.add_argument('--disable-blink-features=AutomationControlled')
+    chrome_options.add_experimental_option('excludeSwitches', ['enable-automation'])
+    chrome_options.add_experimental_option("useAutomationExtension", False)
+    # 為每個實例生成唯一用戶數據目錄
+    if instance_id is None:
+        instance_id = str(uuid.uuid4())
+    user_data_dir = os.path.join(tempfile.gettempdir(), f"chrome_user_data_{instance_id}")
+    os.makedirs(user_data_dir, exist_ok=True)
+    chrome_options.add_argument(f"--user-data-dir={user_data_dir}")
     prefs = {
         "download.default_directory": download_dir,
         "download.prompt_for_download": False,
@@ -464,18 +474,21 @@ def process_cplus():
     house_file_count = 0
     house_button_count = 0
     try:
-        chrome_options = get_chrome_options(download_dir)
-        chrome_options.add_argument("--disable-blink-features=AutomationControlled")
-        chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
-        chrome_options.add_experimental_option("useAutomationExtension", False)
+        chrome_options = get_chrome_options(download_dir, instance_id="cplus")
         driver = webdriver.Chrome(options=chrome_options)
+    except Exception as e:
+        logging.error(f"CPLUS: WebDriver 初始化失敗: {str(e)}, 嘗試清理並重試")
+        if os.path.exists(user_data_dir):
+            shutil.rmtree(user_data_dir, ignore_errors=True)
+        chrome_options = get_chrome_options(download_dir, instance_id=str(uuid.uuid4()))  # 使用新 ID 重試
+        driver = webdriver.Chrome(options=chrome_options)
+    
         print("CPLUS WebDriver 初始化成功", flush=True)
-        # 進一步隱藏自動化標記
         driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
         driver.execute_script("window.navigator.chrome = { runtime: {}, };")
         driver.execute_script("Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });")
         driver.execute_script("Object.defineProperty(navigator, 'permissions', { get: () => undefined });")
-        wait = WebDriverWait(driver, 10)  # 增加超時時間
+        wait = WebDriverWait(driver, 10)
         if not check_javascript_enabled(driver):
             logging.error("CPLUS: WebDriver 未正確啟用 JavaScript，頁面可能無法正常加載")
             raise Exception("JavaScript 執行失敗")
@@ -532,6 +545,9 @@ def process_cplus():
                         continue
             driver.quit()
             print("CPLUS WebDriver 關閉", flush=True)
+            if os.path.exists(user_data_dir):
+                shutil.rmtree(user_data_dir, ignore_errors=True)
+                logging.info(f"CPLUS: 已清理用戶數據目錄 {user_data_dir}")
 
 def barge_login(driver, wait):
     logging.info("Barge: 嘗試打開網站 https://barge.oneport.com/login...")
@@ -601,7 +617,8 @@ def process_barge():
     downloaded_files = set()
     initial_files = set(os.listdir(download_dir))
     try:
-        driver = webdriver.Chrome(options=get_chrome_options(download_dir))
+        chrome_options = get_chrome_options(download_dir, instance_id="barge")
+        driver = webdriver.Chrome(options=chrome_options)
         logging.info("Barge WebDriver 初始化成功")
         driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
         wait = WebDriverWait(driver, 20)
