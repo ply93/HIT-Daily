@@ -471,7 +471,7 @@ def process_cplus_house(driver, wait, initial_files):
                 logging.error(f"CPLUS: 第 {idx} 個 Excel 下載按鈕 (報告: {report_name}) 未知錯誤: {str(e)}")
                 driver.save_screenshot(f"house_button_{idx}_failure_attempt_{attempt+1}.png")
                 with open(f"house_button_{idx}_failure_attempt_{attempt+1}.html", "w", encoding="utf-8") as f:
-                f.write(driver.page_source)
+                    f.write(driver.page_source)
             break
         if not success:
             logging.warning(f"CPLUS: 第 {idx} 個 Excel 下載按鈕 (報告: {report_name}) 最終失敗")
