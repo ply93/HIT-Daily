@@ -22,10 +22,9 @@ import re
 # 全局變量
 download_dir = os.path.abspath("downloads")
 CPLUS_MOVEMENT_COUNT = 1  # Container Movement Log
-CPLUS_ONHAND_COUNT = 1  # OnHandContainerList
-BARGE_COUNT = 1  # Barge
+CPLUS_ONHAND_COUNT = 1   # OnHandContainerList
+BARGE_COUNT = 1          # Barge
 MAX_RETRIES = 3
-HOUSEKEEP_FILE_PATTERNS = [r'DM1C.*\.csv', r'GA1.*\.csv', r'IA15.*\.csv', r'IA17.*\.csv', r'INV-114.*\.csv']
 
 # 清空下載目錄
 def clear_download_dir():
@@ -476,14 +475,15 @@ def process_cplus_house(driver, wait, initial_files):
         f.write(driver.page_source)
     raise Exception("CPLUS: Housekeeping Reports 未下載任何文件")
 
+# CPLUS 操作
 def process_cplus():
     driver = None
     downloaded_files = set()
-    initial_files = set(os.listdir(cplus_download_dir))
+    initial_files = set(os.listdir(download_dir))  # 修正：使用 download_dir
     house_file_count = 0
     house_button_count = 0
     try:
-        driver = webdriver.Chrome(options=get_chrome_options(cplus_download_dir))
+        driver = webdriver.Chrome(options=get_chrome_options())
         logging.info("CPLUS WebDriver 初始化成功")
         driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
         wait = WebDriverWait(driver, 20)
@@ -518,8 +518,8 @@ def process_cplus():
         logging.error(f"CPLUS 總錯誤: {str(e)}")
         return downloaded_files, house_file_count, house_button_count, driver
     finally:
-        try:
-            if driver:
+        if driver:
+            try:
                 logging.info("CPLUS: 嘗試登出...")
                 logout_menu_button = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
                 ActionChains(driver).move_to_element(logout_menu_button).click().perform()
@@ -528,15 +528,14 @@ def process_cplus():
                 ActionChains(driver).move_to_element(logout_option).click().perform()
                 logging.info("CPLUS: Logout 選項點擊成功")
                 time.sleep(2)
-                # 加點擊 CLOSE
                 try:
                     close_button = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, '//*[@id="logout"]/div[3]/div/div[3]/button/span[1]')))
                     ActionChains(driver).move_to_element(close_button).click().perform()
                     logging.info("CPLUS: Logout 後 CLOSE 按鈕點擊成功")
                 except TimeoutException:
                     logging.warning("CPLUS: Logout 後無 CLOSE 按鈕，跳過")
-        except Exception as e:
-            logging.error(f"CPLUS: 登出失敗: {str(e)}")
+            except Exception as e:
+                logging.error(f"CPLUS: 登出失敗: {str(e)}")
 
 def barge_login(driver, wait):
     for attempt in range(3):  # 最多重試 3 次
@@ -744,12 +743,11 @@ def main():
     cplus_driver = cplus_result[3]
 
     # Then process Barge
-    barge_result = process_barge()
-    barge_files.update(barge_result[0])
-    barge_driver = barge_result[1]
+    barge_files.update(process_barge())
 
+    # 後續的日誌和郵件發送邏輯
     logging.info("檢查所有下載文件...")
-    downloaded_files = [f for f in os.listdir(cplus_download_dir) if f.endswith(('.csv', '.xlsx'))] + [f for f in os.listdir(barge_download_dir) if f.endswith(('.csv', '.xlsx'))]
+    downloaded_files = [f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx'))]  # 修正：使用 download_dir
     logging.info(f"總下載文件: {len(downloaded_files)} 個")
     for file in downloaded_files:
         logging.info(f"找到檔案: {file}")
@@ -763,6 +761,7 @@ def main():
 
     if has_required and house_ok:
         logging.info("所有必須文件齊全，開始發送郵件...")
+        # 郵件發送邏輯保持不變
         try:
             smtp_server = os.environ.get('SMTP_SERVER', 'smtp.zoho.com')
             smtp_port = int(os.environ.get('SMTP_PORT', 587))
@@ -813,10 +812,7 @@ def main():
             msg.attach(MIMEText(plain_text, 'plain'))
 
             for file in downloaded_files:
-                if file in os.listdir(cplus_download_dir):
-                    file_path = os.path.join(cplus_download_dir, file)
-                else:
-                    file_path = os.path.join(barge_download_dir, file)
+                file_path = os.path.join(download_dir, file)  # 修正：使用 download_dir
                 if os.path.exists(file_path):
                     attachment = MIMEBase('application', 'octet-stream')
                     attachment.set_payload(open(file_path, 'rb').read())
