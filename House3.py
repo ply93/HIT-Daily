@@ -142,9 +142,9 @@ def process_cplus_movement(driver, wait, initial_files):
     for page_attempt in range(3):
         print(f"CPLUS: 直接前往 Container Movement Log (嘗試 {page_attempt+1}/3)...", flush=True)
         driver.get("https://cplus.hit.com.hk/app/#/enquiry/ContainerMovementLog")
-        time.sleep(1)
+        time.sleep(2)  # 增加初始等待
         try:
-            wait = WebDriverWait(driver, 5)
+            wait = WebDriverWait(driver, 10)  # 增加超時時間
             wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
             wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[2]//form")))
             print("CPLUS: Container Movement Log 頁面加載完成", flush=True)
