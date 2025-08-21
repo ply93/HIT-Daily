@@ -4,6 +4,7 @@ import shutil
 import subprocess
 import logging
 import re
+import traceback
 from datetime import datetime
 import smtplib
 from email.mime.multipart import MIMEMultipart
@@ -17,17 +18,16 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.common.exceptions import TimeoutException, ElementClickInterceptedException, NoSuchElementException
-from webdriver_manager.chrome import ChromeDriverManager
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # 全局變量
 download_dir = os.path.abspath("downloads")
-CPLUS_MOVEMENT_COUNT = 1  # Container Movement Log
-CPLUS_ONHAND_COUNT = 1    # OnHandContainerList
-BARGE_COUNT = 1           # Barge
+CPLUS_MOVEMENT_COUNT = 1
+CPLUS_ONHAND_COUNT = 1
+BARGE_COUNT = 1
 MAX_RETRIES = 2
-DOWNLOAD_TIMEOUT = 30     # 延長至 30 秒
+DOWNLOAD_TIMEOUT = 30
 HOUSEKEEP_FILE_PATTERNS = [r"housekeeping.*\.xlsx", r"report.*\.xlsx"]
 
 def clear_download_dir():
@@ -87,13 +87,18 @@ def wait_for_new_file(download_dir, initial_files, timeout=DOWNLOAD_TIMEOUT):
         time.sleep(0.5)
     return set()
 
-# CPLUS 登入
+def check_javascript_enabled(driver):
+    try:
+        driver.execute_script("return true;")
+        return True
+    except:
+        return False
+
 def cplus_login(driver, wait):
-    for attempt in range(3):  # 最多重試 3 次
+    for attempt in range(3):
         print(f"CPLUS: 嘗試打開網站 https://cplus.hit.com.hk/frontpage/#/ (嘗試 {attempt+1}/3)...", flush=True)
         try:
             driver.get("https://cplus.hit.com.hk/frontpage/#/")
-            wait = WebDriverWait(driver, 5)  # 頁面加載超時 5 秒
             wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
             print(f"CPLUS: 網站已成功打開，當前 URL: {driver.current_url}", flush=True)
             time.sleep(0.5)
@@ -121,7 +126,9 @@ def cplus_login(driver, wait):
             login_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/div[2]/div/div/form/button/span[1]")))
             ActionChains(driver).move_to_element(login_button).click().perform()
             print("CPLUS: LOGIN 按鈕點擊成功", flush=True)
-            time.sleep(0.5)
+            # 驗證登入後的頁面
+            wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[2]")))
+            print("CPLUS: 登入後頁面驗證成功", flush=True)
             return
         except Exception as e:
             print(f"CPLUS 登入嘗試 {attempt+1}/3 失敗: {str(e)}", flush=True)
@@ -134,9 +141,8 @@ def cplus_login(driver, wait):
     driver.save_screenshot("cplus_login_failure.png")
     raise Exception("CPLUS: 登入失敗")
 
-# CPLUS Container Movement Log
 def process_cplus_movement(driver, wait, initial_files):
-    for page_attempt in range(3):  # 最多重試頁面 3 次
+    for page_attempt in range(3):
         print(f"CPLUS: 直接前往 Container Movement Log (嘗試 {page_attempt+1}/3)...", flush=True)
         driver.get("https://cplus.hit.com.hk/app/#/enquiry/ContainerMovementLog")
         time.sleep(1)
@@ -146,7 +152,12 @@ def process_cplus_movement(driver, wait, initial_files):
             wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[2]//form")))
             print("CPLUS: Container Movement Log 頁面加載完成", flush=True)
         except TimeoutException:
-            print(f"CPLUS: Container Movement Log 頁面加載失敗 (嘗試 {page_attempt+1}/3)，記錄頁面狀態...", flush=True)
+            current_url = driver.current_url
+            try:
+                status_code = driver.execute_script("return window.performance.getEntriesByType('navigation')[0].responseStatus")
+            except:
+                status_code = "未知"
+            logging.error(f"CPLUS: Container Movement Log 頁面加載失敗 (嘗試 {page_attempt+1}/3)，URL: {current_url}, 狀態碼: {status_code}")
             driver.save_screenshot(f"movement_page_failure_attempt_{page_attempt+1}.png")
             with open(f"movement_page_failure_attempt_{page_attempt+1}.html", "w", encoding="utf-8") as f:
                 f.write(driver.page_source)
@@ -447,7 +458,6 @@ def process_cplus_house(driver, wait, initial_files):
         f.write(driver.page_source)
     raise Exception("CPLUS: Housekeeping Reports 未下載任何文件")
 
-# CPLUS 操作
 def process_cplus():
     driver = None
     downloaded_files = set()
@@ -458,7 +468,10 @@ def process_cplus():
         driver = webdriver.Chrome(options=get_chrome_options(download_dir))
         print("CPLUS WebDriver 初始化成功", flush=True)
         driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-        wait = WebDriverWait(driver, 5)  # 默認超時 5 秒
+        wait = WebDriverWait(driver, 5)
+        if not check_javascript_enabled(driver):
+            logging.error("CPLUS: WebDriver 未正確啟用 JavaScript，頁面可能無法正常加載")
+            raise Exception("JavaScript 執行失敗")
         cplus_login(driver, wait)
         sections = [
             ('movement', process_cplus_movement),
@@ -491,7 +504,7 @@ def process_cplus():
         return downloaded_files, house_file_count, house_button_count, driver
     finally:
         if driver:
-            for attempt in range(3):  # 最多重試 Logout 3 次
+            for attempt in range(3):
                 try:
                     print("CPLUS: 嘗試登出...", flush=True)
                     logout_menu_button = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
@@ -503,7 +516,8 @@ def process_cplus():
                     time.sleep(0.5)
                     break
                 except Exception as e:
-                    print(f"CPLUS: 登出失敗 (嘗試 {attempt+1}/3): {str(e)}", flush=True)
+                    error_msg = str(e) if str(e) else "未知錯誤"
+                    logging.error(f"CPLUS: 登出失敗 (嘗試 {attempt+1}/3): {error_msg}, 堆棧跟踪: {traceback.format_exc()}")
                     driver.save_screenshot(f"cplus_logout_failure_attempt_{attempt+1}.png")
                     with open(f"cplus_logout_failure_attempt_{attempt+1}.html", "w", encoding="utf-8") as f:
                         f.write(driver.page_source)
@@ -668,6 +682,13 @@ def main():
     # 定義預期文件數量
     expected_file_count = CPLUS_MOVEMENT_COUNT + CPLUS_ONHAND_COUNT + house_button_count + BARGE_COUNT
     
+    # 執行總結
+    logging.info(f"執行總結 - CPLUS Movement: {'成功' if cplus_files and 'movement' in [s[0] for s in sections] else '失敗'}")
+    logging.info(f"執行總結 - CPLUS OnHand: {'成功' if cplus_files and 'onhand' in [s[0] for s in sections] else '失敗'}")
+    logging.info(f"執行總結 - CPLUS House: {'成功' if house_file_count > 0 else '失敗'}")
+    logging.info(f"執行總結 - Barge: {'成功' if barge_files else '失敗'}")
+    logging.info(f"總下載文件數: {len(downloaded_files)}, 預期數量: {expected_file_count}")
+
     # 檢查 Housekeeping 文件數量是否匹配按鈕數量
     if house_file_count < house_button_count:
         print(f"Housekeeping Reports 下載文件數量（{house_file_count}）少於按鈕數量（{house_button_count}），放棄發送郵件", flush=True)
@@ -710,5 +731,5 @@ def main():
 
 if __name__ == "__main__":
     setup_environment()
-    clear_download_dir()  # 確保每次運行前清空下載目錄
+    clear_download_dir()
     main()
