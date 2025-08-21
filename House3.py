@@ -25,8 +25,9 @@ download_dir = os.path.abspath("downloads")
 CPLUS_MOVEMENT_COUNT = 1  # Container Movement Log
 CPLUS_ONHAND_COUNT = 1  # OnHandContainerList
 BARGE_COUNT = 1  # Barge
-MAX_RETRIES = 3
-HOUSEKEEP_FILE_PATTERNS = [r'DM1C.*\.csv', r'GA1.*\.csv', r'IA15.*\.csv', r'IA17.*\.csv', r'INV-114.*\.csv']
+MAX_RETRIES = 2
+DOWNLOAD_TIMEOUT = 30  # 延長至 30 秒
+
 
 def clear_download_dirs():
     for dir_path in [cplus_download_dir, barge_download_dir]:
