@@ -729,7 +729,6 @@ def process_barge():
             print("Barge WebDriver 關閉", flush=True)
 
 def main():
-    clear_download_dirs()
     cplus_files = set()
     house_file_count = 0
     house_button_count = 0
