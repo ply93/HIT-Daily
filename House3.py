@@ -161,11 +161,11 @@ def check_page_errors(driver, wait):
         logging.debug(f"檢查頁面錯誤失敗: {str(e)}")
         return True
 
-def wait_for_new_file(download_dir, initial_files, timeout=30):
-    """等待新文件生成"""
+def wait_for_new_file(download_dir, initial_files, timeout=45):
+    """等待新文件生成，延長超時時間並僅接受 .csv"""
     start_time = time.time()
     while time.time() - start_time < timeout:
-        current_files = set(f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx')))
+        current_files = set(f for f in os.listdir(download_dir) if f.endswith(('.csv')))
         new_files = current_files - initial_files
         if new_files:
             return new_files
@@ -174,7 +174,7 @@ def wait_for_new_file(download_dir, initial_files, timeout=30):
             time.sleep(2)
             continue
         time.sleep(1)
-    logging.warning(f"未檢測到新文件，當前目錄內容: {os.listdir(download_dir)}")
+    logging.warning(f"未檢測到新文件 (.csv)，當前目錄內容: {os.listdir(download_dir)}")
     return set()
 
 def process_cplus_movement(driver, wait, initial_files):
@@ -295,9 +295,12 @@ def process_cplus_onhand(driver, wait, initial_files):
                 driver.execute_script("arguments[0].scrollIntoView(true);", search_button)
                 ActionChains(driver).move_to_element(search_button).click().perform()
                 logging.info(f"CPLUS: Search 按鈕點擊成功 (使用 {selector_type}: {selector})")
+                # 等待數據加載
+                wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "#root div.result-table")))
+                logging.info("CPLUS: 搜索結果數據加載完成")
                 break
             except TimeoutException:
-                logging.debug(f"CPLUS: Search 按鈕未找到 (嘗試 {attempt+1}/{MAX_RETRIES}, 選擇器: {selector})")
+                logging.debug(f"CPLUS: Search 按鈕未找到或數據未加載 (嘗試 {attempt+1}/{MAX_RETRIES}, 選擇器: {selector})")
                 continue
         else:
             logging.error("CPLUS: 所有 Search 按鈕定位失敗，記錄頁面狀態...")
@@ -338,14 +341,15 @@ def process_cplus_onhand(driver, wait, initial_files):
     logging.info("CPLUS: 點擊 Export as CSV...")
     export_csv_selectors = [
         (By.XPATH, "//li[contains(@class, 'MuiMenuItem-root') and contains(text(), 'Export as CSV')]"),
-        (By.XPATH, "//li[contains(text(), 'Export as CSV')]")
+        (By.XPATH, "//li[contains(text(), 'Export as CSV')]"),
+        (By.CSS_SELECTOR, "li.MuiMenuItem-root")
     ]
     for attempt in range(MAX_RETRIES):
         for selector_type, selector in export_csv_selectors:
             try:
                 export_csv_button = wait.until(EC.element_to_be_clickable((selector_type, selector)))
                 driver.execute_script("arguments[0].scrollIntoView(true);", export_csv_button)
-                ActionChains(driver).move_to_element(export_csv_button).click().perform()
+                export_csv_button.click()  # 標準點擊
                 logging.info(f"CPLUS: Export as CSV 按鈕點擊成功 (使用 {selector_type}: {selector})")
                 break
             except TimeoutException:
@@ -473,13 +477,10 @@ def process_cplus_house(driver, wait, initial_files):
 
                 driver.execute_script("arguments[0].scrollIntoView(true);", button)
                 wait.until(EC.element_to_be_clickable(button))
-                driver.execute_script("arguments[0].click();", button)
-                logging.info(f"CPLUS: 第 {idx} 個 Excel 下載按鈕 (報告: {report_name}) JavaScript 點擊成功")
+                button.click()  # 標準點擊
+                logging.info(f"CPLUS: 第 {idx} 個 Excel 下載按鈕 (報告: {report_name}) 點擊成功")
 
                 handle_popup(driver, wait)
-
-                ActionChains(driver).move_to_element(button).pause(0.5).click().perform()
-                logging.info(f"CPLUS: 第 {idx} 個 Excel 下載按鈕 (報告: {report_name}) ActionChains 點擊成功")
 
                 temp_new = wait_for_new_file(cplus_download_dir, local_initial)
                 if temp_new:
@@ -526,6 +527,7 @@ def process_cplus_house(driver, wait, initial_files):
         with open("house_download_failure.html", "w", encoding="utf-8") as f:
             f.write(driver.page_source)
         raise Exception("CPLUS: Housekeeping Reports 未下載任何文件")
+
 def process_cplus():
     driver = None
     downloaded_files = set()
