@@ -2,6 +2,7 @@ import os
 import time
 import shutil
 import subprocess
+import threading
 from datetime import datetime
 import smtplib
 from email.mime.multipart import MIMEMultipart
@@ -753,15 +754,14 @@ def main():
         house_file_count[0] = count
         house_button_count[0] = button_count
 
-    # Process CPLUS first
-    cplus_result = process_cplus()
-    cplus_files.update(cplus_result[0])
-    house_file_count = cplus_result[1]
-    house_button_count = cplus_result[2]
-    cplus_driver = cplus_result[3]
+    cplus_thread = threading.Thread(target=lambda: update_cplus_files_and_count(process_cplus()))
+    barge_thread = threading.Thread(target=lambda: barge_files.update(process_barge()))
 
-    # Then process Barge
-    barge_files.update(process_barge())
+    cplus_thread.start()
+    barge_thread.start()
+
+    cplus_thread.join()
+    barge_thread.join()
 
     print("檢查所有下載文件...", flush=True)
     downloaded_files = [f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx'))]
