@@ -29,12 +29,11 @@ MAX_RETRIES = 2
 DOWNLOAD_TIMEOUT = 30  # 延長至 30 秒
 
 
-def clear_download_dirs():
-    for dir_path in [cplus_download_dir, barge_download_dir]:
-        if os.path.exists(dir_path):
-            shutil.rmtree(dir_path)
-        os.makedirs(dir_path)
-        logging.info(f"創建下載目錄: {dir_path}")
+def clear_download_dir():
+    if os.path.exists(download_dir):
+        shutil.rmtree(download_dir)
+    os.makedirs(download_dir)
+    print(f"創建下載目錄: {download_dir}", flush=True)
 
 def setup_environment():
     try:
