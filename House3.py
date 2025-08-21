@@ -687,39 +687,31 @@ def process_barge():
         except Exception as e:
             logging.error(f"Barge: 登出失敗: {str(e)}")
 
-# 主函數
 def main():
-    clear_download_dir()
-
     cplus_files = set()
-    house_file_count = [0]
-    house_button_count = [0]
+    house_file_count = 0
+    house_button_count = 0
     barge_files = set()
+    cplus_driver = None
+    barge_driver = None
 
-    def update_cplus_files_and_count(result):
-        files, count, button_count = result
-        cplus_files.update(files)
-        house_file_count[0] = count
-        house_button_count[0] = button_count
+    # Process CPLUS first
+    cplus_result = process_cplus()
+    cplus_files.update(cplus_result[0])
+    house_file_count = cplus_result[1]
+    house_button_count = cplus_result[2]
+    cplus_driver = cplus_result[3]
 
-    def update_cplus(result):
-        files, count, button_count, drv = result
-        cplus_files.update(files)
-        house_file_count[0] = count
-        house_button_count[0] = button_count
-        nonlocal cplus_driver
-        cplus_driver = drv
-    def update_barge(result):
-        files, drv = result
-        barge_files.update(files)
-        nonlocal barge_driver
-        barge_driver = drv
-    
-    print("檢查所有下載文件...", flush=True)
+    # Then process Barge
+    barge_files.update(process_barge())
+
+    # 檢查所有下載文件
+    logging.info("檢查所有下載文件...")
     downloaded_files = [f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx'))]
-    expected_file_count = CPLUS_MOVEMENT_COUNT + CPLUS_ONHAND_COUNT + house_button_count[0] + BARGE_COUNT
-    print(f"預期文件數量: {expected_file_count} (Movement: {CPLUS_MOVEMENT_COUNT}, OnHand: {CPLUS_ONHAND_COUNT}, Housekeeping: {house_button_count[0]}, Barge: {BARGE_COUNT})", flush=True)
-
+    logging.info(f"總下載文件: {len(downloaded_files)} 個")
+    for file in downloaded_files:
+        logging.info(f"找到檔案: {file}")
+        
     # 檢查 Housekeeping 文件數量是否匹配按鈕數量
     if house_file_count[0] < house_button_count[0]:
         print(f"Housekeeping Reports 下載文件數量（{house_file_count[0]}）少於按鈕數量（{house_button_count[0]}），放棄發送郵件", flush=True)
