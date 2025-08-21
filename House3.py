@@ -99,7 +99,7 @@ def cplus_login(driver, wait):
         print(f"CPLUS: 嘗試打開網站 https://cplus.hit.com.hk/frontpage/#/ (嘗試 {attempt+1}/3)...", flush=True)
         try:
             driver.get("https://cplus.hit.com.hk/frontpage/#/")
-            wait = WebDriverWait(driver, 3)
+            wait = WebDriverWait(driver, 5)
             wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
             print(f"CPLUS: 網站已成功打開，當前 URL: {driver.current_url}", flush=True)
             time.sleep(0.5)
