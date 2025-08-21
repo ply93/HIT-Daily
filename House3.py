@@ -57,17 +57,14 @@ def setup_environment():
 
 def get_chrome_options(download_dir):
     chrome_options = Options()
-    chrome_options.add_argument('--headless')
+    # chrome_options.add_argument('--headless')  # 暫時註釋
     chrome_options.add_argument('--no-sandbox')
     chrome_options.add_argument('--disable-dev-shm-usage')
-    chrome_options.add_argument('--disable-gpu')
     chrome_options.add_argument('--ignore-certificate-errors')
     chrome_options.add_argument('--disable-popup-blocking')
     chrome_options.add_argument('--disable-extensions')
     chrome_options.add_argument('--no-first-run')
     chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36')
-    chrome_options.add_argument('--disable-blink-features=AutomationControlled')
-    chrome_options.add_experimental_option('excludeSwitches', ['enable-automation'])
     prefs = {
         "download.default_directory": download_dir,
         "download.prompt_for_download": False,
@@ -101,7 +98,7 @@ def cplus_login(driver, wait):
             driver.get("https://cplus.hit.com.hk/frontpage/#/")
             wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
             print(f"CPLUS: 網站已成功打開，當前 URL: {driver.current_url}", flush=True)
-            time.sleep(0.5)
+            time.sleep(1) 
             print("CPLUS: 點擊登錄前按鈕...", flush=True)
             login_button_pre = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
             ActionChains(driver).move_to_element(login_button_pre).click().perform()
@@ -465,10 +462,18 @@ def process_cplus():
     house_file_count = 0
     house_button_count = 0
     try:
-        driver = webdriver.Chrome(options=get_chrome_options(download_dir))
+        chrome_options = get_chrome_options(download_dir)
+        chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+        chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        chrome_options.add_experimental_option("useAutomationExtension", False)
+        driver = webdriver.Chrome(options=chrome_options)
         print("CPLUS WebDriver 初始化成功", flush=True)
+        # 進一步隱藏自動化標記
         driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-        wait = WebDriverWait(driver, 5)
+        driver.execute_script("window.navigator.chrome = { runtime: {}, };")
+        driver.execute_script("Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });")
+        driver.execute_script("Object.defineProperty(navigator, 'permissions', { get: () => undefined });")
+        wait = WebDriverWait(driver, 10)  # 增加超時時間
         if not check_javascript_enabled(driver):
             logging.error("CPLUS: WebDriver 未正確啟用 JavaScript，頁面可能無法正常加載")
             raise Exception("JavaScript 執行失敗")
