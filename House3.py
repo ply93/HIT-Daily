@@ -476,10 +476,10 @@ def process_cplus_house(driver, wait, initial_files):
         f.write(driver.page_source)
     raise Exception("CPLUS: Housekeeping Reports 未下載任何文件")
 
-# CPLUS 操作
 def process_cplus():
     driver = None
     downloaded_files = set()
+    clear_download_dir()  # 修正：在訪問 download_dir 前確保目錄存在
     initial_files = set(os.listdir(download_dir))  # 修正：使用 download_dir
     house_file_count = 0
     house_button_count = 0
@@ -746,13 +746,14 @@ def main():
     # Then process Barge
     barge_files.update(process_barge())
 
-    # 後續的日誌和郵件發送邏輯
+    # 檢查所有下載文件
     logging.info("檢查所有下載文件...")
-    downloaded_files = [f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx'))]  # 修正：使用 download_dir
+    downloaded_files = [f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx'))]
     logging.info(f"總下載文件: {len(downloaded_files)} 個")
     for file in downloaded_files:
         logging.info(f"找到檔案: {file}")
 
+    # 後續的郵件發送邏輯保持不變
     required_patterns = {'movement': 'cntrMoveLog', 'onhand': 'data_', 'barge': 'ContainerDetailReport'}
     housekeep_prefixes = ['IE2_', 'DM1C_', 'IA17_', 'GA1_', 'IA5_', 'IA15_']
     has_required = all(any(pattern in f for f in downloaded_files) for pattern in required_patterns.values())
@@ -813,7 +814,7 @@ def main():
             msg.attach(MIMEText(plain_text, 'plain'))
 
             for file in downloaded_files:
-                file_path = os.path.join(download_dir, file)  # 修正：使用 download_dir
+                file_path = os.path.join(download_dir, file)
                 if os.path.exists(file_path):
                     attachment = MIMEBase('application', 'octet-stream')
                     attachment.set_payload(open(file_path, 'rb').read())
@@ -854,4 +855,5 @@ def main():
 
 if __name__ == "__main__":
     setup_environment()
+    clear_download_dir()  # 修正：在 main 函數開始時確保下載目錄存在
     main()
