@@ -2,7 +2,6 @@ import os
 import time
 import shutil
 import subprocess
-import threading
 from datetime import datetime
 import smtplib
 from email.mime.multipart import MIMEMultipart
@@ -703,15 +702,19 @@ def main():
         house_file_count[0] = count
         house_button_count[0] = button_count
 
-    cplus_thread = threading.Thread(target=lambda: update_cplus_files_and_count(process_cplus()))
-    barge_thread = threading.Thread(target=lambda: barge_files.update(process_barge()))
-
-    cplus_thread.start()
-    barge_thread.start()
-
-    cplus_thread.join()
-    barge_thread.join()
-
+    def update_cplus(result):
+        files, count, button_count, drv = result
+        cplus_files.update(files)
+        house_file_count[0] = count
+        house_button_count[0] = button_count
+        nonlocal cplus_driver
+        cplus_driver = drv
+    def update_barge(result):
+        files, drv = result
+        barge_files.update(files)
+        nonlocal barge_driver
+        barge_driver = drv
+    
     print("檢查所有下載文件...", flush=True)
     downloaded_files = [f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx'))]
     expected_file_count = CPLUS_MOVEMENT_COUNT + CPLUS_ONHAND_COUNT + house_button_count[0] + BARGE_COUNT
