@@ -3,6 +3,7 @@ import time
 import shutil
 import subprocess
 import threading
+import logging  # 新增：導入 logging 模組
 from datetime import datetime
 import smtplib
 from email.mime.multipart import MIMEMultipart
@@ -18,6 +19,15 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.common.exceptions import TimeoutException, ElementClickInterceptedException, NoSuchElementException
 from webdriver_manager.chrome import ChromeDriverManager
 import re
+
+# 設置日誌配置
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler()  # 輸出到控制台
+    ]
+)
 
 # 全局變量
 download_dir = os.path.abspath("downloads")
@@ -476,11 +486,12 @@ def process_cplus_house(driver, wait, initial_files):
         f.write(driver.page_source)
     raise Exception("CPLUS: Housekeeping Reports 未下載任何文件")
 
+# CPLUS 操作
 def process_cplus():
     driver = None
     downloaded_files = set()
-    clear_download_dir()  # 修正：在訪問 download_dir 前確保目錄存在
-    initial_files = set(os.listdir(download_dir))  # 修正：使用 download_dir
+    clear_download_dir()  # 確保目錄存在
+    initial_files = set(os.listdir(download_dir))
     house_file_count = 0
     house_button_count = 0
     try:
@@ -753,7 +764,7 @@ def main():
     for file in downloaded_files:
         logging.info(f"找到檔案: {file}")
 
-    # 後續的郵件發送邏輯保持不變
+    # 後續的郵件發送邏輯
     required_patterns = {'movement': 'cntrMoveLog', 'onhand': 'data_', 'barge': 'ContainerDetailReport'}
     housekeep_prefixes = ['IE2_', 'DM1C_', 'IA17_', 'GA1_', 'IA5_', 'IA15_']
     has_required = all(any(pattern in f for f in downloaded_files) for pattern in required_patterns.values())
@@ -763,7 +774,6 @@ def main():
 
     if has_required and house_ok:
         logging.info("所有必須文件齊全，開始發送郵件...")
-        # 郵件發送邏輯保持不變
         try:
             smtp_server = os.environ.get('SMTP_SERVER', 'smtp.zoho.com')
             smtp_port = int(os.environ.get('SMTP_PORT', 587))
@@ -855,5 +865,5 @@ def main():
 
 if __name__ == "__main__":
     setup_environment()
-    clear_download_dir()  # 修正：在 main 函數開始時確保下載目錄存在
+    clear_download_dir()
     main()
