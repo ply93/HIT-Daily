@@ -140,67 +140,90 @@ def cplus_login(driver, wait):
     logging.info("CPLUS: LOGIN 按鈕點擊成功")
     time.sleep(2)
 
+def check_page_errors(driver, wait):
+    """檢查頁面是否有錯誤提示或彈窗"""
+    try:
+        error_elements = driver.find_elements(By.CSS_SELECTOR, "div.MuiAlert-root, div.error, div.alert")
+        if error_elements:
+            logging.warning(f"頁面檢測到錯誤提示: {[elem.text for elem in error_elements]}")
+            driver.save_screenshot("page_error_detected.png")
+            return False
+        return True
+    except Exception as e:
+        logging.debug(f"檢查頁面錯誤失敗: {str(e)}")
+        return True
+
 def process_cplus_movement(driver, wait, initial_files):
     logging.info("CPLUS: 直接前往 Container Movement Log...")
-    driver.get("https://cplus.hit.com.hk/app/#/enquiry/ContainerMovementLog")
-    time.sleep(2)
-    wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
-    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[2]//form")))
-    logging.info("CPLUS: Container Movement Log 頁面加載完成")
+    try:
+        driver.get("https://cplus.hit.com.hk/app/#/enquiry/ContainerMovementLog")
+        wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "#root")))
+        logging.info("CPLUS: Container Movement Log 頁面加載完成")
+        if not check_page_errors(driver, wait):
+            raise Exception("CPLUS: 頁面包含錯誤提示")
+    except TimeoutException as e:
+        logging.error(f"CPLUS: Container Movement Log 頁面加載超時: {str(e)}, URL: {driver.current_url}")
+        driver.save_screenshot("movement_page_load_failure.png")
+        with open("movement_page_load_failure.html", "w", encoding="utf-8") as f:
+            f.write(driver.page_source)
+        raise Exception("CPLUS: Container Movement Log 頁面加載失敗")
 
     logging.info("CPLUS: 點擊 Search...")
     local_initial = initial_files.copy()
-    for attempt in range(2):
-        try:
-            search_button = WebDriverWait(driver, 15).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[1]/div/form/div[2]/div/div[4]/button")))
-            ActionChains(driver).move_to_element(search_button).click().perform()
-            logging.info("CPLUS: Search 按鈕點擊成功")
-            break
-        except TimeoutException:
-            logging.debug(f"CPLUS: Search 按鈕未找到，嘗試備用定位 {attempt+1}/2...")
+    search_selectors = [
+        (By.CSS_SELECTOR, "button.MuiButton-containedPrimary"),
+        (By.XPATH, "//button[contains(@class, 'MuiButtonBase-root') and .//span[contains(text(), 'Search')]]"),
+        (By.XPATH, "//button[contains(text(), 'Search')]")
+    ]
+    
+    for attempt in range(MAX_RETRIES):
+        for selector_type, selector in search_selectors:
             try:
-                search_button = WebDriverWait(driver, 15).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'MuiButtonBase-root') and .//span[contains(text(), 'Search')]]")))
+                search_button = wait.until(EC.element_to_be_clickable((selector_type, selector)))
+                driver.execute_script("arguments[0].scrollIntoView(true);", search_button)
                 ActionChains(driver).move_to_element(search_button).click().perform()
-                logging.info("CPLUS: 備用 Search 按鈕 1 點擊成功")
+                logging.info(f"CPLUS: Search 按鈕點擊成功 (使用 {selector_type}: {selector})")
                 break
             except TimeoutException:
-                logging.debug(f"CPLUS: 備用 Search 按鈕 1 失敗，嘗試備用定位 2 (嘗試 {attempt+1}/2)...")
-                try:
-                    search_button = WebDriverWait(driver, 15).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Search')]")))
-                    ActionChains(driver).move_to_element(search_button).click().perform()
-                    logging.info("CPLUS: 備用 Search 按鈕 2 點擊成功")
-                    break
-                except TimeoutException:
-                    logging.debug(f"CPLUS: 備用 Search 按鈕 2 失敗 (嘗試 {attempt+1}/2)")
-                    driver.save_screenshot("movement_search_failure.png")
-                    with open("movement_search_failure.html", "w", encoding="utf-8") as f:
-                        f.write(driver.page_source)
+                logging.debug(f"CPLUS: Search 按鈕未找到 (嘗試 {attempt+1}/{MAX_RETRIES}, 選擇器: {selector})")
+                continue
+        else:
+            logging.error("CPLUS: 所有 Search 按鈕定位失敗，記錄頁面狀態...")
+            driver.save_screenshot(f"movement_search_failure_attempt_{attempt+1}.png")
+            with open(f"movement_search_failure_attempt_{attempt+1}.html", "w", encoding="utf-8") as f:
+                f.write(driver.page_source)
+            continue
+        break
     else:
         raise Exception("CPLUS: Container Movement Log Search 按鈕點擊失敗")
 
     logging.info("CPLUS: 點擊 Download...")
-    for attempt in range(2):
-        try:
-            download_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[2]/div/div[2]/div/div[1]/div[1]/button")))
-            ActionChains(driver).move_to_element(download_button).click().perform()
-            logging.info("CPLUS: Download 按鈕點擊成功")
-            time.sleep(0.5)
+    download_selectors = [
+        (By.CSS_SELECTOR, "button.MuiButton-containedPrimary"),
+        (By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[2]/div/div[2]/div/div[1]/div[1]/button")
+    ]
+    for attempt in range(MAX_RETRIES):
+        for selector_type, selector in download_selectors:
             try:
-                driver.execute_script("arguments[0].click();", download_button)
-                logging.debug("CPLUS: Download 按鈕 JavaScript 點擊成功")
-            except Exception as js_e:
-                logging.debug(f"CPLUS: Download 按鈕 JavaScript 點擊失敗: {str(js_e)}")
-            time.sleep(0.5)
-            break
-        except Exception as e:
-            logging.debug(f"CPLUS: Download 按鈕點擊失敗 (嘗試 {attempt+1}/2): {str(e)}")
-            driver.save_screenshot("movement_download_failure.png")
-            with open("movement_download_failure.html", "w", encoding="utf-8") as f:
+                download_button = wait.until(EC.element_to_be_clickable((selector_type, selector)))
+                driver.execute_script("arguments[0].scrollIntoView(true);", download_button)
+                ActionChains(driver).move_to_element(download_button).click().perform()
+                logging.info(f"CPLUS: Download 按鈕點擊成功 (使用 {selector_type}: {selector})")
+                break
+            except TimeoutException:
+                logging.debug(f"CPLUS: Download 按鈕未找到 (嘗試 {attempt+1}/{MAX_RETRIES}, 選擇器: {selector})")
+                continue
+        else:
+            logging.error("CPLUS: 所有 Download 按鈕定位失敗，記錄頁面狀態...")
+            driver.save_screenshot(f"movement_download_failure_attempt_{attempt+1}.png")
+            with open(f"movement_download_failure_attempt_{attempt+1}.html", "w", encoding="utf-8") as f:
                 f.write(driver.page_source)
+            continue
+        break
     else:
         raise Exception("CPLUS: Container Movement Log Download 按鈕點擊失敗")
 
-    new_files = wait_for_new_file(cplus_download_dir, local_initial)
+    new_files = wait_for_new_file(cplus_download_dir, local_initial, timeout=60)
     if new_files:
         logging.info(f"CPLUS: Container Movement Log 下載完成，檔案位於: {cplus_download_dir}")
         filtered_files = {f for f in new_files if "cntrMoveLog" in f}
@@ -214,7 +237,7 @@ def process_cplus_movement(driver, wait, initial_files):
             raise Exception("CPLUS: Container Movement Log 未下載預期檔案")
         return filtered_files
     else:
-        logging.warning("CPLUS: Container Movement Log 未觸發新文件下載，記錄頁面狀態...")
+        logging.warning(f"CPLUS: Container Movement Log 未觸發新文件下載，當前目錄內容: {os.listdir(cplus_download_dir)}")
         driver.save_screenshot("movement_download_failure.png")
         with open("movement_download_failure.html", "w", encoding="utf-8") as f:
             f.write(driver.page_source)
@@ -226,6 +249,8 @@ def process_cplus_onhand(driver, wait, initial_files):
         driver.get("https://cplus.hit.com.hk/app/#/enquiry/OnHandContainerList")
         wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "#root")))
         logging.info("CPLUS: OnHandContainerList 頁面加載完成")
+        if not check_page_errors(driver, wait):
+            raise Exception("CPLUS: 頁面包含錯誤提示")
     except TimeoutException as e:
         logging.error(f"CPLUS: OnHandContainerList 頁面加載超時: {str(e)}, URL: {driver.current_url}")
         driver.save_screenshot("onhand_page_load_failure.png")
@@ -236,9 +261,8 @@ def process_cplus_onhand(driver, wait, initial_files):
     logging.info("CPLUS: 點擊 Search...")
     local_initial = initial_files.copy()
     search_selectors = [
-        (By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div[1]/form/div[1]/div[24]/div[2]/button/span[1]"),
         (By.CSS_SELECTOR, "button.MuiButton-containedPrimary"),
-        (By.XPATH, "//button[contains(text(), 'Search')]"),
+        (By.XPATH, "//button[contains(text(), 'Search') or contains(@class, 'MuiButtonBase-root')]"),
         (By.CSS_SELECTOR, "button.MuiButton-contained span.MuiButton-label")
     ]
     
@@ -264,15 +288,29 @@ def process_cplus_onhand(driver, wait, initial_files):
         raise Exception("CPLUS: OnHandContainerList Search 按鈕點擊失敗")
 
     logging.info("CPLUS: 點擊 Export...")
-    try:
-        export_button = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button.MuiButton-containedPrimary")))
-        ActionChains(driver).move_to_element(export_button).click().perform()
-        logging.info("CPLUS: Export 按鈕點擊成功")
-    except TimeoutException as e:
-        logging.error(f"CPLUS: Export 按鈕點擊失敗: {str(e)}")
-        driver.save_screenshot("onhand_export_failure.png")
-        with open("onhand_export_failure.html", "w", encoding="utf-8") as f:
-            f.write(driver.page_source)
+    export_selectors = [
+        (By.CSS_SELECTOR, "button.MuiButton-containedPrimary"),
+        (By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div/div[2]/div[1]/div[1]/div/div/div[4]/div/div/span[1]/button")
+    ]
+    for attempt in range(MAX_RETRIES):
+        for selector_type, selector in export_selectors:
+            try:
+                export_button = wait.until(EC.element_to_be_clickable((selector_type, selector)))
+                driver.execute_script("arguments[0].scrollIntoView(true);", export_button)
+                ActionChains(driver).move_to_element(export_button).click().perform()
+                logging.info(f"CPLUS: Export 按鈕點擊成功 (使用 {selector_type}: {selector})")
+                break
+            except TimeoutException:
+                logging.debug(f"CPLUS: Export 按鈕未找到 (嘗試 {attempt+1}/{MAX_RETRIES}, 選擇器: {selector})")
+                continue
+        else:
+            logging.error("CPLUS: 所有 Export 按鈕定位失敗，記錄頁面狀態...")
+            driver.save_screenshot(f"onhand_export_failure_attempt_{attempt+1}.png")
+            with open(f"onhand_export_failure_attempt_{attempt+1}.html", "w", encoding="utf-8") as f:
+                f.write(driver.page_source)
+            continue
+        break
+    else:
         raise Exception("CPLUS: OnHandContainerList Export 按鈕點擊失敗")
 
     logging.info("CPLUS: 點擊 Export as CSV...")
@@ -313,6 +351,8 @@ def process_cplus_house(driver, wait, initial_files):
         driver.get("https://cplus.hit.com.hk/app/#/report/housekeepReport")
         wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "#root")))
         logging.info("CPLUS: Housekeeping Reports 頁面加載完成")
+        if not check_page_errors(driver, wait):
+            raise Exception("CPLUS: 頁面包含錯誤提示")
     except TimeoutException as e:
         logging.error(f"CPLUS: Housekeeping Reports 頁面加載超時: {str(e)}, URL: {driver.current_url}")
         driver.save_screenshot("house_page_load_failure.png")
@@ -323,7 +363,8 @@ def process_cplus_house(driver, wait, initial_files):
     logging.info("CPLUS: 等待表格加載...")
     table_selectors = [
         (By.CSS_SELECTOR, "table.MuiTable-root tbody tr"),
-        (By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")
+        (By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr"),
+        (By.CSS_SELECTOR, "table tbody tr")
     ]
     rows = None
     for attempt in range(MAX_RETRIES):
@@ -363,7 +404,8 @@ def process_cplus_house(driver, wait, initial_files):
     
     button_selectors = [
         (By.CSS_SELECTOR, "table.MuiTable-root tbody tr td button:not([disabled])"),
-        (By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button[not(@disabled)]")
+        (By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button[not(@disabled)]"),
+        (By.CSS_SELECTOR, "table tbody tr td button")
     ]
     excel_buttons = None
     for selector_type, selector in button_selectors:
@@ -429,8 +471,8 @@ def process_cplus_house(driver, wait, initial_files):
                 logging.error(f"CPLUS: 第 {idx} 個 Excel 下載按鈕 (報告: {report_name}) 未知錯誤: {str(e)}")
                 driver.save_screenshot(f"house_button_{idx}_failure_attempt_{attempt+1}.png")
                 with open(f"house_button_{idx}_failure_attempt_{attempt+1}.html", "w", encoding="utf-8") as f:
-                    f.write(driver.page_source)
-                break
+                f.write(driver.page_source)
+            break
         if not success:
             logging.warning(f"CPLUS: 第 {idx} 個 Excel 下載按鈕 (報告: {report_name}) 最終失敗")
 
