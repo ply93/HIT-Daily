@@ -2,6 +2,7 @@ import os
 import time
 import shutil
 import subprocess
+import logging
 from datetime import datetime
 import smtplib
 from email.mime.multipart import MIMEMultipart
