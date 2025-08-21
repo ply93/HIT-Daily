@@ -739,81 +739,134 @@ def process_barge():
             driver.quit()
             print("Barge WebDriver 關閉", flush=True)
 
-# 主函數
 def main():
-    clear_download_dir()
-
+    load_dotenv()
+    clear_download_dirs()
     cplus_files = set()
-    house_file_count = [0]
-    house_button_count = [0]
+    house_file_count = 0
+    house_button_count = 0
     barge_files = set()
+    cplus_driver = None
+    barge_driver = None
 
-    def update_cplus_files_and_count(result):
-        files, count, button_count = result
-        cplus_files.update(files)
-        house_file_count[0] = count
-        house_button_count[0] = button_count
+    # Process CPLUS first
+    cplus_result = process_cplus()
+    cplus_files.update(cplus_result[0])
+    house_file_count = cplus_result[1]
+    house_button_count = cplus_result[2]
+    cplus_driver = cplus_result[3]
 
-    cplus_thread = threading.Thread(target=lambda: update_cplus_files_and_count(process_cplus()))
-    barge_thread = threading.Thread(target=lambda: barge_files.update(process_barge()))
+    # Then process Barge
+    barge_result = process_barge()
+    barge_files.update(barge_result[0])
+    barge_driver = barge_result[1]
 
-    cplus_thread.start()
-    barge_thread.start()
+    logging.info("檢查所有下載文件...")
+    downloaded_files = [f for f in os.listdir(cplus_download_dir) if f.endswith(('.csv', '.xlsx'))] + [f for f in os.listdir(barge_download_dir) if f.endswith(('.csv', '.xlsx'))]
+    logging.info(f"總下載文件: {len(downloaded_files)} 個")
+    for file in downloaded_files:
+        logging.info(f"找到檔案: {file}")
 
-    cplus_thread.join()
-    barge_thread.join()
+    required_patterns = {'movement': 'cntrMoveLog', 'onhand': 'data_', 'barge': 'ContainerDetailReport'}
+    housekeep_prefixes = ['IE2_', 'DM1C_', 'IA17_', 'GA1_', 'IA5_', 'IA15_']
+    has_required = all(any(pattern in f for f in downloaded_files) for pattern in required_patterns.values())
+    house_files = [f for f in downloaded_files if any(p in f for p in housekeep_prefixes)]
+    house_download_count = len(house_files)
+    house_ok = (house_button_count == 0) or (house_download_count >= house_button_count)
 
-    print("檢查所有下載文件...", flush=True)
-    downloaded_files = [f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx'))]
-    expected_file_count = CPLUS_MOVEMENT_COUNT + CPLUS_ONHAND_COUNT + house_button_count[0] + BARGE_COUNT
-    print(f"預期文件數量: {expected_file_count} (Movement: {CPLUS_MOVEMENT_COUNT}, OnHand: {CPLUS_ONHAND_COUNT}, Housekeeping: {house_button_count[0]}, Barge: {BARGE_COUNT})", flush=True)
-
-    # 檢查 Housekeeping 文件數量是否匹配按鈕數量
-    if house_file_count[0] < house_button_count[0]:
-        print(f"Housekeeping Reports 下載文件數量（{house_file_count[0]}）少於按鈕數量（{house_button_count[0]}），放棄發送郵件", flush=True)
-        return
-
-    if len(downloaded_files) >= expected_file_count:
-        print(f"所有下載完成，檔案位於: {download_dir}", flush=True)
-        for file in downloaded_files:
-            print(f"找到檔案: {file}", flush=True)
-
-        print("開始發送郵件...", flush=True)
+    if has_required and house_ok:
+        logging.info("所有必須文件齊全，開始發送郵件...")
         try:
-            smtp_server = 'smtp.zoho.com'
-            smtp_port = 587
-            sender_email = os.environ.get('ZOHO_EMAIL', 'paklun_ckline@zohomail.com')
-            sender_password = os.environ.get('ZOHO_PASSWORD', '@d6G.Pie5UkEPqm')
-            receiver_email = 'paklun@ckline.com.hk'
+            smtp_server = os.environ.get('SMTP_SERVER', 'smtp.zoho.com')
+            smtp_port = int(os.environ.get('SMTP_PORT', 587))
+            sender_email = os.environ['ZOHO_EMAIL']
+            sender_password = os.environ['ZOHO_PASSWORD']
+            receiver_emails = os.environ.get('RECEIVER_EMAILS').split(',')
+            cc_emails = os.environ.get('CC_EMAILS', '').split(',') if os.environ.get('CC_EMAILS') else []
+            dry_run = os.environ.get('DRY_RUN', 'False').lower() == 'true'
 
-            msg = MIMEMultipart()
+            if dry_run:
+                logging.info("Dry run 模式：只打印郵件內容，不發送。")
+
+            house_report_names = [
+                "REEFER CONTAINER MONITOR REPORT",
+                "CONTAINER DAMAGE REPORT (LINE) ENTRY GATE + EXIT GATE",
+                "CONTAINER LIST (ON HAND)",
+                "CY - GATELOG",
+                "CONTAINER LIST (DAMAGED)",
+                "ACTIVE REEFER CONTAINER ON HAND LIST"
+            ]
+            house_status = ['✓' if [f for f in house_files if p in f] else '-' for p in housekeep_prefixes]
+            house_file_names = [', '.join([f for f in house_files if p in f]) if [f for f in house_files if p in f] else 'N/A' for p in housekeep_prefixes]
+
+            body_html = f"""
+            <html><body><p>Attached are the daily reports downloaded from CPLUS and Barge. Generated at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+            <table border="1" style="border-collapse: collapse; width: 100%;"><thead><tr><th>Category</th><th>Report</th><th>File Names</th><th>Status</th></tr></thead><tbody>
+            <tr><td rowspan="8">CPLUS</td><td>Container Movement</td><td>{', '.join([f for f in downloaded_files if 'cntrMoveLog' in f]) or 'N/A'}</td><td>{'✓' if any('cntrMoveLog' in f for f in downloaded_files) else '-'}</td></tr>
+            <tr><td>OnHandContainerList</td><td>{', '.join([f for f in downloaded_files if 'data_' in f]) or 'N/A'}</td><td>{'✓' if any('data_' in f for f in downloaded_files) else '-'}</td></tr>
+            <tr><td>{house_report_names[0]}</td><td>{house_file_names[0]}</td><td>{house_status[0]}</td></tr>
+            <tr><td>{house_report_names[1]}</td><td>{house_file_names[1]}</td><td>{house_status[1]}</td></tr>
+            <tr><td>{house_report_names[2]}</td><td>{house_file_names[2]}</td><td>{house_status[2]}</td></tr>
+            <tr><td>{house_report_names[3]}</td><td>{house_file_names[3]}</td><td>{house_status[3]}</td></tr>
+            <tr><td>{house_report_names[4]}</td><td>{house_file_names[4]}</td><td>{house_status[4]}</td></tr>
+            <tr><td>{house_report_names[5]}</td><td>{house_file_names[5]}</td><td>{house_status[5]}</td></tr>
+            <tr><td rowspan="1">BARGE</td><td>Container Detail</td><td>{', '.join([f for f in downloaded_files if 'ContainerDetailReport' in f]) or 'N/A'}</td><td>{'✓' if any('ContainerDetailReport' in f for f in downloaded_files) else '-'}</td></tr>
+            <tr><td colspan="2"><strong>TOTAL</strong></td><td><strong>{len(downloaded_files)} files attached</strong></td><td><strong>{len(downloaded_files)}</strong></td></tr>
+            </tbody></table></body></html>
+            """
+
+            msg = MIMEMultipart('alternative')
             msg['From'] = sender_email
-            msg['To'] = receiver_email
+            msg['To'] = ', '.join(receiver_emails)
+            if cc_emails:
+                msg['Cc'] = ', '.join(cc_emails)
             msg['Subject'] = f"[TESTING] HIT DAILY {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-
-            body = "Attached are the daily reports downloaded from CPLUS (Container Movement Log, OnHand Container List, and Housekeeping Reports) and Barge (Container Detail)."
-            msg.attach(MIMEText(body, 'plain'))
+            msg.attach(MIMEText(body_html, 'html'))
+            plain_text = body_html.replace('<br>', '\n').replace('<table>', '').replace('</table>', '').replace('<tr>', '\n').replace('<td>', ' | ').replace('</td>', '').replace('<th>', ' | ').replace('</th>', '').strip()
+            msg.attach(MIMEText(plain_text, 'plain'))
 
             for file in downloaded_files:
-                file_path = os.path.join(download_dir, file)
-                attachment = MIMEBase('application', 'octet-stream')
-                attachment.set_payload(open(file_path, 'rb').read())
-                encoders.encode_base64(attachment)
-                attachment.add_header('Content-Disposition', f'attachment; filename={file}')
-                msg.attach(attachment)
+                if file in os.listdir(cplus_download_dir):
+                    file_path = os.path.join(cplus_download_dir, file)
+                else:
+                    file_path = os.path.join(barge_download_dir, file)
+                if os.path.exists(file_path):
+                    attachment = MIMEBase('application', 'octet-stream')
+                    attachment.set_payload(open(file_path, 'rb').read())
+                    encoders.encode_base64(attachment)
+                    attachment.add_header('Content-Disposition', f'attachment; filename={file}')
+                    msg.attach(attachment)
+                else:
+                    logging.warning(f"附件不存在: {file_path}")
 
-            server = smtplib.SMTP(smtp_server, smtp_port)
-            server.starttls()
-            server.login(sender_email, sender_password)
-            server.sendmail(sender_email, receiver_email, msg.as_string())
-            server.quit()
-            print("郵件發送成功!", flush=True)
+            if not os.environ.get('DRY_RUN', 'False').lower() == 'true':
+                server = smtplib.SMTP(smtp_server, smtp_port)
+                server.starttls()
+                server.login(sender_email, sender_password)
+                all_receivers = receiver_emails + cc_emails
+                server.sendmail(sender_email, all_receivers, msg.as_string())
+                server.quit()
+                logging.info("郵件發送成功!")
+            else:
+                logging.info(f"模擬發送郵件：\nFrom: {sender_email}\nTo: {msg['To']}\nCc: {msg.get('Cc', '')}\nSubject: {msg['Subject']}\nBody: {body_html}")
+        except KeyError as ke:
+            logging.error(f"缺少環境變量: {ke}")
+        except smtplib.SMTPAuthenticationError:
+            logging.error("SMTP 認證失敗：檢查用戶名/密碼")
+        except smtplib.SMTPConnectError:
+            logging.error("SMTP 連接失敗：檢查伺服器/端口")
         except Exception as e:
-            print(f"郵件發送失敗: {str(e)}", flush=True)
+            logging.error(f"郵件發送失敗: {str(e)}")
     else:
-        print(f"總下載文件數量不足（{len(downloaded_files)}/{expected_file_count}），放棄發送郵件", flush=True)
+        logging.warning(f"文件不齊全: 缺少必須文件 (has_required={has_required}) 或 House文件不足 (download={house_download_count}, button={house_button_count})")
 
-    print("腳本完成", flush=True)
+    if cplus_driver:
+        cplus_driver.quit()
+        logging.info("CPLUS WebDriver 關閉")
+    if barge_driver:
+        barge_driver.quit()
+        logging.info("Barge WebDriver 關閉")
+    logging.info("腳本完成")
 
 if __name__ == "__main__":
     setup_environment()
