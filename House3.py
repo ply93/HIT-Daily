@@ -202,7 +202,6 @@ def cplus_login(driver, wait):
     driver.save_screenshot("cplus_login_failure.png")
     raise Exception("CPLUS: 登入失敗")
 
-
 def process_cplus_movement(driver, wait, initial_files):
     logging.info("CPLUS: 直接前往 Container Movement Log...")
     driver.get("https://cplus.hit.com.hk/app/#/enquiry/ContainerMovementLog")
