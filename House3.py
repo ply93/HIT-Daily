@@ -139,144 +139,32 @@ def cplus_login(driver, wait):
     logging.info("CPLUS: 嘗試打開網站 https://cplus.hit.com.hk/frontpage/#/")
     driver.get("https://cplus.hit.com.hk/frontpage/#/")
     logging.info(f"CPLUS: 網站已成功打開，當前 URL: {driver.current_url}")
-    wait_for_page_load(driver)
-
-    logging.info("CPLUS: 點擊登錄按鈕...")
-    for attempt in range(MAX_RETRIES):
-        try:
-            login_button_pre = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
-            driver.execute_script("arguments[0].scrollIntoView(true);", login_button_pre)
-            ActionChains(driver).move_to_element(login_button_pre).click().perform()
-            logging.info("CPLUS: 登錄按鈕點擊成功")
-            break
-        except (TimeoutException, ElementClickInterceptedException, StaleElementReferenceException) as e:
-            logging.warning(f"CPLUS: 登錄按鈕點擊失敗 (嘗試 {attempt+1}/{MAX_RETRIES}): {str(e)}")
-            driver.save_screenshot(f"login_button_failure_attempt_{attempt+1}.png")
-            with open(f"login_button_failure_attempt_{attempt+1}.html", "w", encoding="utf-8") as f:
-                f.write(driver.page_source)
-            if attempt < MAX_RETRIES - 1:
-                time.sleep(1)
-            else:
-                raise Exception("CPLUS: 登錄按鈕點擊失敗")
-
-    logging.info("CPLUS: 等待登錄彈出視窗...")
-    for attempt in range(MAX_RETRIES):
-        try:
-            # 假設彈出視窗是一個包含輸入欄位的對話框，使用通用選擇器定位
-            dialog = wait.until(EC.presence_of_element_located((By.XPATH, "//div[contains(@class, 'MuiDialog-container') or contains(@class, 'modal') or contains(@class, 'popup') or contains(@class, 'dialog')]")))
-            logging.info("CPLUS: 登錄彈出視窗檢測到")
-            break
-        except TimeoutException:
-            logging.warning(f"CPLUS: 未檢測到登錄彈出視窗 (嘗試 {attempt+1}/{MAX_RETRIES})")
-            driver.save_screenshot(f"login_dialog_failure_attempt_{attempt+1}.png")
-            with open(f"login_dialog_failure_attempt_{attempt+1}.html", "w", encoding="utf-8") as f:
-                f.write(driver.page_source)
-            if attempt < MAX_RETRIES - 1:
-                time.sleep(1)
-            else:
-                raise Exception("CPLUS: 未檢測到登錄彈出視窗")
-
+    time.sleep(2)
+    logging.info("CPLUS: 點擊登錄前按鈕...")
+    login_button_pre = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
+    ActionChains(driver).move_to_element(login_button_pre).click().perform()
+    logging.info("CPLUS: 登錄前按鈕點擊成功")
+    time.sleep(2)
     logging.info("CPLUS: 輸入 COMPANY CODE...")
-    for attempt in range(MAX_RETRIES):
-        try:
-            company_code_field = wait.until(EC.presence_of_element_located((By.XPATH, "//input[@id='companyCode' or contains(@placeholder, 'Company Code') or contains(@name, 'companyCode')]")))
-            company_code_field.clear()
-            company_code_field.send_keys("CKL")
-            logging.info("CPLUS: COMPANY CODE 輸入完成")
-            break
-        except (TimeoutException, NoSuchElementException) as e:
-            logging.warning(f"CPLUS: COMPANY CODE 輸入欄位未找到 (嘗試 {attempt+1}/{MAX_RETRIES}): {str(e)}")
-            driver.save_screenshot(f"company_code_failure_attempt_{attempt+1}.png")
-            with open(f"company_code_failure_attempt_{attempt+1}.html", "w", encoding="utf-8") as f:
-                f.write(driver.page_source)
-            if attempt < MAX_RETRIES - 1:
-                time.sleep(1)
-            else:
-                raise Exception("CPLUS: COMPANY CODE 輸入欄位未找到")
-
+    company_code_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='companyCode']")))
+    company_code_field.send_keys("CKL")
+    logging.info("CPLUS: COMPANY CODE 輸入完成")
+    time.sleep(1)
     logging.info("CPLUS: 輸入 USER ID...")
-    for attempt in range(MAX_RETRIES):
-        try:
-            user_id_field = wait.until(EC.presence_of_element_located((By.XPATH, "//input[@id='userId' or contains(@placeholder, 'User ID') or contains(@name, 'userId')]")))
-            user_id_field.clear()
-            user_id_field.send_keys("KEN")
-            logging.info("CPLUS: USER ID 輸入完成")
-            break
-        except (TimeoutException, NoSuchElementException) as e:
-            logging.warning(f"CPLUS: USER ID 輸入欄位未找到 (嘗試 {attempt+1}/{MAX_RETRIES}): {str(e)}")
-            driver.save_screenshot(f"user_id_failure_attempt_{attempt+1}.png")
-            with open(f"user_id_failure_attempt_{attempt+1}.html", "w", encoding="utf-8") as f:
-                f.write(driver.page_source)
-            if attempt < MAX_RETRIES - 1:
-                time.sleep(1)
-            else:
-                raise Exception("CPLUS: USER ID 輸入欄位未找到")
-
+    user_id_field = driver.find_element(By.XPATH, "//*[@id='userId']")
+    user_id_field.send_keys("KEN")
+    logging.info("CPLUS: USER ID 輸入完成")
+    time.sleep(1)
     logging.info("CPLUS: 輸入 PASSWORD...")
-    for attempt in range(MAX_RETRIES):
-        try:
-            password_field = wait.until(EC.presence_of_element_located((By.XPATH, "//input[@id='passwd' or contains(@placeholder, 'Password') or contains(@type, 'password') or contains(@name, 'password')]")))
-            password_field.clear()
-            password_field.send_keys(os.environ.get('SITE_PASSWORD'))
-            logging.info("CPLUS: PASSWORD 輸入完成")
-            break
-        except (TimeoutException, NoSuchElementException) as e:
-            logging.warning(f"CPLUS: PASSWORD 輸入欄位未找到 (嘗試 {attempt+1}/{MAX_RETRIES}): {str(e)}")
-            driver.save_screenshot(f"password_failure_attempt_{attempt+1}.png")
-            with open(f"password_failure_attempt_{attempt+1}.html", "w", encoding="utf-8") as f:
-                f.write(driver.page_source)
-            if attempt < MAX_RETRIES - 1:
-                time.sleep(1)
-            else:
-                raise Exception("CPLUS: PASSWORD 輸入欄位未找到")
-
-    logging.info("CPLUS: 點擊彈出視窗中的 LOGIN 按鈕...")
-    for attempt in range(MAX_RETRIES):
-        try:
-            # 嘗試使用原始 XPath 並結合更廣泛的選擇器
-            login_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[(@id='root'//button or contains(@class, 'MuiButton') or contains(@class, 'MuiButtonBase-root')) and (contains(text(), 'Login') or contains(text(), 'Sign In') or contains(text(), 'Submit'))] | //*[@id='root']/div/div[1]/header/div/div[4]/div[2]/div/div/form/button/span[1]")))
-            driver.execute_script("arguments[0].scrollIntoView(true);", login_button)
-            wait.until(EC.visibility_of(login_button))
-            time.sleep(0.5)
-            ActionChains(driver).move_to_element(login_button).click().perform()
-            logging.info("CPLUS: LOGIN 按鈕點擊成功")
-            break
-        except (TimeoutException, ElementClickInterceptedException, StaleElementReferenceException) as e:
-            logging.warning(f"CPLUS: LOGIN 按鈕點擊失敗 (嘗試 {attempt+1}/{MAX_RETRIES}): {str(e)}")
-            driver.save_screenshot(f"login_submit_failure_attempt_{attempt+1}.png")
-            with open(f"login_submit_failure_attempt_{attempt+1}.html", "w", encoding="utf-8") as f:
-                f.write(driver.page_source)
-            if attempt < MAX_RETRIES - 1:
-                try:
-                    # 備用 JavaScript 點擊
-                    login_button = driver.find_element(By.XPATH, "//button[(@id='root'//button or contains(@class, 'MuiButton') or contains(@class, 'MuiButtonBase-root')) and (contains(text(), 'Login') or contains(text(), 'Sign In') or contains(text(), 'Submit'))] | //*[@id='root']/div/div[1]/header/div/div[4]/div[2]/div/div/form/button/span[1]")
-                    driver.execute_script("arguments[0].click();", login_button)
-                    logging.info("CPLUS: LOGIN 按鈕 JavaScript 點擊成功")
-                    break
-                except Exception as js_e:
-                    logging.warning(f"CPLUS: LOGIN 按鈕 JavaScript 點擊失敗 (嘗試 {attempt+1}/{MAX_RETRIES}): {str(js_e)}")
-                    driver.save_screenshot(f"login_submit_js_failure_attempt_{attempt+1}.png")
-                    with open(f"login_submit_js_failure_attempt_{attempt+1}.html", "w", encoding="utf-8") as f:
-                        f.write(driver.page_source)
-                    time.sleep(1)
-            else:
-                raise Exception("CPLUS: LOGIN 按鈕點擊失敗")
-
-    logging.info("CPLUS: 等待登錄完成...")
-    for attempt in range(MAX_RETRIES):
-        try:
-            WebDriverWait(driver, 5).until(EC.url_contains("/app"))
-            logging.info("CPLUS: 登錄成功，當前 URL: {}".format(driver.current_url))
-            break
-        except TimeoutException:
-            logging.warning(f"CPLUS: 登錄後跳轉未完成 (嘗試 {attempt+1}/{MAX_RETRIES})")
-            driver.save_screenshot(f"login_redirect_failure_attempt_{attempt+1}.png")
-            with open(f"login_redirect_failure_attempt_{attempt+1}.html", "w", encoding="utf-8") as f:
-                f.write(driver.page_source)
-            if attempt < MAX_RETRIES - 1:
-                time.sleep(1)
-            else:
-                raise Exception("CPLUS: 登錄後跳轉失敗")
+    password_field = driver.find_element(By.XPATH, "//*[@id='passwd']")
+    password_field.send_keys(os.environ.get('SITE_PASSWORD'))
+    logging.info("CPLUS: PASSWORD 輸入完成")
+    time.sleep(1)
+    logging.info("CPLUS: 點擊 LOGIN 按鈕...")
+    login_button = driver.find_element(By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/div[2]/div/div/form/button/span[1]")
+    ActionChains(driver).move_to_element(login_button).click().perform()
+    logging.info("CPLUS: LOGIN 按鈕點擊成功")
+    time.sleep(2)
 
 def process_cplus_movement(driver, wait, initial_files):
     logging.info("CPLUS: 直接前往 Container Movement Log...")
