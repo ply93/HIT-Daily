@@ -137,7 +137,7 @@ def cplus_login(driver, wait):
     logging.info("CPLUS: PASSWORD 輸入完成")
 
     logging.info("CPLUS: 點擊 LOGIN 按鈕...")
-    login_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/div[2]/div/div/form/button/span[1]")))
+    login_button = driver.find_element(By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/div[2]/div/div/form/button/span[1]")
     login_button.click()
     logging.info("CPLUS: LOGIN 按鈕點擊成功")
     WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
