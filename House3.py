@@ -476,7 +476,7 @@ def process_cplus_house(driver, wait, initial_files):
 
     if button_count == 0:
         logging.debug("未找到 Excel 按鈕，嘗試備用定位...")
-        excel_buttons = driver.find_elements(By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button Six
+        excel_buttons = driver.find_elements(By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button[not(@aria-label='menu') and contains(@class, 'MuiIconButton-root') and not(@disabled)]")
         button_count = len(excel_buttons)
         logging.info(f"備用定位找到 {button_count} 個 Excel 下載按鈕")
 
