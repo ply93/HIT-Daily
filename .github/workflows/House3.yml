@@ -62,6 +62,13 @@ jobs:
           date
           echo "Timezone verified."
 
+      - name: Monitor resources
+        run: |
+          echo "Memory usage:"
+          free -h
+          echo "CPU usage:"
+          top -bn1 | head -n 10
+
       - name: Run Download Script
         env:
           SITE_PASSWORD: ${{ secrets.SITE_PASSWORD }}
