@@ -231,36 +231,36 @@ def cplus_login(driver, wait):
                 raise Exception("CPLUS: PASSWORD 輸入欄位未找到")
 
     logging.info("CPLUS: 點擊彈出視窗中的 LOGIN 按鈕...")
-        for attempt in range(MAX_RETRIES):
-            try:
-                # 嘗試使用原始 XPath 並結合更廣泛的選擇器
-                login_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[(@id='root'//button or contains(@class, 'MuiButton') or contains(@class, 'MuiButtonBase-root')) and (contains(text(), 'Login') or contains(text(), 'Sign In') or contains(text(), 'Submit'))] | //*[@id='root']/div/div[1]/header/div/div[4]/div[2]/div/div/form/button/span[1]")))
-                driver.execute_script("arguments[0].scrollIntoView(true);", login_button)
-                wait.until(EC.visibility_of(login_button))
-                time.sleep(0.5)
-                ActionChains(driver).move_to_element(login_button).click().perform()
-                logging.info("CPLUS: LOGIN 按鈕點擊成功")
-                break
-            except (TimeoutException, ElementClickInterceptedException, StaleElementReferenceException) as e:
-                logging.warning(f"CPLUS: LOGIN 按鈕點擊失敗 (嘗試 {attempt+1}/{MAX_RETRIES}): {str(e)}")
-                driver.save_screenshot(f"login_submit_failure_attempt_{attempt+1}.png")
-                with open(f"login_submit_failure_attempt_{attempt+1}.html", "w", encoding="utf-8") as f:
-                    f.write(driver.page_source)
-                if attempt < MAX_RETRIES - 1:
-                    try:
-                        # 備用 JavaScript 點擊
-                        login_button = driver.find_element(By.XPATH, "//button[(@id='root'//button or contains(@class, 'MuiButton') or contains(@class, 'MuiButtonBase-root')) and (contains(text(), 'Login') or contains(text(), 'Sign In') or contains(text(), 'Submit'))] | //*[@id='root']/div/div[1]/header/div/div[4]/div[2]/div/div/form/button/span[1]")
-                        driver.execute_script("arguments[0].click();", login_button)
-                        logging.info("CPLUS: LOGIN 按鈕 JavaScript 點擊成功")
-                        break
-                    except Exception as js_e:
-                        logging.warning(f"CPLUS: LOGIN 按鈕 JavaScript 點擊失敗 (嘗試 {attempt+1}/{MAX_RETRIES}): {str(js_e)}")
-                        driver.save_screenshot(f"login_submit_js_failure_attempt_{attempt+1}.png")
-                        with open(f"login_submit_js_failure_attempt_{attempt+1}.html", "w", encoding="utf-8") as f:
-                            f.write(driver.page_source)
-                        time.sleep(1)
-                else:
-                    raise Exception("CPLUS: LOGIN 按鈕點擊失敗")
+    for attempt in range(MAX_RETRIES):
+        try:
+            # 嘗試使用原始 XPath 並結合更廣泛的選擇器
+            login_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[(@id='root'//button or contains(@class, 'MuiButton') or contains(@class, 'MuiButtonBase-root')) and (contains(text(), 'Login') or contains(text(), 'Sign In') or contains(text(), 'Submit'))] | //*[@id='root']/div/div[1]/header/div/div[4]/div[2]/div/div/form/button/span[1]")))
+            driver.execute_script("arguments[0].scrollIntoView(true);", login_button)
+            wait.until(EC.visibility_of(login_button))
+            time.sleep(0.5)
+            ActionChains(driver).move_to_element(login_button).click().perform()
+            logging.info("CPLUS: LOGIN 按鈕點擊成功")
+            break
+        except (TimeoutException, ElementClickInterceptedException, StaleElementReferenceException) as e:
+            logging.warning(f"CPLUS: LOGIN 按鈕點擊失敗 (嘗試 {attempt+1}/{MAX_RETRIES}): {str(e)}")
+            driver.save_screenshot(f"login_submit_failure_attempt_{attempt+1}.png")
+            with open(f"login_submit_failure_attempt_{attempt+1}.html", "w", encoding="utf-8") as f:
+                f.write(driver.page_source)
+            if attempt < MAX_RETRIES - 1:
+                try:
+                    # 備用 JavaScript 點擊
+                    login_button = driver.find_element(By.XPATH, "//button[(@id='root'//button or contains(@class, 'MuiButton') or contains(@class, 'MuiButtonBase-root')) and (contains(text(), 'Login') or contains(text(), 'Sign In') or contains(text(), 'Submit'))] | //*[@id='root']/div/div[1]/header/div/div[4]/div[2]/div/div/form/button/span[1]")
+                    driver.execute_script("arguments[0].click();", login_button)
+                    logging.info("CPLUS: LOGIN 按鈕 JavaScript 點擊成功")
+                    break
+                except Exception as js_e:
+                    logging.warning(f"CPLUS: LOGIN 按鈕 JavaScript 點擊失敗 (嘗試 {attempt+1}/{MAX_RETRIES}): {str(js_e)}")
+                    driver.save_screenshot(f"login_submit_js_failure_attempt_{attempt+1}.png")
+                    with open(f"login_submit_js_failure_attempt_{attempt+1}.html", "w", encoding="utf-8") as f:
+                        f.write(driver.page_source)
+                    time.sleep(1)
+            else:
+                raise Exception("CPLUS: LOGIN 按鈕點擊失敗")
 
     logging.info("CPLUS: 等待登錄完成...")
     for attempt in range(MAX_RETRIES):
