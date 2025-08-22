@@ -103,23 +103,6 @@ def wait_for_page_load(driver, timeout=WAIT_TIMEOUT):
     except TimeoutException:
         logging.warning("頁面加載超時，繼續嘗試操作")
 
-def check_network(url, timeout=7, retries=5):
-    for attempt in range(retries):
-        try:
-            response = requests.get(url, timeout=timeout)
-            if response.status_code == 200:
-                logging.info(f"網絡檢查成功: {url}")
-                return True
-            else:
-                logging.warning(f"網絡檢查失敗，狀態碼: {response.status_code}")
-                return False
-        except requests.RequestException as e:
-            logging.warning(f"網絡檢查失敗 (嘗試 {attempt+1}/{retries}): {str(e)}")
-            if attempt < retries - 1:
-                time.sleep(1)
-    logging.error(f"網絡檢查失敗: {url}")
-    return False
-
 def handle_popup(driver, wait):
     try:
         error_div = WebDriverWait(driver, 3).until(
@@ -152,56 +135,41 @@ def handle_popup(driver, wait):
             f.write(driver.page_source)
 
 def cplus_login(driver, wait):
-    for attempt in range(3):  # 最多重試 3 次
-        print(f"CPLUS: 嘗試打開網站 https://cplus.hit.com.hk/frontpage/#/ (嘗試 {attempt+1}/3)...", flush=True)
-        try:
-            driver.get("https://cplus.hit.com.hk/frontpage/#/")
-            wait = WebDriverWait(driver, 5)  # 頁面加載超時 5 秒
-            wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
-            print(f"CPLUS: 網站已成功打開，當前 URL: {driver.current_url}", flush=True)
-            time.sleep(0.5)
+    logging.info("CPLUS: 嘗試打開網站 https://cplus.hit.com.hk/frontpage/#/")
+    driver.get("https://cplus.hit.com.hk/frontpage/#/")
+    logging.info(f"CPLUS: 網站已成功打開，當前 URL: {driver.current_url}")
+    time.sleep(2)
 
-            print("CPLUS: 點擊登錄前按鈕...", flush=True)
-            login_button_pre = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
-            ActionChains(driver).move_to_element(login_button_pre).click().perform()
-            print("CPLUS: 登錄前按鈕點擊成功", flush=True)
-            time.sleep(0.5)
+    logging.info("CPLUS: 點擊登錄前按鈕...")
+    login_button_pre = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
+    ActionChains(driver).move_to_element(login_button_pre).click().perform()
+    logging.info("CPLUS: 登錄前按鈕點擊成功")
+    time.sleep(2)
 
-            print("CPLUS: 輸入 COMPANY CODE...", flush=True)
-            company_code_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='companyCode']")))
-            company_code_field.send_keys("CKL")
-            print("CPLUS: COMPANY CODE 輸入完成", flush=True)
-            time.sleep(0.5)
+    logging.info("CPLUS: 輸入 COMPANY CODE...")
+    company_code_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='companyCode']")))
+    company_code_field.send_keys("CKL")
+    logging.info("CPLUS: COMPANY CODE 輸入完成")
+    time.sleep(1)
 
-            print("CPLUS: 輸入 USER ID...", flush=True)
-            user_id_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='userId']")))
-            user_id_field.send_keys("KEN")
-            print("CPLUS: USER ID 輸入完成", flush=True)
-            time.sleep(0.5)
+    logging.info("CPLUS: 輸入 USER ID...")
+    user_id_field = driver.find_element(By.XPATH, "//*[@id='userId']")
+    user_id_field.send_keys("KEN")
+    logging.info("CPLUS: USER ID 輸入完成")
+    time.sleep(1)
 
-            print("CPLUS: 輸入 PASSWORD...", flush=True)
-            password_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='passwd']")))
-            password_field.send_keys(os.environ.get('SITE_PASSWORD'))
-            print("CPLUS: PASSWORD 輸入完成", flush=True)
-            time.sleep(0.5)
+    logging.info("CPLUS: 輸入 PASSWORD...")
+    password_field = driver.find_element(By.XPATH, "//*[@id='passwd']")
+    password_field.send_keys(os.environ.get('SITE_PASSWORD'))
+    logging.info("CPLUS: PASSWORD 輸入完成")
+    time.sleep(1)
 
-            print("CPLUS: 點擊 LOGIN 按鈕...", flush=True)
-            login_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/div[2]/div/div/form/button/span[1]")))
-            ActionChains(driver).move_to_element(login_button).click().perform()
-            print("CPLUS: LOGIN 按鈕點擊成功", flush=True)
-            time.sleep(0.5)
-            return
-        except Exception as e:
-            print(f"CPLUS 登入嘗試 {attempt+1}/3 失敗: {str(e)}", flush=True)
-            driver.save_screenshot(f"cplus_login_failure_attempt_{attempt+1}.png")
-            with open(f"cplus_login_failure_attempt_{attempt+1}.html", "w", encoding="utf-8") as f:
-                f.write(driver.page_source)
-            if attempt < 2:
-                time.sleep(1)
-    print("CPLUS: 登入失敗，記錄頁面狀態...", flush=True)
-    driver.save_screenshot("cplus_login_failure.png")
-    raise Exception("CPLUS: 登入失敗")
-
+    logging.info("CPLUS: 點擊 LOGIN 按鈕...")
+    login_button = driver.find_element(By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/div[2]/div/div/form/button/span[1]")
+    ActionChains(driver).move_to_element(login_button).click().perform()
+    logging.info("CPLUS: LOGIN 按鈕點擊成功")
+    time.sleep(2)
+    
 def process_cplus_movement(driver, wait, initial_files):
     logging.info("CPLUS: 直接前往 Container Movement Log...")
     driver.get("https://cplus.hit.com.hk/app/#/enquiry/ContainerMovementLog")
