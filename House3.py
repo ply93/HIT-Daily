@@ -546,7 +546,6 @@ def barge_login(driver, wait):
     wait.until(EC.visibility_of(login_button_barge))
     driver.execute_script("arguments[0].scrollIntoView(true);", login_button_barge)
     time.sleep(0.5)
-    handle_popup(driver, wait)
     login_button_barge.click()
     logging.info("LOGIN 按鈕點擊成功")
 
@@ -571,13 +570,11 @@ def process_barge_download(driver, wait, initial_files):
             wait.until(EC.visibility_of(report_type_trigger))
             driver.execute_script("arguments[0].scrollIntoView(true);", report_type_trigger)
             time.sleep(0.5)
-            handle_popup(driver, wait)
             report_type_trigger.click()
             logging.info("Report Type 選擇開始")
             break
         except (TimeoutException, ElementClickInterceptedException, StaleElementReferenceException) as e:
             logging.warning(f"Report Type 按鈕點擊失敗 (嘗試 {attempt+1}/3, URL: {driver.current_url}): {str(e)}")
-            handle_popup(driver, wait)
             driver.save_screenshot(f"barge_report_type_failure_attempt_{attempt+1}.png")
             with open(f"barge_report_type_failure_attempt_{attempt+1}.html", "w", encoding="utf-8") as f:
                 f.write(driver.page_source)
@@ -600,13 +597,11 @@ def process_barge_download(driver, wait, initial_files):
             wait.until(EC.visibility_of(container_detail_option))
             driver.execute_script("arguments[0].scrollIntoView(true);", container_detail_option)
             time.sleep(0.5)
-            handle_popup(driver, wait)
             container_detail_option.click()
             logging.info("Container Detail 點擊成功")
             break
         except (TimeoutException, ElementClickInterceptedException, StaleElementReferenceException) as e:
             logging.warning(f"Container Detail 按鈕點擊失敗 (嘗試 {attempt+1}/3, URL: {driver.current_url}): {str(e)}")
-            handle_popup(driver, wait)
             driver.save_screenshot(f"barge_container_detail_failure_attempt_{attempt+1}.png")
             with open(f"barge_container_detail_failure_attempt_{attempt+1}.html", "w", encoding="utf-8") as f:
                 f.write(driver.page_source)
@@ -630,13 +625,11 @@ def process_barge_download(driver, wait, initial_files):
             wait.until(EC.visibility_of(download_button_barge))
             driver.execute_script("arguments[0].scrollIntoView(true);", download_button_barge)
             time.sleep(0.5)
-            handle_popup(driver, wait)
             download_button_barge.click()
             logging.info("Download 按鈕點擊成功")
             break
         except (TimeoutException, ElementClickInterceptedException, StaleElementReferenceException) as e:
             logging.warning(f"Download 按鈕點擊失敗 (嘗試 {attempt+1}/3, URL: {driver.current_url}): {str(e)}")
-            handle_popup(driver, wait)
             driver.save_screenshot(f"barge_download_failure_attempt_{attempt+1}.png")
             with open(f"barge_download_failure_attempt_{attempt+1}.html", "w", encoding="utf-8") as f:
                 f.write(driver.page_source)
@@ -706,7 +699,6 @@ def process_barge():
                 wait.until(EC.visibility_of(logout_toolbar_barge))
                 driver.execute_script("arguments[0].scrollIntoView(true);", logout_toolbar_barge)
                 time.sleep(0.5)
-                handle_popup(driver, wait)
                 logout_toolbar_barge.click()
                 logging.info("工具欄點擊成功")
                 logout_span_xpath = "//div[contains(@class, 'mat-menu-panel')]//button//span[contains(text(), 'Logout') and not(@aria-label='menu')]"
@@ -714,7 +706,6 @@ def process_barge():
                 wait.until(EC.visibility_of(logout_button_barge))
                 driver.execute_script("arguments[0].scrollIntoView(true);", logout_button_barge)
                 time.sleep(0.5)
-                handle_popup(driver, wait)
                 logout_button_barge.click()
                 logging.info("Logout 選項點擊成功")
         except Exception as e:
