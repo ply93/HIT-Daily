@@ -7,6 +7,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        run: echo "Starting repository checkout..."
+
       - name: Cache dependencies
         uses: actions/cache@v4
         with:
@@ -14,42 +16,68 @@ jobs:
             ~/.cache/pip
             ~/.wdm
             ~/chromium-bin
-          key: ${{ runner.os }}-pip-chromium-wdm-${{ hashFiles('**/requirements.txt') }}
+          key: ${{ runner.os }}-pip-chromium-wdm-${{ hashFiles('House3.py') }}
           restore-keys: |
             ${{ runner.os }}-pip-chromium-wdm-
+        run: echo "Caching dependencies..."
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.9'
+        run: echo "Setting up Python 3.9..."
+
       - name: Install dependencies
         run: |
-          pip install --no-cache-dir selenium webdriver-manager pytz
+          echo "Installing Python dependencies..."
+          pip install --no-cache-dir selenium==4.8.0 webdriver-manager==3.8.5 pytz==2023.3
+          echo "Installing Chromium and Chromedriver..."
           mkdir -p ~/chromium-bin
           if [ ! -f ~/chromium-bin/chromium-browser ] || [ ! -f ~/chromium-bin/chromedriver ]; then
-            sudo apt-get update -qq || true
-            sudo apt-get install -y chromium-browser chromium-chromedriver || true
-            sudo cp /usr/bin/chromium-browser ~/chromium-bin/ || cp /usr/bin/chromium-browser ~/chromium-bin/
-            sudo cp /usr/bin/chromedriver ~/chromium-bin/ || cp /usr/bin/chromedriver ~/chromium-bin/
+            sudo apt-get update -qq
+            sudo apt-get install -y chromium-browser chromium-chromedriver
+            sudo cp /usr/bin/chromium-browser ~/chromium-bin/
+            sudo cp /usr/bin/chromedriver ~/chromium-bin/
+            [ -f ~/chromium-bin/chromium-browser ] && [ -f ~/chromium-bin/chromedriver ] || { echo "Error: Chromium or Chromedriver installation failed"; exit 1; }
           fi
+          echo "Dependencies installed successfully."
+
       - name: Set timezone to HKT
         run: |
+          echo "Setting timezone to Asia/Hong_Kong..."
           sudo ln -sf /usr/share/zoneinfo/Asia/Hong_Kong /etc/localtime
           sudo sh -c 'echo "Asia/Hong_Kong" > /etc/timezone'
+
       - name: Verify timezone
-        run: date
+        run: |
+          echo "Verifying timezone..."
+          if [ "$(cat /etc/timezone)" != "Asia/Hong_Kong" ]; then
+            echo "Error: Timezone is not set to Asia/Hong_Kong"
+            exit 1
+          fi
+          date
+          echo "Timezone verified."
+
       - name: Run Download Script
         env:
           SITE_PASSWORD: ${{ secrets.SITE_PASSWORD }}
           ZOHO_EMAIL: ${{ secrets.ZOHO_EMAIL }}
           ZOHO_PASSWORD: ${{ secrets.ZOHO_PASSWORD }}
           BARGE_PASSWORD: ${{ secrets.BARGE_PASSWORD }}
-        run: python House3.py
-      - name: Upload artifacts # 新加步驟
-        if: always() # 即使失敗都上傳
+        run: |
+          echo "Running House3.py..."
+          python House3.py || { echo "Error: House3.py failed"; exit 1; }
+          echo "House3.py completed."
+
+      - name: Upload artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: debug-files
           path: |
-            *.png
-            *.html
-            *.txt # 上傳 screenshot, html, logs
+            downloads_cplus/*.png
+            downloads_cplus/*.html
+            downloads_barge/*.png
+            downloads_barge/*.html
+            *.txt
+        run: echo "Uploading debug artifacts..."
