@@ -595,35 +595,36 @@ def main():
     barge_files = set()
     cplus_driver = None
     barge_driver = None
-    def update_cplus(result):
-        files, count, button_count, drv = result
-        cplus_files.update(files)
-        house_file_count[0] = count
-        house_button_count[0] = button_count
-        nonlocal cplus_driver
-        cplus_driver = drv
-    def update_barge(result):
-        files, drv = result
-        barge_files.update(files)
-        nonlocal barge_driver
-        barge_driver = drv
-    cplus_thread = threading.Thread(target=lambda: update_cplus(process_cplus()))
-    barge_thread = threading.Thread(target=lambda: update_barge(process_barge()))
-    cplus_thread.start()
-    barge_thread.start()
-    cplus_thread.join()
-    barge_thread.join()
+
+    # 按順序執行 CPLUS 處理
+    cplus_result = process_cplus()
+    cplus_files.update(cplus_result[0])
+    house_file_count[0] = cplus_result[1]
+    house_button_count[0] = cplus_result[2]
+    cplus_driver = cplus_result[3]
+    logging.info("CPLUS 處理完成")
+
+    # 按順序執行 Barge 處理
+    barge_result = process_barge()
+    barge_files.update(barge_result[0])
+    barge_driver = barge_result[1]
+    logging.info("Barge 處理完成")
+
+    # 檢查所有下載文件
     logging.info("檢查所有下載文件...")
     downloaded_files = [f for f in os.listdir(cplus_download_dir) if f.endswith(('.csv', '.xlsx'))] + [f for f in os.listdir(barge_download_dir) if f.endswith(('.csv', '.xlsx'))]
     logging.info(f"總下載文件: {len(downloaded_files)} 個")
     for file in downloaded_files:
         logging.info(f"找到檔案: {file}")
+
+    # 後續郵件發送和清理邏輯保持不變
     required_patterns = {'movement': 'cntrMoveLog', 'onhand': 'data_', 'barge': 'ContainerDetailReport'}
     housekeep_prefixes = ['IE2_', 'DM1C_', 'IA17_', 'GA1_', 'IA5_', 'IA15_']
     has_required = all(any(pattern in f for f in downloaded_files) for pattern in required_patterns.values())
     house_files = [f for f in downloaded_files if any(p in f for p in housekeep_prefixes)]
     house_download_count = len(house_files)
     house_ok = (house_button_count[0] == 0) or (house_download_count >= house_button_count[0])
+
     if has_required and house_ok:
         logging.info("所有必須文件齊全，開始發送郵件...")
         try:
@@ -696,6 +697,7 @@ def main():
             logging.error(f"郵件發送失敗: {str(e)}")
     else:
         logging.warning(f"文件不齊全: 缺少必須文件 (has_required={has_required}) 或 House文件不足 (download={house_download_count}, button={house_button_count[0]})")
+
     if cplus_driver:
         cplus_driver.quit()
         logging.info("CPLUS WebDriver 關閉")
@@ -703,6 +705,7 @@ def main():
         barge_driver.quit()
         logging.info("Barge WebDriver 關閉")
     logging.info("腳本完成")
+
 if __name__ == "__main__":
     setup_environment()
     main()
