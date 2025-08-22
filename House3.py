@@ -169,99 +169,104 @@ def cplus_login(driver, wait):
     time.sleep(2)
     
 def process_cplus_movement(driver, wait, initial_files):
-    logging.info("CPLUS: 前往 Container Movement Log...")
-    driver.get("https://cplus.hit.com.hk/app/#/enquiry/ContainerMovementLog")
-    wait_for_page_load(driver)
-    wait.until(EC.presence_of_element_located((By.ID, "root")))
-    wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "form")))
-    logging.info("CPLUS: Container Movement Log 頁面加載完成")
-
-    logging.info("CPLUS: 點擊 Search...")
-    local_initial = initial_files.copy()
-    for attempt in range(3):  # 增加嘗試次數
+    for page_attempt in range(3):  # 最多重試頁面 3 次
+        print(f"CPLUS: 直接前往 Container Movement Log (嘗試 {page_attempt+1}/3)...", flush=True)
+        driver.get("https://cplus.hit.com.hk/app/#/enquiry/ContainerMovementLog")
+        time.sleep(1)
         try:
-            search_button = WebDriverWait(driver, 60).until(
-                EC.element_to_be_clickable((By.CSS_SELECTOR, "button.MuiButton-containedPrimary span.MuiButton-label"))
-            )
-            driver.execute_script("arguments[0].scrollIntoView(true);", search_button)
-            driver.execute_script("arguments[0].click();", search_button)
-            logging.info("CPLUS: Search 按鈕點擊成功")
-            break
+            wait = WebDriverWait(driver, 5)
+            wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
+            wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[2]//form")))
+            print("CPLUS: Container Movement Log 頁面加載完成", flush=True)
         except TimeoutException:
-            logging.debug(f"CPLUS: CSS 選擇器未找到，嘗試備用定位 {attempt+1}/3...")
+            print(f"CPLUS: Container Movement Log 頁面加載失敗 (嘗試 {page_attempt+1}/3)，記錄頁面狀態...", flush=True)
+            driver.save_screenshot(f"movement_page_failure_attempt_{page_attempt+1}.png")
+            with open(f"movement_page_failure_attempt_{page_attempt+1}.html", "w", encoding="utf-8") as f:
+                f.write(driver.page_source)
+            if page_attempt < 2:
+                continue
+            raise Exception("CPLUS: Container Movement Log 頁面加載失敗")
+
+        print("CPLUS: 點擊 Search...", flush=True)
+        local_initial = initial_files.copy()
+        for attempt in range(2):
             try:
-                search_button = WebDriverWait(driver, 60).until(
-                    EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'MuiButtonBase-root') and .//span[contains(text(), 'Search')]]"))
-                )
-                driver.execute_script("arguments[0].scrollIntoView(true);", search_button)
-                driver.execute_script("arguments[0].click();", search_button)
-                logging.info("CPLUS: 備用 Search 按鈕點擊成功")
+                search_button = WebDriverWait(driver, 2).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[1]/div/form/div[2]/div/div[4]/button")))
+                wait.until(EC.visibility_of(search_button))
+                ActionChains(driver).move_to_element(search_button).click().perform()
+                print("CPLUS: Search 按鈕點擊成功", flush=True)
                 break
             except TimeoutException:
-                logging.debug(f"CPLUS: 備用定位失敗，嘗試通用定位 {attempt+1}/3...")
+                print(f"CPLUS: Search 按鈕未找到，嘗試備用定位 {attempt+1}/2...", flush=True)
                 try:
-                    search_button = WebDriverWait(driver, 60).until(
-                        EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Search')]"))
-                    )
-                    driver.execute_script("arguments[0].scrollIntoView(true);", search_button)
-                    driver.execute_script("arguments[0].click();", search_button)
-                    logging.info("CPLUS: 通用 Search 按鈕點擊成功")
+                    search_button = WebDriverWait(driver, 2).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'MuiButtonBase-root') and .//span[contains(text(), 'Search')]]")))
+                    wait.until(EC.visibility_of(search_button))
+                    ActionChains(driver).move_to_element(search_button).click().perform()
+                    print("CPLUS: 備用 Search 按鈕 1 點擊成功", flush=True)
                     break
                 except TimeoutException:
-                    logging.error(f"CPLUS: Search 按鈕定位失敗 (嘗試 {attempt+1}/3)，記錄頁面狀態...")
-                    driver.save_screenshot(f"movement_search_failure_attempt_{attempt+1}.png")
-                    with open(f"movement_search_failure_attempt_{attempt+1}.html", "w", encoding="utf-8") as f:
-                        f.write(driver.page_source)
-                    if attempt == 2:
-                        raise Exception("CPLUS: Container Movement Log Search 按鈕點擊失敗")
-
-    logging.info("CPLUS: 點擊 Download...")
-    for attempt in range(3):
-        try:
-            download_button = WebDriverWait(driver, 60).until(
-                EC.element_to_be_clickable((By.CSS_SELECTOR, "button[aria-label='download'] span.MuiButton-label"))
-            )
-            driver.execute_script("arguments[0].scrollIntoView(true);", download_button)
-            driver.execute_script("arguments[0].click();", download_button)
-            logging.info("CPLUS: Download 按鈕點擊成功")
-            break
-        except TimeoutException:
-            logging.debug(f"CPLUS: Download 按鈕未找到，嘗試備用定位 {attempt+1}/3...")
-            try:
-                download_button = WebDriverWait(driver, 60).until(
-                    EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'MuiButtonBase-root') and .//span[contains(text(), 'Download')]]"))
-                )
-                driver.execute_script("arguments[0].scrollIntoView(true);", download_button)
-                driver.execute_script("arguments[0].click();", download_button)
-                logging.info("CPLUS: 備用 Download 按鈕點擊成功")
-                break
-            except TimeoutException:
-                logging.error(f"CPLUS: Download 按鈕定位失敗 (嘗試 {attempt+1}/3)，記錄頁面狀態...")
-                driver.save_screenshot(f"movement_download_failure_attempt_{attempt+1}.png")
-                with open(f"movement_download_failure_attempt_{attempt+1}.html", "w", encoding="utf-8") as f:
-                    f.write(driver.page_source)
-                if attempt == 2:
-                    raise Exception("CPLUS: Container Movement Log Download 按鈕點擊失敗")
-
-    new_files = wait_for_new_file(cplus_download_dir, local_initial)
-    if new_files:
-        logging.info(f"CPLUS: Container Movement Log 下載完成，檔案位於: {cplus_download_dir}")
-        filtered_files = {f for f in new_files if "cntrMoveLog" in f}
-        for file in filtered_files:
-            logging.info(f"CPLUS: 新下載檔案: {file}")
-        if not filtered_files:
-            logging.warning("CPLUS: 未下載預期檔案 (cntrMoveLog.xlsx)，記錄頁面狀態...")
-            driver.save_screenshot("movement_download_failure.png")
-            with open("movement_download_failure.html", "w", encoding="utf-8") as f:
+                    print(f"CPLUS: 備用 Search 按鈕 1 失敗，嘗試備用定位 2 (嘗試 {attempt+1}/2)...", flush=True)
+                    try:
+                        search_button = WebDriverWait(driver, 2).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Search') or contains(@class, 'MuiButton-contained')]")))
+                        wait.until(EC.visibility_of(search_button))
+                        ActionChains(driver).move_to_element(search_button).click().perform()
+                        print("CPLUS: 備用 Search 按鈕 2 點擊成功", flush=True)
+                        break
+                    except TimeoutException:
+                        print(f"CPLUS: 備用 Search 按鈕 2 失敗 (嘗試 {attempt+1}/2)", flush=True)
+        else:
+            print(f"CPLUS: Container Movement Log Search 按鈕點擊失敗 (嘗試 {page_attempt+1}/3)，記錄頁面狀態...", flush=True)
+            driver.save_screenshot(f"movement_search_failure_attempt_{page_attempt+1}.png")
+            with open(f"movement_search_failure_attempt_{page_attempt+1}.html", "w", encoding="utf-8") as f:
                 f.write(driver.page_source)
-            raise Exception("CPLUS: Container Movement Log 未下載預期檔案")
-        return filtered_files
-    else:
-        logging.warning("CPLUS: Container Movement Log 未觸發新文件下載，記錄頁面狀態...")
-        driver.save_screenshot("movement_download_failure.png")
-        with open("movement_download_failure.html", "w", encoding="utf-8") as f:
-            f.write(driver.page_source)
-        raise Exception("CPLUS: Container Movement Log 未觸發新文件下載")
+            if page_attempt < 2:
+                continue
+            raise Exception("CPLUS: Container Movement Log Search 按鈕點擊失敗")
+
+        print("CPLUS: 點擊 Download...", flush=True)
+        for attempt in range(2):
+            try:
+                download_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[2]/div/div[2]/div/div[1]/div[1]/button")))
+                wait.until(EC.visibility_of(download_button))
+                ActionChains(driver).move_to_element(download_button).click().perform()
+                print("CPLUS: Download 按鈕點擊成功", flush=True)
+                time.sleep(0.5)
+                try:
+                    driver.execute_script("arguments[0].click();", download_button)
+                    print("CPLUS: Download 按鈕 JavaScript 點擊成功", flush=True)
+                except Exception as js_e:
+                    print(f"CPLUS: Download 按鈕 JavaScript 點擊失敗: {str(js_e)}", flush=True)
+                time.sleep(0.5)
+                break
+            except Exception as e:
+                print(f"CPLUS: Download 按鈕點擊失敗 (嘗試 {attempt+1}/2): {str(e)}", flush=True)
+                time.sleep(0.5)
+        else:
+            print(f"CPLUS: Container Movement Log Download 按鈕點擊失敗 (嘗試 {page_attempt+1}/3)，記錄頁面狀態...", flush=True)
+            driver.save_screenshot(f"movement_download_failure_attempt_{page_attempt+1}.png")
+            with open(f"movement_download_failure_attempt_{page_attempt+1}.html", "w", encoding="utf-8") as f:
+                f.write(driver.page_source)
+            if page_attempt < 2:
+                continue
+            raise Exception("CPLUS: Container Movement Log Download 按鈕點擊失敗")
+
+        new_files = wait_for_new_file(local_initial, timeout=6)
+        if new_files:
+            print(f"CPLUS: Container Movement Log 下載完成，檔案位於: {download_dir}", flush=True)
+            filtered_files = {f for f in new_files if "cntrMoveLog" in f}
+            for file in filtered_files:
+                print(f"CPLUS: 新下載檔案: {file}", flush=True)
+            if not filtered_files:
+                print(f"CPLUS: 未下載預期檔案 (cntrMoveLog.xlsx)，記錄頁面狀態...", flush=True)
+                driver.save_screenshot(f"movement_download_failure_attempt_{page_attempt+1}.png")
+                raise Exception("CPLUS: Container Movement Log 未下載預期檔案")
+            return filtered_files
+        else:
+            print(f"CPLUS: Container Movement Log 未觸發新文件下載 (嘗試 {page_attempt+1}/3)，記錄頁面狀態...", flush=True)
+            driver.save_screenshot(f"movement_download_failure_attempt_{page_attempt+1}.png")
+            if page_attempt < 2:
+                continue
+            raise Exception("CPLUS: Container Movement Log 未觸發新文件下載")
 
 def process_cplus_onhand(driver, wait, initial_files):
     logging.info("CPLUS: 前往 OnHandContainerList 頁面...")
