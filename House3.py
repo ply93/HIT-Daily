@@ -14,7 +14,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, NoSuchElementException, ElementClickInterceptedException
+from selenium.common.exceptions import TimeoutException, NoSuchElementException, ElementClickInterceptedException, StaleElementReferenceException
 from dotenv import load_dotenv
 import requests
 
@@ -32,7 +32,7 @@ logging.basicConfig(
 download_dir = os.path.abspath("downloads")
 MAX_RETRIES = 3
 DOWNLOAD_TIMEOUT = 10
-WAIT_TIMEOUT = 5  # 縮短 WebDriverWait 時間
+WAIT_TIMEOUT = 4  # 縮短 WebDriverWait 時間
 
 def clear_download_dirs():
     if os.path.exists(download_dir):
@@ -103,7 +103,7 @@ def wait_for_page_load(driver, timeout=WAIT_TIMEOUT):
     except TimeoutException:
         logging.warning("頁面加載超時，繼續嘗試操作")
 
-def check_network(url, timeout=5, retries=5):
+def check_network(url, timeout=7, retries=5):
     for attempt in range(retries):
         try:
             response = requests.get(url, timeout=timeout)
@@ -123,9 +123,9 @@ def check_network(url, timeout=5, retries=5):
 def handle_popup(driver, wait):
     try:
         error_div = WebDriverWait(driver, 3).until(
-            EC.presence_of_element_located((By.XPATH, "//div[contains(text(), 'System Error') or contains(@class, 'MuiDialog-container') or contains(@class, 'MuiDialog') and not(@aria-label='menu')]"))
+            EC.presence_of_element_located((By.XPATH, "//div[contains(text(), 'System Error') or contains(@class, 'MuiDialog-container') or contains(@class, 'MuiDialog') or contains(@class, 'MuiBackdrop-root')]"))
         )
-        logging.info("檢測到彈出視窗")
+        logging.info("檢測到彈出視窗或遮罩層")
         close_button = wait.until(
             EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Close') or contains(text(), 'OK') or contains(text(), 'Cancel') or contains(text(), 'Dismiss') or contains(@class, 'MuiButton') or contains(@class, 'MuiDialogActions-root') and not(@aria-label='menu')]"))
         )
@@ -140,12 +140,12 @@ def handle_popup(driver, wait):
             driver.execute_script("arguments[0].click();", close_button)
             logging.info("關閉按鈕 JavaScript 點擊成功")
         WebDriverWait(driver, 3).until(
-            EC.invisibility_of_element_located((By.XPATH, "//div[contains(text(), 'System Error') or contains(@class, 'MuiDialog-container') or contains(@class, 'MuiDialog')]"))
+            EC.invisibility_of_element_located((By.XPATH, "//div[contains(text(), 'System Error') or contains(@class, 'MuiDialog-container') or contains(@class, 'MuiDialog') or contains(@class, 'MuiBackdrop-root')]"))
         )
-        logging.info("彈出視窗已消失")
+        logging.info("彈出視窗或遮罩層已消失")
     except TimeoutException:
-        logging.debug("無彈出視窗檢測到")
-    except ElementClickInterceptedException as e:
+        logging.debug("無彈出視窗或遮罩層檢測到")
+    except (ElementClickInterceptedException, StaleElementReferenceException) as e:
         logging.warning(f"關閉彈出視窗失敗: {str(e)}")
         driver.save_screenshot("popup_close_failure.png")
         with open("popup_close_failure.html", "w", encoding="utf-8") as f:
@@ -154,8 +154,12 @@ def handle_popup(driver, wait):
 def cplus_login(driver, wait):
     logging.info("嘗試打開網站 https://cplus.hit.com.hk/frontpage/#/")
     if not check_network("https://cplus.hit.com.hk"):
-        logging.error("CPLUS 網站網絡不可用")
-        raise Exception("CPLUS 網站網絡不可用")
+        logging.warning("CPLUS 網站網絡不可用，嘗試重新加載")
+        driver.refresh()
+        time.sleep(1)
+        if not check_network("https://cplus.hit.com.hk"):
+            logging.error("CPLUS 網站網絡不可用")
+            raise Exception("CPLUS 網站網絡不可用")
     driver.get("https://cplus.hit.com.hk/frontpage/#/")
     wait_for_page_load(driver)
     logging.info(f"網站已成功打開，當前 URL: {driver.current_url}")
@@ -171,7 +175,7 @@ def cplus_login(driver, wait):
             login_button_pre.click()
             logging.info("登錄前按鈕點擊成功")
             break
-        except (TimeoutException, ElementClickInterceptedException) as e:
+        except (TimeoutException, ElementClickInterceptedException, StaleElementReferenceException) as e:
             logging.warning(f"登錄前按鈕點擊失敗 (嘗試 {attempt+1}/3, URL: {driver.current_url}): {str(e)}")
             handle_popup(driver, wait)
             driver.save_screenshot(f"cplus_login_pre_failure_attempt_{attempt+1}.png")
@@ -217,7 +221,7 @@ def cplus_login(driver, wait):
             login_button.click()
             logging.info("LOGIN 按鈕點擊成功")
             break
-        except (TimeoutException, ElementClickInterceptedException) as e:
+        except (TimeoutException, ElementClickInterceptedException, StaleElementReferenceException) as e:
             logging.warning(f"LOGIN 按鈕點擊失敗 (嘗試 {attempt+1}/3, URL: {driver.current_url}): {str(e)}")
             handle_popup(driver, wait)
             driver.save_screenshot(f"cplus_login_failure_attempt_{attempt+1}.png")
@@ -239,6 +243,8 @@ def process_cplus_movement(driver, wait, initial_files):
         logging.info(f"直接前往 Container Movement Log (嘗試 {page_attempt+1}/3)...")
         if not check_network("https://cplus.hit.com.hk"):
             logging.warning(f"CPLUS 網站網絡不可用 (嘗試 {page_attempt+1}/3)")
+            driver.refresh()
+            time.sleep(1)
             if page_attempt < 2:
                 continue
             raise Exception("CPLUS 網站網絡不可用")
@@ -255,7 +261,7 @@ def process_cplus_movement(driver, wait, initial_files):
                 f.write(driver.page_source)
             if page_attempt < 2:
                 driver.refresh()
-                time.sleep(1)
+                wait_for_page_load(driver)
                 continue
             raise Exception("Container Movement Log 頁面加載失敗")
 
@@ -263,24 +269,26 @@ def process_cplus_movement(driver, wait, initial_files):
         local_initial = initial_files.copy()
         for attempt in range(3):
             try:
-                search_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[1]/div/form/div[2]/div/div[4]/button[not(@aria-label='menu')]")))
+                search_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//div[@id='root']//form//button[@type='submit' and contains(@class, 'MuiButton-containedPrimary') and not(@aria-label='menu')]")))
                 wait.until(EC.visibility_of(search_button))
                 driver.execute_script("arguments[0].scrollIntoView(true);", search_button)
-                time.sleep(0.5)
+                time.sleep(1)  # 確保遮罩層消失
                 handle_popup(driver, wait)
                 search_button.click()
                 logging.info("Search 按鈕點擊成功")
                 break
-            except (TimeoutException, ElementClickInterceptedException) as e:
+            except (TimeoutException, ElementClickInterceptedException, StaleElementReferenceException) as e:
                 logging.warning(f"Search 按鈕定位或點擊失敗 (嘗試 {attempt+1}/3, URL: {driver.current_url}): {str(e)}")
                 handle_popup(driver, wait)
                 driver.save_screenshot(f"movement_search_failure_attempt_{attempt+1}.png")
                 with open(f"movement_search_failure_attempt_{attempt+1}.html", "w", encoding="utf-8") as f:
                     f.write(driver.page_source)
                 if attempt < 2:
+                    driver.refresh()
+                    wait_for_page_load(driver)
                     continue
                 try:
-                    search_button = driver.find_element(By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[1]/div/form/div[2]/div/div[4]/button[not(@aria-label='menu')]")
+                    search_button = driver.find_element(By.XPATH, "//div[@id='root']//form//button[@type='submit' and contains(@class, 'MuiButton-containedPrimary') and not(@aria-label='menu')]")
                     driver.execute_script("arguments[0].click();", search_button)
                     logging.info("Search 按鈕 JavaScript 點擊成功")
                     break
@@ -288,10 +296,21 @@ def process_cplus_movement(driver, wait, initial_files):
                     logging.error(f"Search 按鈕 JavaScript 點擊失敗: {str(js_e)}")
                     raise Exception("Container Movement Log Search 按鈕點擊失敗")
 
+        logging.info("等待數據表加載...")
+        try:
+            wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "table.MuiTable-root")))
+            logging.info("數據表加載完成")
+        except TimeoutException:
+            logging.warning("數據表加載失敗，記錄頁面狀態...")
+            driver.save_screenshot("movement_table_failure.png")
+            with open("movement_table_failure.html", "w", encoding="utf-8") as f:
+                f.write(driver.page_source)
+            raise Exception("Container Movement Log 數據表加載失敗")
+
         logging.info("點擊 Download...")
         for attempt in range(3):
             try:
-                download_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[2]/div/div[2]/div/div[1]/div[1]/button[not(@aria-label='menu')]")))
+                download_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//div[@id='root']//button[contains(text(), 'Download') or contains(@aria-label, 'download') and not(@aria-label='menu')]")))
                 wait.until(EC.visibility_of(download_button))
                 driver.execute_script("arguments[0].scrollIntoView(true);", download_button)
                 time.sleep(0.5)
@@ -299,16 +318,24 @@ def process_cplus_movement(driver, wait, initial_files):
                 download_button.click()
                 logging.info("Download 按鈕點擊成功")
                 break
-            except (TimeoutException, ElementClickInterceptedException) as e:
+            except (TimeoutException, ElementClickInterceptedException, StaleElementReferenceException) as e:
                 logging.warning(f"Download 按鈕點擊失敗 (嘗試 {attempt+1}/3, URL: {driver.current_url}): {str(e)}")
                 handle_popup(driver, wait)
                 driver.save_screenshot(f"movement_download_failure_attempt_{attempt+1}.png")
                 with open(f"movement_download_failure_attempt_{attempt+1}.html", "w", encoding="utf-8") as f:
                     f.write(driver.page_source)
                 if attempt < 2:
+                    driver.refresh()
+                    wait_for_page_load(driver)
+                    try:
+                        search_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//div[@id='root']//form//button[@type='submit' and contains(@class, 'MuiButton-containedPrimary') and not(@aria-label='menu')]")))
+                        search_button.click()
+                        logging.info("重新點擊 Search 按鈕")
+                    except Exception:
+                        logging.warning("重新點擊 Search 按鈕失敗")
                     continue
                 try:
-                    download_button = driver.find_element(By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[2]/div/div[2]/div/div[1]/div[1]/button[not(@aria-label='menu')]")
+                    download_button = driver.find_element(By.XPATH, "//div[@id='root']//button[contains(text(), 'Download') or contains(@aria-label, 'download') and not(@aria-label='menu')]")
                     driver.execute_script("arguments[0].click();", download_button)
                     logging.info("Download 按鈕 JavaScript 點擊成功")
                     break
@@ -337,8 +364,12 @@ def process_cplus_movement(driver, wait, initial_files):
 def process_cplus_onhand(driver, wait, initial_files):
     logging.info("前往 OnHandContainerList 頁面...")
     if not check_network("https://cplus.hit.com.hk"):
-        logging.warning("CPLUS 網站網絡不可用，跳過嘗試")
-        raise Exception("CPLUS 網站網絡不可用")
+        logging.warning("CPLUS 網站網絡不可用，嘗試重新加載")
+        driver.refresh()
+        time.sleep(1)
+        if not check_network("https://cplus.hit.com.hk"):
+            logging.warning("CPLUS 網站網絡不可用，跳過嘗試")
+            raise Exception("CPLUS 網站網絡不可用")
     driver.get("https://cplus.hit.com.hk/app/#/enquiry/OnHandContainerList")
     wait_for_page_load(driver)
     try:
@@ -355,15 +386,15 @@ def process_cplus_onhand(driver, wait, initial_files):
     local_initial = initial_files.copy()
     for attempt in range(3):
         try:
-            search_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//div[@id='root']//div[contains(@class, 'MuiPaper-root')]//form//button[contains(text(), 'Search') and not(@aria-label='menu')]")))
+            search_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//div[@id='root']//form//button[contains(text(), 'Search') and not(@aria-label='menu')]")))
             wait.until(EC.visibility_of(search_button))
             driver.execute_script("arguments[0].scrollIntoView(true);", search_button)
-            time.sleep(0.5)
+            time.sleep(1)  # 確保遮罩層消失
             handle_popup(driver, wait)
             search_button.click()
             logging.info("Search 按鈕點擊成功")
             break
-        except (TimeoutException, ElementClickInterceptedException) as e:
+        except (TimeoutException, ElementClickInterceptedException, StaleElementReferenceException) as e:
             logging.warning(f"Search 按鈕定位或點擊失敗 (嘗試 {attempt+1}/3, URL: {driver.current_url}): {str(e)}")
             handle_popup(driver, wait)
             driver.save_screenshot(f"onhand_search_failure_attempt_{attempt+1}.png")
@@ -372,10 +403,9 @@ def process_cplus_onhand(driver, wait, initial_files):
             if attempt < 2:
                 driver.refresh()
                 wait_for_page_load(driver)
-                time.sleep(0.5)
                 continue
             try:
-                search_button = driver.find_element(By.XPATH, "//div[@id='root']//div[contains(@class, 'MuiPaper-root')]//form//button[contains(text(), 'Search') and not(@aria-label='menu')]")
+                search_button = driver.find_element(By.XPATH, "//div[@id='root']//form//button[contains(text(), 'Search') and not(@aria-label='menu')]")
                 driver.execute_script("arguments[0].click();", search_button)
                 logging.info("Search 按鈕 JavaScript 點擊成功")
                 break
@@ -386,7 +416,7 @@ def process_cplus_onhand(driver, wait, initial_files):
     logging.info("點擊 Export...")
     for attempt in range(3):
         try:
-            export_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//div[@id='root']//div[contains(@class, 'MuiPaper-root')]//button[contains(text(), 'Export') or contains(@aria-label, 'export') and not(@aria-label='menu')]")))
+            export_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//div[@id='root']//button[contains(text(), 'Export') or contains(@aria-label, 'export') or contains(@class, 'MuiButton-contained') and not(@aria-label='menu')]")))
             wait.until(EC.visibility_of(export_button))
             driver.execute_script("arguments[0].scrollIntoView(true);", export_button)
             time.sleep(0.5)
@@ -394,7 +424,7 @@ def process_cplus_onhand(driver, wait, initial_files):
             export_button.click()
             logging.info("Export 按鈕點擊成功")
             break
-        except (TimeoutException, ElementClickInterceptedException) as e:
+        except (TimeoutException, ElementClickInterceptedException, StaleElementReferenceException) as e:
             logging.warning(f"Export 按鈕定位或點擊失敗 (嘗試 {attempt+1}/3, URL: {driver.current_url}): {str(e)}")
             handle_popup(driver, wait)
             driver.save_screenshot(f"onhand_export_failure_attempt_{attempt+1}.png")
@@ -403,10 +433,9 @@ def process_cplus_onhand(driver, wait, initial_files):
             if attempt < 2:
                 driver.refresh()
                 wait_for_page_load(driver)
-                time.sleep(0.5)
                 continue
             try:
-                export_button = driver.find_element(By.XPATH, "//div[@id='root']//div[contains(@class, 'MuiPaper-root')]//button[contains(text(), 'Export') or contains(@aria-label, 'export') and not(@aria-label='menu')]")
+                export_button = driver.find_element(By.XPATH, "//div[@id='root']//button[contains(text(), 'Export') or contains(@aria-label, 'export') or contains(@class, 'MuiButton-contained') and not(@aria-label='menu')]")
                 driver.execute_script("arguments[0].click();", export_button)
                 logging.info("Export 按鈕 JavaScript 點擊成功")
                 break
@@ -425,7 +454,7 @@ def process_cplus_onhand(driver, wait, initial_files):
             export_csv_button.click()
             logging.info("Export as CSV 按鈕點擊成功")
             break
-        except (TimeoutException, ElementClickInterceptedException) as e:
+        except (TimeoutException, ElementClickInterceptedException, StaleElementReferenceException) as e:
             logging.warning(f"Export as CSV 按鈕定位或點擊失敗 (嘗試 {attempt+1}/3, URL: {driver.current_url}): {str(e)}")
             handle_popup(driver, wait)
             driver.save_screenshot(f"onhand_export_csv_failure_attempt_{attempt+1}.png")
@@ -466,8 +495,12 @@ def process_cplus_onhand(driver, wait, initial_files):
 def process_cplus_house(driver, wait, initial_files):
     logging.info("前往 Housekeeping Reports 頁面...")
     if not check_network("https://cplus.hit.com.hk"):
-        logging.warning("CPLUS 網站網絡不可用，跳過嘗試")
-        raise Exception("CPLUS 網站網絡不可用")
+        logging.warning("CPLUS 網站網絡不可用，嘗試重新加載")
+        driver.refresh()
+        time.sleep(1)
+        if not check_network("https://cplus.hit.com.hk"):
+            logging.warning("CPLUS 網站網絡不可用，跳過嘗試")
+            raise Exception("CPLUS 網站網絡不可用")
     driver.get("https://cplus.hit.com.hk/app/#/report/housekeepReport")
     wait_for_page_load(driver)
     try:
@@ -547,7 +580,7 @@ def process_cplus_house(driver, wait, initial_files):
                 driver.save_screenshot(f"house_button_{idx+1}_failure.png")
                 with open(f"house_button_{idx+1}_failure.html", "w", encoding="utf-8") as f:
                     f.write(driver.page_source)
-        except (TimeoutException, ElementClickInterceptedException) as e:
+        except (TimeoutException, ElementClickInterceptedException, StaleElementReferenceException) as e:
             logging.error(f"第 {idx+1} 個 Excel 按鈕點擊失敗 (URL: {driver.current_url}): {str(e)}")
             handle_popup(driver, wait)
             driver.save_screenshot(f"house_button_{idx+1}_failure.png")
@@ -648,7 +681,7 @@ def process_cplus():
                     logging.info("Logout 後 CLOSE 按鈕點擊成功")
                 except TimeoutException:
                     logging.warning("Logout 後無 CLOSE 按鈕，跳過")
-        except (TimeoutException, ElementClickInterceptedException) as e:
+        except (TimeoutException, ElementClickInterceptedException, StaleElementReferenceException) as e:
             logging.error(f"登出失敗 (URL: {driver.current_url}): {str(e)}")
             handle_popup(driver, wait)
             driver.save_screenshot("cplus_logout_failure.png")
@@ -658,8 +691,12 @@ def process_cplus():
 def barge_login(driver, wait):
     logging.info("嘗試打開網站 https://barge.oneport.com/login...")
     if not check_network("https://barge.oneport.com"):
-        logging.warning("Barge 網站網絡不可用，跳過嘗試")
-        raise Exception("Barge 網站網絡不可用")
+        logging.warning("Barge 網站網絡不可用，嘗試重新加載")
+        driver.refresh()
+        time.sleep(1)
+        if not check_network("https://barge.oneport.com"):
+            logging.warning("Barge 網站網絡不可用，跳過嘗試")
+            raise Exception("Barge 網站網絡不可用")
     driver.get("https://barge.oneport.com/login")
     logging.info(f"網站已成功打開，當前 URL: {driver.current_url}")
 
@@ -693,8 +730,12 @@ def barge_login(driver, wait):
 def process_barge_download(driver, wait, initial_files):
     logging.info("直接前往 https://barge.oneport.com/downloadReport...")
     if not check_network("https://barge.oneport.com"):
-        logging.warning("Barge 網站網絡不可用，跳過嘗試")
-        raise Exception("Barge 網站網絡不可用")
+        logging.warning("Barge 網站網絡不可用，嘗試重新加載")
+        driver.refresh()
+        time.sleep(1)
+        if not check_network("https://barge.oneport.com"):
+            logging.warning("Barge 網站網絡不可用，跳過嘗試")
+            raise Exception("Barge 網站網絡不可用")
     driver.get("https://barge.oneport.com/downloadReport")
     wait_for_page_load(driver)
     wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
@@ -711,7 +752,7 @@ def process_barge_download(driver, wait, initial_files):
             report_type_trigger.click()
             logging.info("Report Type 選擇開始")
             break
-        except (TimeoutException, ElementClickInterceptedException) as e:
+        except (TimeoutException, ElementClickInterceptedException, StaleElementReferenceException) as e:
             logging.warning(f"Report Type 按鈕點擊失敗 (嘗試 {attempt+1}/3, URL: {driver.current_url}): {str(e)}")
             handle_popup(driver, wait)
             driver.save_screenshot(f"barge_report_type_failure_attempt_{attempt+1}.png")
@@ -740,7 +781,7 @@ def process_barge_download(driver, wait, initial_files):
             container_detail_option.click()
             logging.info("Container Detail 點擊成功")
             break
-        except (TimeoutException, ElementClickInterceptedException) as e:
+        except (TimeoutException, ElementClickInterceptedException, StaleElementReferenceException) as e:
             logging.warning(f"Container Detail 按鈕點擊失敗 (嘗試 {attempt+1}/3, URL: {driver.current_url}): {str(e)}")
             handle_popup(driver, wait)
             driver.save_screenshot(f"barge_container_detail_failure_attempt_{attempt+1}.png")
@@ -770,7 +811,7 @@ def process_barge_download(driver, wait, initial_files):
             download_button_barge.click()
             logging.info("Download 按鈕點擊成功")
             break
-        except (TimeoutException, ElementClickInterceptedException) as e:
+        except (TimeoutException, ElementClickInterceptedException, StaleElementReferenceException) as e:
             logging.warning(f"Download 按鈕點擊失敗 (嘗試 {attempt+1}/3, URL: {driver.current_url}): {str(e)}")
             handle_popup(driver, wait)
             driver.save_screenshot(f"barge_download_failure_attempt_{attempt+1}.png")
