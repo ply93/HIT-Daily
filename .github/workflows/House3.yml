@@ -7,7 +7,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        run: echo "Starting repository checkout..."
+      - name: Log checkout completion
+        run: echo "Repository checkout completed."
 
       - name: Cache dependencies
         uses: actions/cache@v4
@@ -19,13 +20,15 @@ jobs:
           key: ${{ runner.os }}-pip-chromium-wdm-${{ hashFiles('House3.py') }}
           restore-keys: |
             ${{ runner.os }}-pip-chromium-wdm-
-        run: echo "Caching dependencies..."
+      - name: Log cache completion
+        run: echo "Dependencies caching completed."
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.9'
-        run: echo "Setting up Python 3.9..."
+      - name: Log Python setup completion
+        run: echo "Python 3.9 setup completed."
 
       - name: Install dependencies
         run: |
@@ -47,6 +50,7 @@ jobs:
           echo "Setting timezone to Asia/Hong_Kong..."
           sudo ln -sf /usr/share/zoneinfo/Asia/Hong_Kong /etc/localtime
           sudo sh -c 'echo "Asia/Hong_Kong" > /etc/timezone'
+          echo "Timezone set to Asia/Hong_Kong."
 
       - name: Verify timezone
         run: |
@@ -80,4 +84,5 @@ jobs:
             downloads_barge/*.png
             downloads_barge/*.html
             *.txt
-        run: echo "Uploading debug artifacts..."
+      - name: Log artifact upload
+        run: echo "Debug artifacts uploaded."
