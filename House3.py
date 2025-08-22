@@ -14,7 +14,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, NoSuchElementException
+from selenium.common.exceptions import TimeoutException, NoSuchElementException, ElementClickInterceptedException
 from dotenv import load_dotenv
 import requests
 
@@ -128,6 +128,7 @@ def handle_popup(driver, wait):
 def cplus_login(driver, wait):
     logging.info("CPLUS: 嘗試打開網站 https://cplus.hit.com.hk/frontpage/#/")
     driver.get("https://cplus.hit.com.hk/frontpage/#/")
+    wait_for_page_load(driver)  # 確保頁面完全加載
     logging.info(f"CPLUS: 網站已成功打開，當前 URL: {driver.current_url}")
     time.sleep(2)
 
@@ -156,10 +157,43 @@ def cplus_login(driver, wait):
     time.sleep(1)
 
     logging.info("CPLUS: 點擊 LOGIN 按鈕...")
-    login_button = driver.find_element(By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/div[2]/div/div/form/button/span[1]")
-    login_button.click()
-    logging.info("CPLUS: LOGIN 按鈕點擊成功")
-    time.sleep(2)
+    for attempt in range(3):
+        try:
+            login_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/div[2]/div/div/form/button/span[1]")))
+            wait.until(EC.visibility_of(login_button))  # 確保按鈕可見
+            driver.execute_script("arguments[0].scrollIntoView(true);", login_button)  # 滾動到按鈕
+            time.sleep(0.5)
+            login_button.click()
+            logging.info("CPLUS: LOGIN 按鈕點擊成功")
+            time.sleep(2)
+            break
+        except ElementClickInterceptedException as e:
+            logging.warning(f"CPLUS: LOGIN 按鈕點擊被遮擋 (嘗試 {attempt+1}/3): {str(e)}")
+            driver.save_screenshot(f"cplus_login_failure_attempt_{attempt+1}.png")
+            with open(f"cplus_login_failure_attempt_{attempt+1}.html", "w", encoding="utf-8") as f:
+                f.write(driver.page_source)
+            if attempt < 2:
+                time.sleep(2)
+                continue
+            logging.error("CPLUS: LOGIN 按鈕點擊失敗，嘗試備用方法...")
+            try:
+                driver.execute_script("arguments[0].click();", login_button)  # 備用 JavaScript 點擊
+                logging.info("CPLUS: LOGIN 按鈕 JavaScript 點擊成功")
+                time.sleep(2)
+                break
+            except Exception as js_e:
+                logging.error(f"CPLUS: LOGIN 按鈕 JavaScript 點擊失敗: {str(js_e)}")
+                driver.save_screenshot("cplus_login_js_failure.png")
+                with open("cplus_login_js_failure.html", "w", encoding="utf-8") as f:
+                    f.write(driver.page_source)
+                raise Exception("CPLUS: LOGIN 按鈕點擊失敗")
+        except Exception as e:
+            logging.error(f"CPLUS: LOGIN 按鈕點擊失敗 (嘗試 {attempt+1}/3): {str(e)}")
+            driver.save_screenshot(f"cplus_login_failure_attempt_{attempt+1}.png")
+            with open(f"cplus_login_failure_attempt_{attempt+1}.html", "w", encoding="utf-8") as f:
+                f.write(driver.page_source)
+            if attempt == 2:
+                raise Exception("CPLUS: LOGIN 按鈕點擊失敗")
 
 def process_cplus_movement(driver, wait, initial_files):
     for page_attempt in range(3):
@@ -349,7 +383,7 @@ def process_cplus_house(driver, wait, initial_files):
     logging.info("CPLUS: Housekeeping Reports 頁面加載完成")
 
     logging.info("CPLUS: 等待表格加載...")
-    for attempt in range(3):  # 增加重試次數
+    for attempt in range(3):
         try:
             rows = wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "table.MuiTable-root tbody tr")))
             if len(rows) == 0 or all(not row.text.strip() for row in rows):
@@ -437,7 +471,7 @@ def process_cplus():
         driver = webdriver.Chrome(options=get_chrome_options(download_dir))
         logging.info("CPLUS WebDriver 初始化成功")
         driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-        wait = WebDriverWait(driver, 30)  # 增加等待時間
+        wait = WebDriverWait(driver, 60)  # 增加等待時間
         cplus_login(driver, wait)
         sections = [
             ('movement', process_cplus_movement),
@@ -567,7 +601,7 @@ def process_barge():
         driver = webdriver.Chrome(options=get_chrome_options(download_dir))
         logging.info("Barge WebDriver 初始化成功")
         driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-        wait = WebDriverWait(driver, 30)  # 增加等待時間
+        wait = WebDriverWait(driver, 60)
         barge_login(driver, wait)
         success = False
         for attempt in range(MAX_RETRIES):
