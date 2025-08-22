@@ -15,17 +15,17 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.action_chains import ActionChains
-from selenium.common.exceptions import TimeoutException, ElementClickInterceptedException, NoSuchElementException
-from webdriver_manager.chrome import ChromeDriverManager
+from selenium.common.exceptions import TimeoutException, ElementClickInterceptedException, NoSuchElementException, WebDriverException
 import logging
 from dotenv import load_dotenv
+import requests
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 cplus_download_dir = os.path.abspath("downloads_cplus")
 barge_download_dir = os.path.abspath("downloads_barge")
 MAX_RETRIES = 3
-DOWNLOAD_TIMEOUT = 60  # 增加到 60 秒以應對慢速加載
+DOWNLOAD_TIMEOUT = 60  # 保持 60 秒以應對慢速加載
 
 def clear_download_dirs():
     for dir_path in [cplus_download_dir, barge_download_dir]:
@@ -36,17 +36,20 @@ def clear_download_dirs():
 
 def setup_environment():
     try:
-        result = subprocess.run(['which', 'chromium-browser'], capture_output=True, text=True)
-        if result.returncode != 0:
+        # 檢查 Chromium 版本
+        result = subprocess.run(['chromium-browser', '--version'], capture_output=True, text=True)
+        if result.returncode == 0:
+            logging.info(f"Chromium 版本: {result.stdout.strip()}")
+        else:
+            logging.warning("無法獲取 Chromium 版本，將嘗試安裝")
             subprocess.run(['sudo', 'apt-get', 'update', '-qq'], check=True)
             subprocess.run(['sudo', 'apt-get', 'install', '-y', 'chromium-browser', 'chromium-chromedriver'], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             logging.info("Chromium 及 ChromeDriver 已安裝")
-        else:
-            logging.info("Chromium 及 ChromeDriver 已存在，跳過安裝")
 
+        # 檢查 Selenium 和 WebDriver Manager
         result = subprocess.run(['pip', 'show', 'selenium'], capture_output=True, text=True)
         if "selenium" not in result.stdout or "webdriver-manager" not in subprocess.run(['pip', 'show', 'webdriver-manager'], capture_output=True, text=True).stdout:
-            subprocess.run(['pip', 'install', 'selenium', 'webdriver-manager'], check=True)
+            subprocess.run(['pip', 'install', 'selenium==4.8.0', 'webdriver-manager==3.8.5'], check=True)
             logging.info("Selenium 及 WebDriver Manager 已安裝")
         else:
             logging.info("Selenium 及 WebDriver Manager 已存在，跳過安裝")
@@ -56,7 +59,7 @@ def setup_environment():
 
 def get_chrome_options(download_dir):
     chrome_options = Options()
-    chrome_options.add_argument('--headless=new')  # 使用新的無頭模式，減少資源消耗
+    chrome_options.add_argument('--headless=new')  # 使用新的無頭模式
     chrome_options.add_argument('--no-sandbox')
     chrome_options.add_argument('--disable-dev-shm-usage')
     chrome_options.add_argument('--disable-gpu')
@@ -67,6 +70,7 @@ def get_chrome_options(download_dir):
     chrome_options.add_argument('--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
     chrome_options.add_argument('--disable-blink-features=AutomationControlled')
     chrome_options.add_experimental_option('excludeSwitches', ['enable-automation'])
+    chrome_options.add_argument('--window-size=1920,1080')  # 設置窗口大小，確保元素可見
     prefs = {
         "download.default_directory": download_dir,
         "download.prompt_for_download": False,
@@ -96,6 +100,20 @@ def wait_for_page_load(driver, timeout=60):
     except TimeoutException:
         logging.warning("頁面加載超時，繼續嘗試操作")
 
+def check_network(url, timeout=10):
+    """檢查網絡連通性"""
+    try:
+        response = requests.get(url, timeout=timeout)
+        if response.status_code == 200:
+            logging.info(f"網絡檢查成功: {url}")
+            return True
+        else:
+            logging.warning(f"網絡檢查失敗，狀態碼: {response.status_code}")
+            return False
+    except requests.RequestException as e:
+        logging.error(f"網絡檢查失敗: {e}")
+        return False
+
 def handle_popup(driver, wait):
     try:
         error_div = WebDriverWait(driver, 5).until(
@@ -115,54 +133,166 @@ def handle_popup(driver, wait):
         logging.debug("無 popup 檢測到")
 
 def cplus_login(driver, wait):
+    logging.info("CPLUS: 檢查網絡連通性...")
+    if not check_network("https://cplus.hit.com.hk"):
+        logging.error("CPLUS: 網絡連通性檢查失敗，記錄頁面狀態...")
+        driver.save_screenshot("cplus_network_failure.png")
+        with open("cplus_network_failure.html", "w", encoding="utf-8") as f:
+            f.write(driver.page_source)
+        raise Exception("CPLUS: 網絡連通性檢查失敗")
+
     logging.info("CPLUS: 嘗試打開網站 https://cplus.hit.com.hk/frontpage/#/")
     driver.get("https://cplus.hit.com.hk/frontpage/#/")
     wait_for_page_load(driver)
     logging.info(f"CPLUS: 網站已成功打開，當前 URL: {driver.current_url}")
 
+    logging.info("CPLUS: 等待登錄表單...")
+    try:
+        WebDriverWait(driver, 60).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, "form"))
+        )
+        logging.info("CPLUS: 登錄表單已加載")
+    except TimeoutException:
+        logging.error("CPLUS: 登錄表單未加載，記錄頁面狀態...")
+        driver.save_screenshot("cplus_login_form_failure.png")
+        with open("cplus_login_form_failure.html", "w", encoding="utf-8") as f:
+            f.write(driver.page_source)
+        raise Exception("CPLUS: 登錄表單未加載")
+
     logging.info("CPLUS: 點擊登錄前按鈕...")
-    login_button_pre = wait.until(
-        EC.element_to_be_clickable((By.CSS_SELECTOR, "button.MuiButtonBase-root[aria-label='login']"))
-    )
-    driver.execute_script("arguments[0].click();", login_button_pre)
-    logging.info("CPLUS: 登錄前按鈕點擊成功")
-    time.sleep(1)
+    for attempt in range(3):
+        try:
+            login_button_pre = WebDriverWait(driver, 60).until(
+                EC.element_to_be_clickable((By.CSS_SELECTOR, "button.MuiButtonBase-root[aria-label*='login'], button.MuiButtonBase-root span.MuiButton-label"))
+            )
+            driver.execute_script("arguments[0].scrollIntoView(true);", login_button_pre)
+            driver.execute_script("arguments[0].click();", login_button_pre)
+            logging.info("CPLUS: 登錄前按鈕點擊成功")
+            break
+        except (TimeoutException, WebDriverException) as e:
+            logging.debug(f"CPLUS: CSS 選擇器未找到，嘗試備用定位 {attempt+1}/3: {str(e)}")
+            try:
+                login_button_pre = WebDriverWait(driver, 60).until(
+                    EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'MuiButtonBase-root') and contains(text(), 'Login')]"))
+                )
+                driver.execute_script("arguments[0].scrollIntoView(true);", login_button_pre)
+                driver.execute_script("arguments[0].click();", login_button_pre)
+                logging.info("CPLUS: 備用 Login 按鈕點擊成功")
+                break
+            except (TimeoutException, WebDriverException) as e:
+                logging.debug(f"CPLUS: 備用定位失敗，嘗試通用定位 {attempt+1}/3: {str(e)}")
+                try:
+                    login_button_pre = WebDriverWait(driver, 60).until(
+                        EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Login')]"))
+                    )
+                    driver.execute_script("arguments[0].scrollIntoView(true);", login_button_pre)
+                    driver.execute_script("arguments[0].click();", login_button_pre)
+                    logging.info("CPLUS: 通用 Login 按鈕點擊成功")
+                    break
+                except (TimeoutException, WebDriverException) as e:
+                    logging.error(f"CPLUS: Login 按鈕定位失敗 (嘗試 {attempt+1}/3): {str(e)}")
+                    driver.save_screenshot(f"cplus_login_failure_attempt_{attempt+1}.png")
+                    with open(f"cplus_login_failure_attempt_{attempt+1}.html", "w", encoding="utf-8") as f:
+                        f.write(driver.page_source)
+                    if attempt == 2:
+                        raise Exception("CPLUS: Login 按鈕點擊失敗")
 
     logging.info("CPLUS: 輸入 COMPANY CODE...")
-    company_code_field = wait.until(
-        EC.presence_of_element_located((By.ID, "companyCode"))
-    )
-    company_code_field.clear()
-    company_code_field.send_keys("CKL")
-    logging.info("CPLUS: COMPANY CODE 輸入完成")
-    time.sleep(1)
+    try:
+        company_code_field = WebDriverWait(driver, 30).until(
+            EC.presence_of_element_located((By.ID, "companyCode"))
+        )
+        company_code_field.clear()
+        company_code_field.send_keys("CKL")
+        logging.info("CPLUS: COMPANY CODE 輸入完成")
+    except TimeoutException as e:
+        logging.error(f"CPLUS: COMPANY CODE 輸入框定位失敗: {str(e)}")
+        driver.save_screenshot("cplus_company_code_failure.png")
+        with open("cplus_company_code_failure.html", "w", encoding="utf-8") as f:
+            f.write(driver.page_source)
+        raise Exception("CPLUS: COMPANY CODE 輸入框定位失敗")
 
     logging.info("CPLUS: 輸入 USER ID...")
-    user_id_field = wait.until(
-        EC.presence_of_element_located((By.ID, "userId"))
-    )
-    user_id_field.clear()
-    user_id_field.send_keys("KEN")
-    logging.info("CPLUS: USER ID 輸入完成")
-    time.sleep(1)
+    try:
+        user_id_field = WebDriverWait(driver, 30).until(
+            EC.presence_of_element_located((By.ID, "userId"))
+        )
+        user_id_field.clear()
+        user_id_field.send_keys("KEN")
+        logging.info("CPLUS: USER ID 輸入完成")
+    except TimeoutException as e:
+        logging.error(f"CPLUS: USER ID 輸入框定位失敗: {str(e)}")
+        driver.save_screenshot("cplus_user_id_failure.png")
+        with open("cplus_user_id_failure.html", "w", encoding="utf-8") as f:
+            f.write(driver.page_source)
+        raise Exception("CPLUS: USER ID 輸入框定位失敗")
 
     logging.info("CPLUS: 輸入 PASSWORD...")
-    password_field = wait.until(
-        EC.presence_of_element_located((By.ID, "passwd"))
-    )
-    password_field.clear()
-    password_field.send_keys(os.environ.get('SITE_PASSWORD'))
-    logging.info("CPLUS: PASSWORD 輸入完成")
-    time.sleep(1)
+    try:
+        password_field = WebDriverWait(driver, 30).until(
+            EC.presence_of_element_located((By.ID, "passwd"))
+        )
+        password_field.clear()
+        password_field.send_keys(os.environ.get('SITE_PASSWORD'))
+        logging.info("CPLUS: PASSWORD 輸入完成")
+    except TimeoutException as e:
+        logging.error(f"CPLUS: PASSWORD 輸入框定位失敗: {str(e)}")
+        driver.save_screenshot("cplus_password_failure.png")
+        with open("cplus_password_failure.html", "w", encoding="utf-8") as f:
+            f.write(driver.page_source)
+        raise Exception("CPLUS: PASSWORD 輸入框定位失敗")
 
     logging.info("CPLUS: 點擊 LOGIN 按鈕...")
-    login_button = wait.until(
-        EC.element_to_be_clickable((By.CSS_SELECTOR, "button[type='submit'] span.MuiButton-label"))
-    )
-    driver.execute_script("arguments[0].click();", login_button)
-    logging.info("CPLUS: LOGIN 按鈕點擊成功")
-    wait_for_page_load(driver)
+    for attempt in range(3):
+        try:
+            login_button = WebDriverWait(driver, 60).until(
+                EC.element_to_be_clickable((By.CSS_SELECTOR, "button[type='submit'] span.MuiButton-label, button.MuiButton-containedPrimary span.MuiButton-label"))
+            )
+            driver.execute_script("arguments[0].scrollIntoView(true);", login_button)
+            driver.execute_script("arguments[0].click();", login_button)
+            logging.info("CPLUS: LOGIN 按鈕點擊成功")
+            break
+        except (TimeoutException, WebDriverException) as e:
+            logging.debug(f"CPLUS: CSS 選擇器未找到，嘗試備用定位 {attempt+1}/3: {str(e)}")
+            try:
+                login_button = WebDriverWait(driver, 60).until(
+                    EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'MuiButtonBase-root') and contains(text(), 'Login')]"))
+                )
+                driver.execute_script("arguments[0].scrollIntoView(true);", login_button)
+                driver.execute_script("arguments[0].click();", login_button)
+                logging.info("CPLUS: 備用 LOGIN 按鈕點擊成功")
+                break
+            except (TimeoutException, WebDriverException) as e:
+                logging.debug(f"CPLUS: 備用定位失敗，嘗試通用定位 {attempt+1}/3: {str(e)}")
+                try:
+                    login_button = WebDriverWait(driver, 60).until(
+                        EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Login')]"))
+                    )
+                    driver.execute_script("arguments[0].scrollIntoView(true);", login_button)
+                    driver.execute_script("arguments[0].click();", login_button)
+                    logging.info("CPLUS: 通用 LOGIN 按鈕點擊成功")
+                    break
+                except (TimeoutException, WebDriverException) as e:
+                    logging.error(f"CPLUS: LOGIN 按鈕定位失敗 (嘗試 {attempt+1}/3): {str(e)}")
+                    driver.save_screenshot(f"cplus_login_button_failure_attempt_{attempt+1}.png")
+                    with open(f"cplus_login_button_failure_attempt_{attempt+1}.html", "w", encoding="utf-8") as f:
+                        f.write(driver.page_source)
+                    if attempt == 2:
+                        raise Exception("CPLUS: LOGIN 按鈕點擊失敗")
 
+    wait_for_page_load(driver)
+    # 檢查是否登錄成功
+    try:
+        WebDriverWait(driver, 30).until(
+            EC.url_contains("app")
+        )
+        logging.info("CPLUS: 登錄成功，當前 URL: {driver.current_url}")
+    except TimeoutException:
+        logging.error("CPLUS: 登錄失敗，URL 未改變，記錄頁面狀態...")
+        driver.save_screenshot("cplus_login_verify_failure.png")
+        with open("cplus_login_verify_failure.html", "w", encoding="utf-8") as f:
+            f.write(driver.page_source)
+        raise Exception("CPLUS: 登錄失敗，URL 未改變")
 def process_cplus_movement(driver, wait, initial_files):
     logging.info("CPLUS: 前往 Container Movement Log...")
     driver.get("https://cplus.hit.com.hk/app/#/enquiry/ContainerMovementLog")
