@@ -1,8 +1,6 @@
 name: Combine 4
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '0 1 * * *'  # UTC 1:00 = HKT 9:00 (每日早晨 9:00 運行)
 
 jobs:
   download:
