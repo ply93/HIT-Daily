@@ -28,20 +28,20 @@ jobs:
           python-version: '3.9'
       - name: Log Python setup completion
         run: echo "Python 3.9 setup completed."
-      - name: Install Python dependencies
+      - name: Install dependencies
         run: |
           echo "Installing Python dependencies..."
-          pip install --no-cache-dir selenium>=4.8.0,<5.0 webdriver-manager>=3.8.5,<4.0 pytz>=2023.3
-          echo "Python dependencies installed successfully."
-      - name: Set up Chrome
-        uses: browser-actions/setup-chrome@latest
-        with:
-          chrome-version: 'stable'
-      - name: Log Chrome setup completion
-        run: |
-          echo "Chrome and Chromedriver setup completed."
-          which chromium-browser
-          which chromedriver
+          pip install --no-cache-dir selenium==4.8.0 webdriver-manager==3.8.5 pytz==2023.3
+          echo "Installing Chromium and Chromedriver..."
+          mkdir -p ~/chromium-bin
+          if [ ! -f ~/chromium-bin/chromium-browser ] || [ ! -f ~/chromium-bin/chromedriver ]; then
+            sudo apt-get update -qq
+            sudo apt-get install -y chromium-browser chromium-chromedriver
+            sudo cp /usr/bin/chromium-browser ~/chromium-bin/
+            sudo cp /usr/bin/chromedriver ~/chromium-bin/
+            [ -f ~/chromium-bin/chromium-browser ] && [ -f ~/chromium-bin/chromedriver ] || { echo "Error: Chromium or Chromedriver installation failed"; exit 1; }
+          fi
+          echo "Dependencies installed successfully."
       - name: Set timezone to HKT
         run: |
           echo "Setting timezone to Asia/Hong_Kong..."
