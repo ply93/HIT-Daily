@@ -2,6 +2,7 @@ import os
 import time
 import shutil
 import subprocess
+import random
 from datetime import datetime
 import smtplib
 from email.mime.multipart import MIMEMultipart
@@ -24,7 +25,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 cplus_download_dir = os.path.abspath("downloads_cplus")
 barge_download_dir = os.path.abspath("downloads_barge")
 MAX_RETRIES = 3
-DOWNLOAD_TIMEOUT = 30  # 延長至 30 秒
+DOWNLOAD_TIMEOUT = 60  # 延長至 60 秒
 
 def clear_download_dirs():
     for dir_path in [cplus_download_dir, barge_download_dir]:
@@ -63,7 +64,12 @@ def get_chrome_options(download_dir):
     chrome_options.add_argument('--disable-popup-blocking')
     chrome_options.add_argument('--disable-extensions')
     chrome_options.add_argument('--no-first-run')
-    chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36')
+    user_agents = [
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36"
+    ]
+    chrome_options.add_argument(f'--user-agent={random.choice(user_agents)}')
+    chrome_options.add_argument(f'--window-size={random.randint(1200, 1920)},{random.randint(800, 1080)}')
     chrome_options.add_argument('--disable-blink-features=AutomationControlled')
     chrome_options.add_experimental_option('excludeSwitches', ['enable-automation'])
     prefs = {
@@ -147,33 +153,38 @@ def cplus_login(driver, wait):
     logging.info("CPLUS: LOGIN 按鈕點擊成功")
     time.sleep(2)
 
+def simulate_user_activity(driver):
+    ActionChains(driver).move_by_offset(random.randint(-50, 50), random.randint(-50, 50)).perform()
+    driver.execute_script("window.scrollBy(0, 100);")
+    time.sleep(random.uniform(1, 3))
+
 def process_cplus_movement(driver, wait, initial_files):
     logging.info("CPLUS: 直接前往 Container Movement Log...")
     driver.get("https://cplus.hit.com.hk/app/#/enquiry/ContainerMovementLog")
     time.sleep(2)
     wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
-    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[2]//form")))
+    WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[2]//form")))
     logging.info("CPLUS: Container Movement Log 頁面加載完成")
 
     logging.info("CPLUS: 點擊 Search...")
     local_initial = initial_files.copy()
     for attempt in range(2):
         try:
-            search_button = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[1]/div/form/div[2]/div/div[4]/button")))
+            search_button = WebDriverWait(driver, 45).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[1]/div/form/div[2]/div/div[4]/button")))
             ActionChains(driver).move_to_element(search_button).click().perform()
             logging.info("CPLUS: Search 按鈕點擊成功")
             break
         except TimeoutException:
             logging.debug(f"CPLUS: Search 按鈕未找到，嘗試備用定位 {attempt+1}/2...")
             try:
-                search_button = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'MuiButtonBase-root') and .//span[contains(text(), 'Search')]]")))
+                search_button = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'MuiButtonBase-root') and .//span[contains(text(), 'Search')]]")))
                 ActionChains(driver).move_to_element(search_button).click().perform()
                 logging.info("CPLUS: 備用 Search 按鈕 1 點擊成功")
                 break
             except TimeoutException:
                 logging.debug(f"CPLUS: 備用 Search 按鈕 1 失敗，嘗試備用定位 2 (嘗試 {attempt+1}/2)...")
                 try:
-                    search_button = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Search')]")))
+                    search_button = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Search')]")))
                     ActionChains(driver).move_to_element(search_button).click().perform()
                     logging.info("CPLUS: 備用 Search 按鈕 2 點擊成功")
                     break
@@ -184,6 +195,8 @@ def process_cplus_movement(driver, wait, initial_files):
                         f.write(driver.page_source)
     else:
         raise Exception("CPLUS: Container Movement Log Search 按鈕點擊失敗")
+
+    simulate_user_activity(driver)
 
     logging.info("CPLUS: 點擊 Download...")
     for attempt in range(2):
@@ -238,21 +251,21 @@ def process_cplus_onhand(driver, wait, initial_files):
     logging.info("CPLUS: 點擊 Search...")
     local_initial = initial_files.copy()
     try:
-        search_button_onhand = WebDriverWait(driver, 45).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div[1]/form/div[1]/div[24]/div[2]/button/span[1]")))
+        search_button_onhand = WebDriverWait(driver, 60).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div[1]/form/div[1]/div[24]/div[2]/button/span[1]")))
         time.sleep(0.5)
         ActionChains(driver).move_to_element(search_button_onhand).click().perform()
         logging.info("CPLUS: Search 按鈕點擊成功")
     except TimeoutException:
         logging.debug("CPLUS: Search 按鈕未找到，嘗試備用定位...")
         try:
-            search_button_onhand = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Search') or contains(@class, 'MuiButtonBase-root')]")))
+            search_button_onhand = WebDriverWait(driver, 45).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Search') or contains(@class, 'MuiButtonBase-root')]")))
             time.sleep(0.5)
             ActionChains(driver).move_to_element(search_button_onhand).click().perform()
             logging.info("CPLUS: 備用 Search 按鈕 1 點擊成功")
         except TimeoutException:
             logging.debug("CPLUS: 備用 Search 按鈕 1 失敗，嘗試第三備用定位...")
             try:
-                search_button_onhand = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button.MuiButton-contained span.MuiButton-label")))
+                search_button_onhand = WebDriverWait(driver, 45).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button.MuiButton-contained span.MuiButton-label")))
                 time.sleep(0.5)
                 ActionChains(driver).move_to_element(search_button_onhand).click().perform()
                 logging.info("CPLUS: 第三備用 Search 按鈕點擊成功")
@@ -263,6 +276,8 @@ def process_cplus_onhand(driver, wait, initial_files):
                     f.write(driver.page_source)
                 raise Exception("CPLUS: OnHandContainerList Search 按鈕點擊失敗")
     time.sleep(0.5)
+
+    simulate_user_activity(driver)
 
     logging.info("CPLUS: 點擊 Export...")
     export_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div/div[2]/div[1]/div[1]/div/div/div[4]/div/div/span[1]/button")))
@@ -389,7 +404,7 @@ def process_cplus():
         driver = webdriver.Chrome(options=get_chrome_options(cplus_download_dir))
         logging.info("CPLUS WebDriver 初始化成功")
         driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-        wait = WebDriverWait(driver, 20)
+        wait = WebDriverWait(driver, 30)
         cplus_login(driver, wait)
         sections = [
             ('movement', process_cplus_movement),
@@ -580,6 +595,7 @@ def process_barge():
 
         except Exception as e:
             logging.error(f"Barge: 登出失敗: {str(e)}")
+
 def main():
     load_dotenv()
     clear_download_dirs()
