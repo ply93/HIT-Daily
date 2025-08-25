@@ -671,7 +671,7 @@ def main():
             msg['To'] = ', '.join(receiver_emails)
             if cc_emails:
                 msg['Cc'] = ', '.join(cc_emails)
-            msg['Subject'] = f"[TESTING] HIT DAILY {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+            msg['Subject'] = f"HIT DAILY {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
             msg.attach(MIMEText(body_html, 'html'))
             plain_text = body_html.replace('<br>', '\n').replace('<table>', '').replace('</table>', '').replace('<tr>', '\n').replace('<td>', ' | ').replace('</td>', '').replace('<th>', ' | ').replace('</th>', '').strip()
             msg.attach(MIMEText(plain_text, 'plain'))
