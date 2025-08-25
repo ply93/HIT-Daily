@@ -150,30 +150,31 @@ def cplus_login(driver, wait):
 def process_cplus_movement(driver, wait, initial_files):
     logging.info("CPLUS: 直接前往 Container Movement Log...")
     driver.get("https://cplus.hit.com.hk/app/#/enquiry/ContainerMovementLog")
+    time.sleep(2)
     wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
-    wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[2]//form")))
+    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[2]//form")))
     logging.info("CPLUS: Container Movement Log 頁面加載完成")
 
     logging.info("CPLUS: 點擊 Search...")
     local_initial = initial_files.copy()
     for attempt in range(2):
         try:
-            search_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[1]/div/form/div[2]/div/div[4]/button")))
-            search_button.click()
+            search_button = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[1]/div/form/div[2]/div/div[4]/button")))
+            ActionChains(driver).move_to_element(search_button).click().perform()
             logging.info("CPLUS: Search 按鈕點擊成功")
             break
         except TimeoutException:
             logging.debug(f"CPLUS: Search 按鈕未找到，嘗試備用定位 {attempt+1}/2...")
             try:
-                search_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'MuiButtonBase-root') and .//span[contains(text(), 'Search')]]")))
-                search_button.click()
+                search_button = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'MuiButtonBase-root') and .//span[contains(text(), 'Search')]]")))
+                ActionChains(driver).move_to_element(search_button).click().perform()
                 logging.info("CPLUS: 備用 Search 按鈕 1 點擊成功")
                 break
             except TimeoutException:
                 logging.debug(f"CPLUS: 備用 Search 按鈕 1 失敗，嘗試備用定位 2 (嘗試 {attempt+1}/2)...")
                 try:
-                    search_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Search')]")))
-                    search_button.click()
+                    search_button = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Search')]")))
+                    ActionChains(driver).move_to_element(search_button).click().perform()
                     logging.info("CPLUS: 備用 Search 按鈕 2 點擊成功")
                     break
                 except TimeoutException:
@@ -188,14 +189,22 @@ def process_cplus_movement(driver, wait, initial_files):
     for attempt in range(2):
         try:
             download_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[2]/div/div[2]/div/div[1]/div[1]/button")))
-            download_button.click()
+            ActionChains(driver).move_to_element(download_button).click().perform()
             logging.info("CPLUS: Download 按鈕點擊成功")
+            time.sleep(0.5)
+            try:
+                driver.execute_script("arguments[0].click();", download_button)
+                logging.debug("CPLUS: Download 按鈕 JavaScript 點擊成功")
+            except Exception as js_e:
+                logging.debug(f"CPLUS: Download 按鈕 JavaScript 點擊失敗: {str(js_e)}")
+            time.sleep(0.5)
             break
-        except TimeoutException:
-            logging.debug(f"CPLUS: Download 按鈕點擊失敗 (嘗試 {attempt+1}/2)")
+        except Exception as e:
+            logging.debug(f"CPLUS: Download 按鈕點擊失敗 (嘗試 {attempt+1}/2): {str(e)}")
             driver.save_screenshot("movement_download_failure.png")
             with open("movement_download_failure.html", "w", encoding="utf-8") as f:
                 f.write(driver.page_source)
+            time.sleep(0.5)
     else:
         raise Exception("CPLUS: Container Movement Log Download 按鈕點擊失敗")
 
@@ -222,26 +231,30 @@ def process_cplus_movement(driver, wait, initial_files):
 def process_cplus_onhand(driver, wait, initial_files):
     logging.info("CPLUS: 前往 OnHandContainerList 頁面...")
     driver.get("https://cplus.hit.com.hk/app/#/enquiry/OnHandContainerList")
+    time.sleep(1)
     wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
     logging.info("CPLUS: OnHandContainerList 頁面加載完成")
 
     logging.info("CPLUS: 點擊 Search...")
     local_initial = initial_files.copy()
     try:
-        search_button_onhand = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div[1]/form/div[1]/div[24]/div[2]/button/span[1]")))
-        search_button_onhand.click()
+        search_button_onhand = WebDriverWait(driver, 45).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div[1]/form/div[1]/div[24]/div[2]/button/span[1]")))
+        time.sleep(0.5)
+        ActionChains(driver).move_to_element(search_button_onhand).click().perform()
         logging.info("CPLUS: Search 按鈕點擊成功")
     except TimeoutException:
         logging.debug("CPLUS: Search 按鈕未找到，嘗試備用定位...")
         try:
-            search_button_onhand = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Search') or contains(@class, 'MuiButtonBase-root')]")))
-            search_button_onhand.click()
+            search_button_onhand = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Search') or contains(@class, 'MuiButtonBase-root')]")))
+            time.sleep(0.5)
+            ActionChains(driver).move_to_element(search_button_onhand).click().perform()
             logging.info("CPLUS: 備用 Search 按鈕 1 點擊成功")
         except TimeoutException:
             logging.debug("CPLUS: 備用 Search 按鈕 1 失敗，嘗試第三備用定位...")
             try:
-                search_button_onhand = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button.MuiButton-contained span.MuiButton-label")))
-                search_button_onhand.click()
+                search_button_onhand = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button.MuiButton-contained span.MuiButton-label")))
+                time.sleep(0.5)
+                ActionChains(driver).move_to_element(search_button_onhand).click().perform()
                 logging.info("CPLUS: 第三備用 Search 按鈕點擊成功")
             except TimeoutException:
                 logging.error("CPLUS: 所有 Search 按鈕定位失敗，記錄頁面狀態...")
@@ -249,36 +262,19 @@ def process_cplus_onhand(driver, wait, initial_files):
                 with open("onhand_search_failure.html", "w", encoding="utf-8") as f:
                     f.write(driver.page_source)
                 raise Exception("CPLUS: OnHandContainerList Search 按鈕點擊失敗")
+    time.sleep(0.5)
 
     logging.info("CPLUS: 點擊 Export...")
-    try:
-        export_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div/div[2]/div[1]/div[1]/div/div/div[4]/div/div/span[1]/button")))
-        export_button.click()
-        logging.info("CPLUS: Export 按鈕點擊成功")
-    except TimeoutException:
-        logging.debug("CPLUS: Export 按鈕未找到，嘗試備用定位...")
-        try:
-            export_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Export') or contains(@class, 'MuiButtonBase-root')]")))
-            export_button.click()
-            logging.info("CPLUS: 備用 Export 按鈕點擊成功")
-        except TimeoutException:
-            logging.error("CPLUS: 所有 Export 按鈕定位失敗，記錄頁面狀態...")
-            driver.save_screenshot("onhand_export_failure.png")
-            with open("onhand_export_failure.html", "w", encoding="utf-8") as f:
-                f.write(driver.page_source)
-            raise Exception("CPLUS: OnHandContainerList Export 按鈕點擊失敗")
+    export_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div/div[2]/div[1]/div[1]/div/div/div[4]/div/div/span[1]/button")))
+    ActionChains(driver).move_to_element(export_button).click().perform()
+    logging.info("CPLUS: Export 按鈕點擊成功")
+    time.sleep(0.5)
 
     logging.info("CPLUS: 點擊 Export as CSV...")
-    try:
-        export_csv_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//li[contains(@class, 'MuiMenuItem-root') and text()='Export as CSV']")))
-        export_csv_button.click()
-        logging.info("CPLUS: Export as CSV 按鈕點擊成功")
-    except TimeoutException:
-        logging.error("CPLUS: Export as CSV 按鈕未找到，記錄頁面狀態...")
-        driver.save_screenshot("onhand_export_csv_failure.png")
-        with open("onhand_export_csv_failure.html", "w", encoding="utf-8") as f:
-            f.write(driver.page_source)
-        raise Exception("CPLUS: OnHandContainerList Export as CSV 按鈕點擊失敗")
+    export_csv_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//li[contains(@class, 'MuiMenuItem-root') and text()='Export as CSV']")))
+    ActionChains(driver).move_to_element(export_csv_button).click().perform()
+    logging.info("CPLUS: Export as CSV 按鈕點擊成功")
+    time.sleep(0.5)
 
     new_files = wait_for_new_file(cplus_download_dir, local_initial)
     if new_files:
