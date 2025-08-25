@@ -1,6 +1,9 @@
 name: Combine 4
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '0 1 * * *'  # UTC 1:00 = HKT 9:00 (每日早晨 9:00 運行)
+
 jobs:
   download:
     runs-on: ubuntu-latest
@@ -9,7 +12,6 @@ jobs:
         uses: actions/checkout@v4
       - name: Log checkout completion
         run: echo "Repository checkout completed."
-
       - name: Cache dependencies
         uses: actions/cache@v4
         with:
@@ -22,36 +24,32 @@ jobs:
             ${{ runner.os }}-pip-chromium-wdm-
       - name: Log cache completion
         run: echo "Dependencies caching completed."
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.9'
       - name: Log Python setup completion
         run: echo "Python 3.9 setup completed."
-
-      - name: Install dependencies
+      - name: Install Python dependencies
         run: |
           echo "Installing Python dependencies..."
-          pip install --no-cache-dir selenium==4.8.0 webdriver-manager==3.8.5 pytz==2023.3
-          echo "Installing Chromium and Chromedriver..."
-          mkdir -p ~/chromium-bin
-          if [ ! -f ~/chromium-bin/chromium-browser ] || [ ! -f ~/chromium-bin/chromedriver ]; then
-            sudo apt-get update -qq
-            sudo apt-get install -y chromium-browser chromium-chromedriver
-            sudo cp /usr/bin/chromium-browser ~/chromium-bin/
-            sudo cp /usr/bin/chromedriver ~/chromium-bin/
-            [ -f ~/chromium-bin/chromium-browser ] && [ -f ~/chromium-bin/chromedriver ] || { echo "Error: Chromium or Chromedriver installation failed"; exit 1; }
-          fi
-          echo "Dependencies installed successfully."
-
+          pip install --no-cache-dir selenium>=4.8.0,<5.0 webdriver-manager>=3.8.5,<4.0 pytz>=2023.3
+          echo "Python dependencies installed successfully."
+      - name: Set up Chrome
+        uses: browser-actions/setup-chrome@latest
+        with:
+          chrome-version: 'stable'
+      - name: Log Chrome setup completion
+        run: |
+          echo "Chrome and Chromedriver setup completed."
+          which chromium-browser
+          which chromedriver
       - name: Set timezone to HKT
         run: |
           echo "Setting timezone to Asia/Hong_Kong..."
           sudo ln -sf /usr/share/zoneinfo/Asia/Hong_Kong /etc/localtime
           sudo sh -c 'echo "Asia/Hong_Kong" > /etc/timezone'
           echo "Timezone set to Asia/Hong_Kong."
-
       - name: Verify timezone
         run: |
           echo "Verifying timezone..."
@@ -61,14 +59,21 @@ jobs:
           fi
           date
           echo "Timezone verified."
-
+      - name: Verify environment variables
+        run: |
+          if [ -z "${{ secrets.SITE_PASSWORD }}" ] || [ -z "${{ secrets.ZOHO_EMAIL }}" ] || [ -z "${{ secrets.ZOHO_PASSWORD }}" ] || [ -z "${{ secrets.BARGE_PASSWORD }}" ]; then
+            echo "Error: One or more required secrets are missing"
+            exit 1
+          fi
+          echo "Environment variables verified."
       - name: Monitor resources
         run: |
-          echo "Memory usage:"
-          free -h
-          echo "CPU usage:"
-          top -bn1 | head -n 10
-
+          echo "Monitoring resources..."
+          echo "Memory usage:" > resource_usage.txt
+          free -h >> resource_usage.txt
+          echo "CPU usage:" >> resource_usage.txt
+          top -bn1 | head -n 10 >> resource_usage.txt
+          cat resource_usage.txt
       - name: Run Download Script
         env:
           SITE_PASSWORD: ${{ secrets.SITE_PASSWORD }}
@@ -76,10 +81,18 @@ jobs:
           ZOHO_PASSWORD: ${{ secrets.ZOHO_PASSWORD }}
           BARGE_PASSWORD: ${{ secrets.BARGE_PASSWORD }}
         run: |
-          echo "Running House3.py..."
-          python House3.py || { echo "Error: House3.py failed"; exit 1; }
+          for attempt in 1 2 3; do
+            echo "Running House3.py attempt $attempt..."
+            python House3.py && break
+            if [ $attempt -lt 3 ]; then
+              echo "Attempt $attempt failed, retrying in 10 seconds..."
+              sleep 10
+            else
+              echo "All attempts failed"
+              exit 1
+            fi
+          done
           echo "House3.py completed."
-
       - name: Upload artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -91,5 +104,6 @@ jobs:
             downloads_barge/*.png
             downloads_barge/*.html
             *.txt
+            resource_usage.txt
       - name: Log artifact upload
         run: echo "Debug artifacts uploaded."
