@@ -249,30 +249,26 @@ def process_cplus_onhand(driver, wait, initial_files):
     logging.info("CPLUS: 前往 OnHandContainerList 頁面...")
     driver.get("https://cplus.hit.com.hk/app/#/enquiry/OnHandContainerList")
     time.sleep(1)
-    # 新加：JS 檢查 + refresh retry（最多 2 次，避免長時間）
+    # 優化 JS 檢查 + refresh retry（最多 3 次，加 readyState 檢查）
     js_retry = 0
-    while js_retry < 2:
+    while js_retry < 3:
         try:
             js_disabled = WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'You need to enable JavaScript to run this app.')]")))
-            logging.warning("CPLUS: 偵測到 JS 未運行訊息，刷新頁面重試 (嘗試 {js_retry+1}/2)...")
+            logging.warning("CPLUS: 偵測到 JS 未運行訊息，刷新頁面重試 (嘗試 {js_retry+1}/3)...")
             driver.refresh()
-            time.sleep(1)
+            time.sleep(2)  # 短 sleep 2s，等 refresh 穩定
+            # 新加：檢查 document.readyState == 'complete'（JS 加載完）
+            ready_state = driver.execute_script("return document.readyState")
+            if ready_state != 'complete':
+                logging.warning("CPLUS: refresh 後 readyState 不完整，再試...")
             js_retry += 1
         except TimeoutException:
             logging.info("CPLUS: 無偵測到 JS 禁用訊息，繼續")
             break
-    if js_retry == 2:
-        logging.error("CPLUS: JS 加載失敗 2 次，skip OnHand")
-        return set()  # 新加：skip 但繼續腳本
+    if js_retry == 3:
+        logging.error("CPLUS: JS 加載失敗 3 次，skip OnHand")
+        return set()  # skip 但繼續
     wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
-    # 新加：wait UI form（確保 JS 跑後）
-    try:
-        WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, "form")))
-        logging.info("CPLUS: 確認 UI form 已加載")
-    except TimeoutException:
-        logging.warning("CPLUS: UI form 未加載，額外 refresh...")
-        driver.refresh()
-        wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
     logging.info("CPLUS: OnHandContainerList 頁面加載完成")
     handle_popup(driver, wait)
     logging.info("CPLUS: 點擊 Search...")
