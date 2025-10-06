@@ -64,14 +64,18 @@ def get_chrome_options(download_dir):
     chrome_options.add_argument('--disable-popup-blocking')
     chrome_options.add_argument('--disable-extensions')
     chrome_options.add_argument('--no-first-run')
+    chrome_options.add_argument('--disable-blink-features=AutomationControlled')
+    chrome_options.add_argument('--disable-infobars')
+    chrome_options.add_argument('--start-maximized')
+    chrome_options.add_argument('--disable-software-rasterizer')
+    chrome_options.add_experimental_option('excludeSwitches', ['enable-automation'])
+    chrome_options.add_experimental_option('useAutomationExtension', False)
     user_agents = [
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36"
     ]
     chrome_options.add_argument(f'--user-agent={random.choice(user_agents)}')
     chrome_options.add_argument(f'--window-size={random.randint(1200, 1920)},{random.randint(800, 1080)}')
-    chrome_options.add_argument('--disable-blink-features=AutomationControlled')
-    chrome_options.add_experimental_option('excludeSwitches', ['enable-automation'])
     prefs = {
         "download.default_directory": download_dir,
         "download.prompt_for_download": False,
@@ -245,9 +249,17 @@ def process_cplus_onhand(driver, wait, initial_files):
     logging.info("CPLUS: 前往 OnHandContainerList 頁面...")
     driver.get("https://cplus.hit.com.hk/app/#/enquiry/OnHandContainerList")
     time.sleep(1)
+    # 新加：檢查 JS 是否運行（偵測 noscript 訊息）
+    try:
+        js_disabled = WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'You need to enable JavaScript to run this app.')]")))
+        logging.warning("CPLUS: 偵測到 JS 未運行訊息，刷新頁面重試...")
+        driver.refresh()
+        time.sleep(1)
+    except TimeoutException:
+        logging.info("CPLUS: 無偵測到 JS 禁用訊息，繼續")
     wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
     logging.info("CPLUS: OnHandContainerList 頁面加載完成")
-
+    handle_popup(driver, wait)  # 預處理 popup
     logging.info("CPLUS: 點擊 Search...")
     local_initial = initial_files.copy()
     try:
@@ -276,21 +288,17 @@ def process_cplus_onhand(driver, wait, initial_files):
                     f.write(driver.page_source)
                 raise Exception("CPLUS: OnHandContainerList Search 按鈕點擊失敗")
     time.sleep(0.5)
-
     simulate_user_activity(driver)
-
     logging.info("CPLUS: 點擊 Export...")
     export_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div/div[2]/div[1]/div[1]/div/div/div[4]/div/div/span[1]/button")))
     ActionChains(driver).move_to_element(export_button).click().perform()
     logging.info("CPLUS: Export 按鈕點擊成功")
     time.sleep(0.5)
-
     logging.info("CPLUS: 點擊 Export as CSV...")
     export_csv_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//li[contains(@class, 'MuiMenuItem-root') and text()='Export as CSV']")))
     ActionChains(driver).move_to_element(export_csv_button).click().perform()
     logging.info("CPLUS: Export as CSV 按鈕點擊成功")
     time.sleep(0.5)
-
     new_files = wait_for_new_file(cplus_download_dir, local_initial)
     if new_files:
         logging.info(f"CPLUS: OnHandContainerList 下載完成，檔案位於: {cplus_download_dir}")
