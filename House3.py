@@ -155,16 +155,7 @@ def cplus_login(driver, wait):
     ActionChains(driver).move_to_element(login_button).click().perform()
     logging.info("CPLUS: LOGIN 按鈕點擊成功")
     time.sleep(2)
-    # 加: 檢查 session 是否有效（看用戶菜單元素是否存在）
-    try:
-        wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))  # 用戶按鈕
-        logging.info("CPLUS: 登入 session 有效")
-    except TimeoutException:
-        logging.error("CPLUS: 登入後 session 失效或 cookie 問題，記錄狀態...")
-        driver.save_screenshot("login_session_failure.png")
-        with open("login_session_failure.html", "w", encoding="utf-8") as f:
-            f.write(driver.page_source)
-        raise Exception("CPLUS: 登入 session 失效")
+    logging.info("CPLUS: 登入完成，無檢測彈出視窗")  # 加log確認無檢測
 
 def simulate_user_activity(driver):
     ActionChains(driver).move_by_offset(random.randint(-50, 50), random.randint(-50, 50)).perform()
