@@ -267,7 +267,7 @@ def process_cplus_onhand(driver, wait, initial_files):
             wait.until_not(EC.visibility_of_element_located((By.TAG_NAME, "noscript"))) # 如果 noscript 可見，JS 未跑
         except TimeoutException:
             logging.error("CPLUS OnHand: noscript 可見，JS 執行或相容問題，記錄狀態...")
-            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S") # 加 timestamp 避免 overwrite
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S") # 修正：移除多餘 datetime.datetime
             driver.save_screenshot(f"onhand_js_failure_{timestamp}.png")
             with open(f"onhand_js_failure_{timestamp}.html", "w", encoding="utf-8") as f:
                 f.write(driver.page_source)
@@ -280,11 +280,25 @@ def process_cplus_onhand(driver, wait, initial_files):
             except TimeoutException:
                 raise Exception("CPLUS OnHand: JS 執行或相容問題，noscript 仍可見")
         time.sleep(10)  # 新加：額外等待 JS 完全渲染
-        # 改: 檢查渲染元素是否存在（用更準 XPath match Search），加長等待時間
+        # 改: 檢查渲染元素是否存在（用更準 XPath match Search），加長等待時間，並加備用 locator
         try:
             extended_wait = WebDriverWait(driver, 60)  # 加長到 60 秒
-            extended_wait.until(EC.presence_of_element_located((By.XPATH, "//button//span[contains(text(), 'Search')]"))) # match span 內 text
-            logging.info("CPLUS OnHand: 渲染元素存在，JS 執行正常")
+            search_element_locators = [
+                (By.XPATH, "//button//span[contains(text(), 'Search')]"),  # 原有
+                (By.CSS_SELECTOR, "button.MuiButton-containedPrimary span.MuiButton-label"),  # 備用 CSS，基於 Material-UI
+                (By.XPATH, "//button[contains(@class, 'MuiButtonBase-root') and .//span[contains(text(), 'Search')]]")  # 另一備用
+            ]
+            found = False
+            for locator in search_element_locators:
+                try:
+                    extended_wait.until(EC.presence_of_element_located(locator))
+                    logging.info(f"CPLUS OnHand: 渲染元素存在（使用 locator: {locator}），JS 執行正常")
+                    found = True
+                    break
+                except TimeoutException:
+                    logging.debug(f"CPLUS OnHand: 備用 locator {locator} 未找到，試下一個...")
+            if not found:
+                raise TimeoutException("All locators failed")  # 觸發下一個 except
         except TimeoutException:
             # 新加：如果超時，嘗試刷新頁面再檢查
             logging.warning("CPLUS OnHand: 渲染元素未出現，嘗試刷新頁面...")
@@ -295,7 +309,7 @@ def process_cplus_onhand(driver, wait, initial_files):
                 logging.info("CPLUS OnHand: 刷新後渲染元素存在，JS 執行正常")
             except TimeoutException:
                 # 新加 debug 部分：儲存 screenshot 同 page_source
-                timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")  # 修正：移除多餘 datetime.datetime
                 driver.save_screenshot(f"onhand_render_failure_{timestamp}.png")
                 with open(f"onhand_render_failure_{timestamp}.html", "w", encoding="utf-8") as f:
                     f.write(driver.page_source)
