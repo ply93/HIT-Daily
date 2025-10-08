@@ -262,11 +262,12 @@ def process_cplus_onhand(driver, wait, initial_files):
             js_state = driver.execute_script("return document.readyState;")
             if js_state != "complete":
                 raise Exception("CPLUS OnHand: JS 執行失敗，狀態: {js_state}")
-        # 檢查 noscript 元素是否存在（如果有，JS 未跑）
-        noscript_elements = driver.find_elements(By.TAG_NAME, "noscript")
-        if noscript_elements:
-            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")  # 加 timestamp
-            logging.error("CPLUS OnHand: 偵測到 noscript 元素，JS 執行或相容問題，記錄狀態...")
+        # 改: 檢查 noscript 是否 visible（而非存在），如果 visible，JS 未跑
+        try:
+            wait.until_not(EC.visibility_of_element_located((By.TAG_NAME, "noscript")))  # 如果 noscript 可見，JS 未跑
+        except TimeoutException:
+            logging.error("CPLUS OnHand: noscript 可見，JS 執行或相容問題，記錄狀態...")
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")  # 加 timestamp 避免 overwrite
             driver.save_screenshot(f"onhand_js_failure_{timestamp}.png")
             with open(f"onhand_js_failure_{timestamp}.html", "w", encoding="utf-8") as f:
                 f.write(driver.page_source)
@@ -274,10 +275,16 @@ def process_cplus_onhand(driver, wait, initial_files):
             logging.warning("CPLUS OnHand: 嘗試刷新頁面解決 JS 問題...")
             driver.refresh()
             time.sleep(5)
-            noscript_elements = driver.find_elements(By.TAG_NAME, "noscript")
-            if noscript_elements:
-                raise Exception("CPLUS OnHand: JS 執行或相容問題，noscript 仍存在")
-        logging.info("CPLUS OnHand: JS 執行正常")
+            try:
+                wait.until_not(EC.visibility_of_element_located((By.TAG_NAME, "noscript")))
+            except TimeoutException:
+                raise Exception("CPLUS OnHand: JS 執行或相容問題，noscript 仍可見")
+        # 加: 檢查渲染元素是否存在（e.g. Search button），確認 JS 跑
+        try:
+            wait.until(EC.presence_of_element_located((By.XPATH, "//button[contains(text(), 'Search')]")))  # 如果有 Search，JS OK
+            logging.info("CPLUS OnHand: 渲染元素存在，JS 執行正常")
+        except TimeoutException:
+            raise Exception("CPLUS OnHand: JS 執行問題，無渲染元素")
     except Exception as e:
         logging.error(f"CPLUS OnHand: JS 檢查失敗: {str(e)}")
         raise  # 繼續 raise，讓 retry
