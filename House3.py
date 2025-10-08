@@ -251,22 +251,36 @@ def process_cplus_onhand(driver, wait, initial_files):
     driver.get("https://cplus.hit.com.hk/app/#/enquiry/OnHandContainerList")
     time.sleep(1)
     wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
-    # 加: 檢查 JS 是否執行（試執行簡單 script）
+    # 加: 檢查 JS 執行或相容問題
     try:
-        js_test = driver.execute_script("return document.readyState;")
-        if js_test != "complete":
-            logging.warning("CPLUS: JS 未完全載入，等待...")
-            time.sleep(10)  # 加延遲
-        # 加: 檢查 noscript 是否存在（如果有，JS 失敗）
+        # 檢查 document.readyState 是否 complete（JS 載入完成）
+        js_state = driver.execute_script("return document.readyState;")
+        if js_state != "complete":
+            logging.warning("CPLUS OnHand: JS 未完全執行，狀態: {js_state}，嘗試等待...")
+            time.sleep(10)  # 加延遲，等 JS 跑
+            # 再檢查
+            js_state = driver.execute_script("return document.readyState;")
+            if js_state != "complete":
+                raise Exception("CPLUS OnHand: JS 執行失敗，狀態: {js_state}")
+        # 檢查 noscript 元素是否存在（如果有，JS 未跑）
         noscript_elements = driver.find_elements(By.TAG_NAME, "noscript")
         if noscript_elements:
-            logging.error("CPLUS: 偵測到 noscript，JS 未執行，記錄狀態...")
+            logging.error("CPLUS OnHand: 偵測到 noscript 元素，JS 執行或相容問題，記錄狀態...")
             driver.save_screenshot("onhand_js_failure.png")
             with open("onhand_js_failure.html", "w", encoding="utf-8") as f:
                 f.write(driver.page_source)
-            raise Exception("CPLUS: JS 執行失敗")
+            # 試 refresh 解決
+            logging.warning("CPLUS OnHand: 嘗試刷新頁面解決 JS 問題...")
+            driver.refresh()
+            time.sleep(5)
+            # 再檢查 noscript
+            noscript_elements = driver.find_elements(By.TAG_NAME, "noscript")
+            if noscript_elements:
+                raise Exception("CPLUS OnHand: JS 執行或相容問題，noscript 仍存在")
+        logging.info("CPLUS OnHand: JS 執行正常")
     except Exception as e:
-        logging.error(f"CPLUS: JS 檢查失敗: {str(e)}")
+        logging.error(f"CPLUS OnHand: JS 檢查失敗: {str(e)}")
+        raise  # 繼續 raise，讓 retry
     logging.info("CPLUS: OnHandContainerList 頁面加載完成")
     logging.info("CPLUS: 點擊 Search...")
     local_initial = initial_files.copy()
@@ -435,6 +449,17 @@ def process_cplus():
             success = False
             for attempt in range(MAX_RETRIES):
                 try:
+                    # 加: 在每個 attempt 前檢查 session
+                    try:
+                        wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))  # 用戶按鈕元素
+                        logging.info(f"CPLUS {section_name}: Session 有效，繼續")
+                    except TimeoutException:
+                        logging.warning(f"CPLUS {section_name}: Session 失效或 cookie 問題，重新登入...")
+                        cplus_login(driver, wait)  # 自動重新登入
+                        # 加記錄，幫助 debug
+                        driver.save_screenshot(f"session_failure_{section_name}_attempt{attempt+1}.png")
+                        with open(f"session_failure_{section_name}_attempt{attempt+1}.html", "w", encoding="utf-8") as f:
+                            f.write(driver.page_source)
                     if section_name == 'house':
                         new_files, count, button_count, report_files = section_func(driver, wait, initial_files)
                         house_file_count = count
