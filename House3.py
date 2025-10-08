@@ -249,28 +249,8 @@ def process_cplus_onhand(driver, wait, initial_files):
     logging.info("CPLUS: 前往 OnHandContainerList 頁面...")
     driver.get("https://cplus.hit.com.hk/app/#/enquiry/OnHandContainerList")
     time.sleep(1)
-    # 優化 JS 檢查 + refresh retry（最多 4 次，加 readyState + UI check）
-    js_retry = 0
-    while js_retry < 4:
-        try:
-            js_disabled = WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'You need to enable JavaScript to run this app.')]")))
-            logging.warning("CPLUS: 偵測到 JS 未運行訊息，刷新頁面重試 (嘗試 {js_retry+1}/4)...")
-            driver.refresh()
-            time.sleep(1)  # 短 sleep 1s
-            # 檢查 readyState
-            ready_state = driver.execute_script("return document.readyState")
-            if ready_state != 'complete':
-                logging.warning("CPLUS: readyState 不完整，再試...")
-            js_retry += 1
-        except TimeoutException:
-            logging.info("CPLUS: 無偵測到 JS 禁用訊息，繼續")
-            break
-    if js_retry == 4:
-        logging.error("CPLUS: JS 加載失敗 4 次，skip OnHand")
-        return set()
     wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
     logging.info("CPLUS: OnHandContainerList 頁面加載完成")
-    handle_popup(driver, wait)
     logging.info("CPLUS: 點擊 Search...")
     local_initial = initial_files.copy()
     try:
@@ -294,8 +274,13 @@ def process_cplus_onhand(driver, wait, initial_files):
                 logging.info("CPLUS: 第三備用 Search 按鈕點擊成功")
             except TimeoutException:
                 logging.error("CPLUS: 所有 Search 按鈕定位失敗，記錄頁面狀態...")
-                driver.save_screenshot("onhand_search_failure.png")
-                with open("onhand_search_failure.html", "w", encoding="utf-8") as f:
+                # 改: 加 attempt 參數，但因為函數無 attempt，我建議在外 loop 加
+                # 但為完整，假設在外 process_cplus() 傳 attempt
+                # 簡單改: 用時間戳
+                import datetime
+                timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                driver.save_screenshot(f"onhand_search_failure_{timestamp}.png")
+                with open(f"onhand_search_failure_{timestamp}.html", "w", encoding="utf-8") as f:
                     f.write(driver.page_source)
                 raise Exception("CPLUS: OnHandContainerList Search 按鈕點擊失敗")
     time.sleep(0.5)
