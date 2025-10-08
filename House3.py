@@ -262,7 +262,7 @@ def process_cplus_onhand(driver, wait, initial_files):
             js_state = driver.execute_script("return document.readyState;")
             if js_state != "complete":
                 raise Exception("CPLUS OnHand: JS 執行失敗，狀態: {js_state}")
-        # 改: 檢查 noscript 是否 visible（而非存在），如果 visible，JS 未跑
+        # 檢查 noscript 是否 visible（如果 visible，JS 未跑）
         try:
             wait.until_not(EC.visibility_of_element_located((By.TAG_NAME, "noscript")))  # 如果 noscript 可見，JS 未跑
         except TimeoutException:
@@ -279,9 +279,9 @@ def process_cplus_onhand(driver, wait, initial_files):
                 wait.until_not(EC.visibility_of_element_located((By.TAG_NAME, "noscript")))
             except TimeoutException:
                 raise Exception("CPLUS OnHand: JS 執行或相容問題，noscript 仍可見")
-        # 加: 檢查渲染元素是否存在（e.g. Search button），確認 JS 跑
+        # 改: 檢查渲染元素是否存在（用更準 XPath match Search）
         try:
-            wait.until(EC.presence_of_element_located((By.XPATH, "//button[contains(text(), 'Search')]")))  # 如果有 Search，JS OK
+            wait.until(EC.presence_of_element_located((By.XPATH, "//button//span[contains(text(), 'Search')]")))  # match span 內 text
             logging.info("CPLUS OnHand: 渲染元素存在，JS 執行正常")
         except TimeoutException:
             raise Exception("CPLUS OnHand: JS 執行問題，無渲染元素")
@@ -299,7 +299,7 @@ def process_cplus_onhand(driver, wait, initial_files):
     except TimeoutException:
         logging.debug("CPLUS: Search 按鈕未找到，嘗試備用定位...")
         try:
-            search_button_onhand = WebDriverWait(driver, 45).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Search') or contains(@class, 'MuiButtonBase-root')]")))
+            search_button_onhand = WebDriverWait(driver, 45).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'MuiButtonBase-root') and .//span[contains(text(), 'Search')]]")))
             time.sleep(0.5)
             ActionChains(driver).move_to_element(search_button_onhand).click().perform()
             logging.info("CPLUS: 備用 Search 按鈕 1 點擊成功")
