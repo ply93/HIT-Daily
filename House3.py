@@ -501,13 +501,12 @@ def process_cplus():
                         driver.save_screenshot(f"session_failure_{section_name}_attempt{attempt+1}.png")
                         with open(f"session_failure_{section_name}_attempt{attempt+1}.html", "w", encoding="utf-8") as f:
                             f.write(driver.page_source)
+                    # 修改: 加延遲同刷新，避免載入崩潰
+                    if section_name == 'movement':
+                        time.sleep(5)  # 加延遲讓頁面穩定
+                    new_files = section_func(driver, wait, initial_files) if section_name != 'house' else section_func(driver, wait, initial_files)
                     if section_name == 'house':
-                        new_files, count, button_count, report_files = section_func(driver, wait, initial_files)
-                        house_file_count = count
-                        house_button_count = button_count
-                        house_report_files = report_files
-                    else:
-                        new_files = section_func(driver, wait, initial_files)
+                        new_files, house_file_count, house_button_count, house_report_files = new_files  # unpack
                     downloaded_files.update(new_files)
                     initial_files.update(new_files)
                     success = True
@@ -516,6 +515,11 @@ def process_cplus():
                     logging.error(f"CPLUS {section_name} 嘗試 {attempt+1}/{MAX_RETRIES} 失敗: {str(e)}")
                     if attempt < MAX_RETRIES - 1:
                         time.sleep(5)
+                        # 修改: 加刷新頁面或重新導航，避免內部崩潰殘留
+                        try:
+                            driver.refresh()
+                        except:
+                            pass
             if not success:
                 logging.error(f"CPLUS {section_name} 經過 {MAX_RETRIES} 次嘗試失敗")
         return downloaded_files, house_file_count, house_button_count, driver, house_report_files
@@ -532,21 +536,19 @@ def process_cplus():
                 logout_option = wait.until(EC.element_to_be_clickable((By.XPATH, "//li[contains(text(), 'Logout')]")))
                 logout_option.click()
                 logging.info("CPLUS: Logout 選項點擊成功")
-                time.sleep(1)  # 修改: 加延遲等待視窗完全出現，避免動畫 intercept
-                # 修改: 加重試機制點擊 CLOSE 按鈕
+                time.sleep(1)  # 等待視窗出現
                 close_success = False
-                for retry in range(3):  # 重試 3 次
+                for retry in range(3):
                     try:
                         close_button = wait.until(EC.element_to_be_clickable((By.XPATH, '//*[@id="logout"]/div[3]/div/div[3]/button/span[1]')))
-                        # 用 JavaScript 點擊避開 intercept
                         driver.execute_script("arguments[0].click();", close_button)
                         logging.info("CPLUS: Logout 後 CLOSE 按鈕 JavaScript 點擊成功")
                         close_success = True
                         break
                     except Exception as ce:
                         logging.warning(f"CPLUS: CLOSE 按鈕點擊失敗 (重試 {retry+1}/3): {str(ce)}")
-                        handle_popup(driver, wait)  # 加呼叫 handle_popup 處理任何彈出
-                        time.sleep(0.5)  # 小延遲再試
+                        handle_popup(driver, wait)
+                        time.sleep(0.5)
                 if not close_success:
                     logging.error("CPLUS: CLOSE 按鈕經過 3 次重試失敗，記錄狀態...")
                     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
