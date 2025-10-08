@@ -265,15 +265,15 @@ def process_cplus_onhand(driver, wait, initial_files):
         # 檢查 noscript 元素是否存在（如果有，JS 未跑）
         noscript_elements = driver.find_elements(By.TAG_NAME, "noscript")
         if noscript_elements:
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")  # 加 timestamp
             logging.error("CPLUS OnHand: 偵測到 noscript 元素，JS 執行或相容問題，記錄狀態...")
-            driver.save_screenshot("onhand_js_failure.png")
-            with open("onhand_js_failure.html", "w", encoding="utf-8") as f:
+            driver.save_screenshot(f"onhand_js_failure_{timestamp}.png")
+            with open(f"onhand_js_failure_{timestamp}.html", "w", encoding="utf-8") as f:
                 f.write(driver.page_source)
             # 試 refresh 解決
             logging.warning("CPLUS OnHand: 嘗試刷新頁面解決 JS 問題...")
             driver.refresh()
             time.sleep(5)
-            # 再檢查 noscript
             noscript_elements = driver.find_elements(By.TAG_NAME, "noscript")
             if noscript_elements:
                 raise Exception("CPLUS OnHand: JS 執行或相容問題，noscript 仍存在")
