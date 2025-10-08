@@ -279,10 +279,10 @@ def process_cplus_onhand(driver, wait, initial_files):
                 wait.until_not(EC.visibility_of_element_located((By.TAG_NAME, "noscript")))
             except TimeoutException:
                 raise Exception("CPLUS OnHand: JS 執行或相容問題，noscript 仍可見")
-        time.sleep(10)  # 新加：額外等待 JS 完全渲染
-        # 改: 檢查渲染元素是否存在（用更準 XPath match Search），加長等待時間，並加備用 locator
+        time.sleep(5)  # 優化：從 10 秒縮短到 5 秒，等 JS 完全渲染
+        # 改: 檢查渲染元素是否存在（用更準 XPath match Search），縮短等待時間，並加備用 locator
         try:
-            extended_wait = WebDriverWait(driver, 60)  # 加長到 60 秒
+            extended_wait = WebDriverWait(driver, 30)  # 優化：從 60 秒縮短到 30 秒
             search_element_locators = [
                 (By.XPATH, "//button//span[contains(text(), 'Search')]"),  # 原有
                 (By.CSS_SELECTOR, "button.MuiButton-containedPrimary span.MuiButton-label"),  # 備用 CSS，基於 Material-UI
