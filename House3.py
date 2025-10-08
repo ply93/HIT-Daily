@@ -494,7 +494,7 @@ def process_cplus():
         driver = webdriver.Chrome(options=get_chrome_options(cplus_download_dir))
         logging.info("CPLUS WebDriver 初始化成功")
         driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-        wait = WebDriverWait(driver, 30)
+        wait = WebDriverWait(driver, 20)  # 優化: 減到20秒
         cplus_login(driver, wait)
         sections = [
             ('movement', process_cplus_movement),
@@ -505,32 +505,35 @@ def process_cplus():
             success = False
             for attempt in range(MAX_RETRIES):
                 try:
-                    # 加: 在每個 attempt 前檢查 session
+                    handle_popup(driver, wait)  # 優化: 每個section前清彈出
                     try:
-                        wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]"))) # 用戶按鈕元素
+                        wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
                         logging.info(f"CPLUS {section_name}: Session 有效，繼續")
                     except TimeoutException:
                         logging.warning(f"CPLUS {section_name}: Session 失效或 cookie 問題，重新登入...")
-                        cplus_login(driver, wait) # 自動重新登入
-                        # 加記錄，幫助 debug
+                        cplus_login(driver, wait)
                         driver.save_screenshot(f"session_failure_{section_name}_attempt{attempt+1}.png")
                         with open(f"session_failure_{section_name}_attempt{attempt+1}.html", "w", encoding="utf-8") as f:
                             f.write(driver.page_source)
-                    # 修改: 加延遲同刷新，避免載入崩潰
-                    if section_name == 'movement':
-                        time.sleep(5)  # 加延遲讓頁面穩定
                     new_files = section_func(driver, wait, initial_files) if section_name != 'house' else section_func(driver, wait, initial_files)
                     if section_name == 'house':
-                        new_files, house_file_count, house_button_count, house_report_files = new_files  # unpack
+                        new_files, house_file_count, house_button_count, house_report_files = new_files
                     downloaded_files.update(new_files)
                     initial_files.update(new_files)
                     success = True
                     break
                 except Exception as e:
                     logging.error(f"CPLUS {section_name} 嘗試 {attempt+1}/{MAX_RETRIES} 失敗: {str(e)}")
+                    if "Stacktrace" in str(e) or "HTTPConnectionPool" in str(e):  # 優化: 檢測崩潰/超時，重啟driver
+                        logging.warning("檢測到瀏覽器崩潰或連接超時，重啟 driver...")
+                        if driver:
+                            driver.quit()
+                        driver = webdriver.Chrome(options=get_chrome_options(cplus_download_dir))
+                        driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+                        wait = WebDriverWait(driver, 20)
+                        cplus_login(driver, wait)
                     if attempt < MAX_RETRIES - 1:
                         time.sleep(5)
-                        # 修改: 加刷新頁面或重新導航，避免內部崩潰殘留
                         try:
                             driver.refresh()
                         except:
@@ -551,7 +554,7 @@ def process_cplus():
                 logout_option = wait.until(EC.element_to_be_clickable((By.XPATH, "//li[contains(text(), 'Logout')]")))
                 logout_option.click()
                 logging.info("CPLUS: Logout 選項點擊成功")
-                time.sleep(1)  # 等待視窗出現
+                time.sleep(1)
                 close_success = False
                 for retry in range(3):
                     try:
