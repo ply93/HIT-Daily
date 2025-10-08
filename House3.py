@@ -176,28 +176,28 @@ def process_cplus_movement(driver, wait, initial_files):
     driver.get("https://cplus.hit.com.hk/app/#/enquiry/ContainerMovementLog")
     time.sleep(2)
     wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
-    WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[2]//form")))
+    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[2]//form")))
     logging.info("CPLUS: Container Movement Log 頁面加載完成")
 
     logging.info("CPLUS: 點擊 Search...")
     local_initial = initial_files.copy()
     for attempt in range(2):
         try:
-            search_button = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[1]/div/form/div[2]/div/div[4]/button")))
+            search_button = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[1]/div/form/div[2]/div/div[4]/button")))
             ActionChains(driver).move_to_element(search_button).click().perform()
             logging.info("CPLUS: Search 按鈕點擊成功")
             break
         except TimeoutException:
             logging.debug(f"CPLUS: Search 按鈕未找到，嘗試備用定位 {attempt+1}/2...")
             try:
-                search_button = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'MuiButtonBase-root') and .//span[contains(text(), 'Search')]]")))
+                search_button = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'MuiButtonBase-root') and .//span[contains(text(), 'Search')]]")))
                 ActionChains(driver).move_to_element(search_button).click().perform()
                 logging.info("CPLUS: 備用 Search 按鈕 1 點擊成功")
                 break
             except TimeoutException:
                 logging.debug(f"CPLUS: 備用 Search 按鈕 1 失敗，嘗試備用定位 2 (嘗試 {attempt+1}/2)...")
                 try:
-                    search_button = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Search')]")))
+                    search_button = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Search')]")))
                     ActionChains(driver).move_to_element(search_button).click().perform()
                     logging.info("CPLUS: 備用 Search 按鈕 2 點擊成功")
                     break
@@ -285,7 +285,7 @@ def process_cplus_onhand(driver, wait, initial_files):
                 raise Exception("CPLUS OnHand: JS 執行或相容問題，noscript 仍可見")
         time.sleep(3)  # 優化: 減到3秒，等 JS 完全渲染
         try:
-            extended_wait = WebDriverWait(driver, 20)  # 優化: 減到20秒
+            extended_wait = WebDriverWait(driver, 10)
             search_element_locators = [
                 (By.XPATH, "//button//span[contains(text(), 'Search')]"),
                 (By.CSS_SELECTOR, "button.MuiButton-containedPrimary span.MuiButton-label"),
@@ -323,21 +323,21 @@ def process_cplus_onhand(driver, wait, initial_files):
     logging.info("CPLUS: 點擊 Search...")
     local_initial = initial_files.copy()
     try:
-        search_button_onhand = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div[1]/form/div[1]/div[24]/div[2]/button/span[1]")))
+        search_button_onhand = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div[1]/form/div[1]/div[24]/div[2]/button/span[1]")))
         time.sleep(0.5)
         ActionChains(driver).move_to_element(search_button_onhand).click().perform()
         logging.info("CPLUS: Search 按鈕點擊成功")
     except TimeoutException:
         logging.debug("CPLUS: Search 按鈕未找到，嘗試備用定位...")
         try:
-            search_button_onhand = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'MuiButtonBase-root') and .//span[contains(text(), 'Search')]]")))
+            search_button_onhand = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'MuiButtonBase-root') and .//span[contains(text(), 'Search')]]")))
             time.sleep(0.5)
             ActionChains(driver).move_to_element(search_button_onhand).click().perform()
             logging.info("CPLUS: 備用 Search 按鈕 1 點擊成功")
         except TimeoutException:
             logging.debug("CPLUS: 備用 Search 按鈕 1 失敗，嘗試第三備用定位...")
             try:
-                search_button_onhand = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button.MuiButton-contained span.MuiButton-label")))
+                search_button_onhand = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button.MuiButton-contained span.MuiButton-label")))
                 time.sleep(0.5)
                 ActionChains(driver).move_to_element(search_button_onhand).click().perform()
                 logging.info("CPLUS: 第三備用 Search 按鈕點擊成功")
@@ -407,7 +407,7 @@ def process_cplus_house(driver, wait, initial_files):
     time.sleep(5)
     logging.info("CPLUS: 等待 Excel 按鈕出現...")
     try:
-        WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)]")))
+        WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)]")))
         logging.info("CPLUS: Excel 按鈕已出現")
     except TimeoutException:
         logging.warning("CPLUS: Excel 按鈕未出現，記錄狀態...")
@@ -499,7 +499,7 @@ def process_cplus():
         driver = webdriver.Chrome(options=get_chrome_options(cplus_download_dir))
         logging.info("CPLUS WebDriver 初始化成功")
         driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-        wait = WebDriverWait(driver, 20)  # 優化: 減到20秒
+        wait = WebDriverWait(driver, 10)
         cplus_login(driver, wait)
         sections = [
             ('movement', process_cplus_movement),
@@ -540,7 +540,7 @@ def process_cplus():
                             driver.quit()
                         driver = webdriver.Chrome(options=get_chrome_options(cplus_download_dir))
                         driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-                        wait = WebDriverWait(driver, 20)
+                        wait = WebDriverWait(driver, 10)
                         cplus_login(driver, wait)
                     if attempt < MAX_RETRIES - 1:
                         time.sleep(5)
@@ -665,7 +665,7 @@ def process_barge():
         driver = webdriver.Chrome(options=get_chrome_options(barge_download_dir))
         logging.info("Barge WebDriver 初始化成功")
         driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-        wait = WebDriverWait(driver, 20)
+        wait = WebDriverWait(driver, 10)
 
         barge_login(driver, wait)
 
@@ -695,7 +695,7 @@ def process_barge():
             if driver:
                 logging.info("Barge: 點擊工具欄進行登出...")
                 try:
-                    logout_toolbar_barge = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='main-toolbar']/button[4]/span[1]")))
+                    logout_toolbar_barge = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='main-toolbar']/button[4]/span[1]")))
                     driver.execute_script("arguments[0].scrollIntoView(true);", logout_toolbar_barge)
                     time.sleep(1)
                     driver.execute_script("arguments[0].click();", logout_toolbar_barge)
@@ -709,7 +709,7 @@ def process_barge():
                 logging.info("Barge: 點擊 Logout 選項...")
                 try:
                     logout_span_xpath = "//div[contains(@class, 'mat-menu-panel')]//button//span[contains(text(), 'Logout')]"
-                    logout_button_barge = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, logout_span_xpath)))
+                    logout_button_barge = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, logout_span_xpath)))
                     driver.execute_script("arguments[0].scrollIntoView(true);", logout_button_barge)
                     time.sleep(1)
                     driver.execute_script("arguments[0].click();", logout_button_barge)
@@ -717,7 +717,7 @@ def process_barge():
                 except TimeoutException:
                     logging.debug("Barge: Logout 選項未找到，嘗試備用定位...")
                     backup_logout_xpath = "//button[.//span[contains(text(), 'Logout')]]"
-                    logout_button_barge = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, backup_logout_xpath)))
+                    logout_button_barge = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, backup_logout_xpath)))
                     driver.execute_script("arguments[0].scrollIntoView(true);", logout_button_barge)
                     time.sleep(1)
                     driver.execute_script("arguments[0].click();", logout_button_barge)
