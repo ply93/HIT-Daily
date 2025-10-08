@@ -123,7 +123,11 @@ def cplus_login(driver, wait):
     logging.info(f"CPLUS: 網站已成功打開，當前 URL: {driver.current_url}")
     time.sleep(2)
     logging.info("CPLUS: 點擊登錄前按鈕...")
-    login_button_pre = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
+    try:
+        login_button_pre = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
+    except TimeoutException:
+        logging.debug("CPLUS: 主要登入按鈕未找到，嘗試備用定位...")
+        login_button_pre = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'MuiButton') and span[contains(text(), 'Login') or contains(text(), '登入')]]")))
     ActionChains(driver).move_to_element(login_button_pre).click().perform()
     logging.info("CPLUS: 登錄前按鈕點擊成功")
     time.sleep(2)
@@ -143,7 +147,11 @@ def cplus_login(driver, wait):
     logging.info("CPLUS: PASSWORD 輸入完成")
     time.sleep(1)
     logging.info("CPLUS: 點擊 LOGIN 按鈕...")
-    login_button = driver.find_element(By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/div[2]/div/div/form/button/span[1]")
+    try:
+        login_button = driver.find_element(By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/div[2]/div/div/form/button/span[1]")
+    except NoSuchElementException:
+        logging.debug("CPLUS: 主要登入按鈕未找到，嘗試備用定位...")
+        login_button = driver.find_element(By.XPATH, "//button[contains(text(), 'Login') or contains(text(), '登入')]")
     ActionChains(driver).move_to_element(login_button).click().perform()
     logging.info("CPLUS: LOGIN 按鈕點擊成功")
     time.sleep(2)
@@ -411,20 +419,26 @@ def process_cplus_house(driver, wait, initial_files):
     new_files = set()
     report_files = {}
     excel_buttons = driver.find_elements(By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)]")
+    random.shuffle(excel_buttons)  # 隨機化順序，避免連續點擊觸發限制
     button_count = len(excel_buttons)
-    logging.info(f"CPLUS: 找到 {button_count} 個 Excel 下載按鈕")
+    logging.info(f"CPLUS: 找到 {button_count} 個 Excel 下載按鈕，已隨機化順序")
     if button_count == 0:
         logging.debug("CPLUS: 未找到 Excel 按鈕，嘗試備用定位...")
         excel_buttons = driver.find_elements(By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button[not(@disabled)]//svg[@viewBox='0 0 24 24']//path[@fill='#036e11']")
+        random.shuffle(excel_buttons)  # 再次隨機
         button_count = len(excel_buttons)
-        logging.info(f"CPLUS: 備用定位找到 {button_count} 個 Excel 下載按鈕")
+        logging.info(f"CPLUS: 備用定位找到 {button_count} 個 Excel 下載按鈕，已隨機化順序")
     handle_popup(driver, wait)
     for idx in range(button_count):
         success = False
         for retry in range(3):
             try:
-                button_xpath = f"(//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button[not(@disabled)])[{idx+1}]"
-                button = wait.until(EC.element_to_be_clickable((By.XPATH, button_xpath)))
+                button = excel_buttons[idx]  # 用shuffle後列表
+                # 新增：JS檢查按鈕狀態
+                is_disabled = driver.execute_script("return arguments[0].disabled;", button)
+                if is_disabled:
+                    logging.warning(f"CPLUS: 第 {idx+1} 個按鈕 disabled，跳過")
+                    break
                 try:
                     report_name = driver.find_element(By.XPATH, f"//table[contains(@class, 'MuiTable-root')]//tbody//tr[{idx+1}]//td[3]").text
                     logging.info(f"CPLUS: 準備點擊第 {idx+1} 個 Excel 按鈕，報告名稱: {report_name}")
@@ -509,6 +523,11 @@ def process_cplus():
                     new_files = section_func(driver, wait, initial_files) if section_name != 'house' else section_func(driver, wait, initial_files)
                     if section_name == 'house':
                         new_files, house_file_count, house_button_count, house_report_files = new_files
+                        if len(new_files) != house_button_count:  # 如果不匹配
+                            logging.warning(f"CPLUS house: 下載數不匹配，自動刷新頁面重試 (嘗試 {attempt+1})")
+                            driver.refresh()
+                            time.sleep(2)  # 現有短等待，不加長
+                            continue  # 重試本次loop
                     downloaded_files.update(new_files)
                     initial_files.update(new_files)
                     success = True
