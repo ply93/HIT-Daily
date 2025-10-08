@@ -485,7 +485,7 @@ def process_cplus():
         driver = webdriver.Chrome(options=get_chrome_options(cplus_download_dir))
         logging.info("CPLUS WebDriver 初始化成功")
         driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-        wait = WebDriverWait(driver, 20)
+        wait = WebDriverWait(driver, 20)  # 優化: 減到20秒
         cplus_login(driver, wait)
         sections = [
             ('movement', process_cplus_movement),
@@ -496,7 +496,7 @@ def process_cplus():
             success = False
             for attempt in range(MAX_RETRIES):
                 try:
-                    handle_popup(driver, wait)
+                    handle_popup(driver, wait)  # 優化: 每個section前清彈出
                     try:
                         wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
                         logging.info(f"CPLUS {section_name}: Session 有效，繼續")
@@ -515,22 +515,8 @@ def process_cplus():
                     break
                 except Exception as e:
                     logging.error(f"CPLUS {section_name} 嘗試 {attempt+1}/{MAX_RETRIES} 失敗: {str(e)}")
-                    if "Stacktrace" in str(e) or "HTTPConnectionPool" in str(e):
+                    if "Stacktrace" in str(e) or "HTTPConnectionPool" in str(e):  # 優化: 檢測崩潰/超時，重啟driver
                         logging.warning("檢測到瀏覽器崩潰或連接超時，重啟 driver...")
-                        # 修改: 崩潰前試 logout
-                        try:
-                            if driver:
-                                logging.info("崩潰前嘗試 logout...")
-                                logout_menu_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
-                                logout_menu_button.click()
-                                logout_option = wait.until(EC.element_to_be_clickable((By.XPATH, "//li[contains(text(), 'Logout')]")))
-                                logout_option.click()
-                                time.sleep(1)
-                                close_button = wait.until(EC.element_to_be_clickable((By.XPATH, '//*[@id="logout"]/div[3]/div/div[3]/button/span[1]')))
-                                driver.execute_script("arguments[0].click();", close_button)
-                                logging.info("崩潰前 logout 成功")
-                        except Exception as le:
-                            logging.warning(f"崩潰前 logout 失敗: {str(le)}")
                         if driver:
                             driver.quit()
                         driver = webdriver.Chrome(options=get_chrome_options(cplus_download_dir))
