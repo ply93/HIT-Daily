@@ -26,10 +26,13 @@ jobs:
           pip install --no-cache-dir selenium webdriver-manager pytz
           mkdir -p ~/chromium-bin
           if [ ! -f ~/chromium-bin/chromium-browser ] || [ ! -f ~/chromium-bin/chromedriver ]; then
-            sudo apt-get update -qq || true
-            sudo apt-get install -y chromium-browser chromium-chromedriver || true
-            sudo cp /usr/bin/chromium-browser ~/chromium-bin/ || cp /usr/bin/chromium-browser ~/chromium-bin/
-            sudo cp /usr/bin/chromedriver ~/chromium-bin/ || cp /usr/bin/chromedriver ~/chromium-bin/
+            wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+            sudo dpkg -i google-chrome-stable_current_amd64.deb || sudo apt-get -f install -y
+            sudo apt-get install -y xvfb
+            sudo cp /opt/google/chrome/google-chrome ~/chromium-bin/chromium-browser
+            chromedriver_version=$(curl -s https://chromedriver.storage.googleapis.com/LATEST_RELEASE)
+            wget -q https://chromedriver.storage.googleapis.com/${chromedriver_version}/chromedriver_linux64.zip
+            unzip chromedriver_linux64.zip -d ~/chromium-bin/
           fi
       - name: Set timezone to HKT
         run: |
@@ -43,7 +46,7 @@ jobs:
           ZOHO_EMAIL: ${{ secrets.ZOHO_EMAIL }}
           ZOHO_PASSWORD: ${{ secrets.ZOHO_PASSWORD }}
           BARGE_PASSWORD: ${{ secrets.BARGE_PASSWORD }}
-        run: python download_cplus.py
+        run: xvfb-run --auto-servernum download_cplus.py  # 用 xvfb-run 跑 python，讓 headless 有 display
       - name: Upload artifacts # 新加步驟
         if: always() # 即使失敗都上傳
         uses: actions/upload-artifact@v4
