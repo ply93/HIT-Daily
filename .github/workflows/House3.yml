@@ -26,10 +26,13 @@ jobs:
           pip install --no-cache-dir selenium webdriver-manager pytz
           mkdir -p ~/chromium-bin
           if [ ! -f ~/chromium-bin/chromium-browser ] || [ ! -f ~/chromium-bin/chromedriver ]; then
-            sudo apt-get update -qq || true
-            sudo apt-get install -y chromium-browser chromium-chromedriver xvfb || true  # 新加 xvfb
-            sudo cp /usr/bin/chromium-browser ~/chromium-bin/ || true
-            sudo cp /usr/bin/chromedriver ~/chromium-bin/ || true
+            wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+            sudo dpkg -i google-chrome-stable_current_amd64.deb || sudo apt-get -f install -y
+            sudo apt-get install -y xvfb
+            sudo cp /opt/google/chrome/google-chrome ~/chromium-bin/chromium-browser
+            chromedriver_version=$(curl -s https://chromedriver.storage.googleapis.com/LATEST_RELEASE)
+            wget -q https://chromedriver.storage.googleapis.com/${chromedriver_version}/chromedriver_linux64.zip
+            unzip chromedriver_linux64.zip -d ~/chromium-bin/
           fi
       - name: Set timezone to HKT
         run: |
