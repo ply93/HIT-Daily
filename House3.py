@@ -467,6 +467,7 @@ def process_cplus_house(driver, wait, initial_files):
         with open("house_download_failure.html", "w", encoding="utf-8") as f:
             f.write(driver.page_source)
         raise Exception("CPLUS: Housekeeping Reports 未下載任何文件")
+
 def process_cplus():
     driver = None
     downloaded_files = set()
@@ -491,11 +492,11 @@ def process_cplus():
                 try:
                     # 加: 在每個 attempt 前檢查 session
                     try:
-                        wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))  # 用戶按鈕元素
+                        wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]"))) # 用戶按鈕元素
                         logging.info(f"CPLUS {section_name}: Session 有效，繼續")
                     except TimeoutException:
                         logging.warning(f"CPLUS {section_name}: Session 失效或 cookie 問題，重新登入...")
-                        cplus_login(driver, wait)  # 自動重新登入
+                        cplus_login(driver, wait) # 自動重新登入
                         # 加記錄，幫助 debug
                         driver.save_screenshot(f"session_failure_{section_name}_attempt{attempt+1}.png")
                         with open(f"session_failure_{section_name}_attempt{attempt+1}.html", "w", encoding="utf-8") as f:
@@ -531,15 +532,30 @@ def process_cplus():
                 logout_option = wait.until(EC.element_to_be_clickable((By.XPATH, "//li[contains(text(), 'Logout')]")))
                 logout_option.click()
                 logging.info("CPLUS: Logout 選項點擊成功")
-                try:
-                    close_button = wait.until(EC.element_to_be_clickable((By.XPATH, '//*[@id="logout"]/div[3]/div/div[3]/button/span[1]')))
-                    close_button.click()
-                    logging.info("CPLUS: Logout 後 CLOSE 按鈕點擊成功")
-                except TimeoutException:
-                    logging.warning("CPLUS: Logout 後無 CLOSE 按鈕，跳過")
+                time.sleep(1)  # 修改: 加延遲等待視窗完全出現，避免動畫 intercept
+                # 修改: 加重試機制點擊 CLOSE 按鈕
+                close_success = False
+                for retry in range(3):  # 重試 3 次
+                    try:
+                        close_button = wait.until(EC.element_to_be_clickable((By.XPATH, '//*[@id="logout"]/div[3]/div/div[3]/button/span[1]')))
+                        # 用 JavaScript 點擊避開 intercept
+                        driver.execute_script("arguments[0].click();", close_button)
+                        logging.info("CPLUS: Logout 後 CLOSE 按鈕 JavaScript 點擊成功")
+                        close_success = True
+                        break
+                    except Exception as ce:
+                        logging.warning(f"CPLUS: CLOSE 按鈕點擊失敗 (重試 {retry+1}/3): {str(ce)}")
+                        handle_popup(driver, wait)  # 加呼叫 handle_popup 處理任何彈出
+                        time.sleep(0.5)  # 小延遲再試
+                if not close_success:
+                    logging.error("CPLUS: CLOSE 按鈕經過 3 次重試失敗，記錄狀態...")
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    driver.save_screenshot(f"logout_close_failure_{timestamp}.png")
+                    with open(f"logout_close_failure_{timestamp}.html", "w", encoding="utf-8") as f:
+                        f.write(driver.page_source)
         except Exception as e:
             logging.error(f"CPLUS: 登出失敗: {str(e)}")
-
+            
 def barge_login(driver, wait):
     logging.info("Barge: 嘗試打開網站 https://barge.oneport.com/login...")
     driver.get("https://barge.oneport.com/login")
