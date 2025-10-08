@@ -383,7 +383,6 @@ def process_cplus_house(driver, wait, initial_files):
     driver.get("https://cplus.hit.com.hk/app/#/report/housekeepReport")
     wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
     logging.info("CPLUS: Housekeeping Reports 頁面加載完成")
-
     logging.info("CPLUS: 等待表格加載...")
     try:
         rows = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
@@ -404,21 +403,28 @@ def process_cplus_house(driver, wait, initial_files):
         driver.refresh()
         wait.until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
         logging.info("CPLUS: 表格加載完成 (after refresh)")
-
+    time.sleep(5)  # 新加：額外等待 JS 渲染按鈕
+    logging.info("CPLUS: 等待 Excel 按鈕出現...")
+    try:
+        WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)]")))
+        logging.info("CPLUS: Excel 按鈕已出現")
+    except TimeoutException:
+        logging.warning("CPLUS: Excel 按鈕未出現，記錄狀態...")
+        driver.save_screenshot("house_button_wait_failure.png")
+        with open("house_button_wait_failure.html", "w", encoding="utf-8") as f:
+            f.write(driver.page_source)
     logging.info("CPLUS: 定位並點擊所有 Excel 下載按鈕...")
     local_initial = initial_files.copy()
     new_files = set()
-    report_files = {}  # 儲存報告名稱與檔案名稱的映射
+    report_files = {} # 儲存報告名稱與檔案名稱的映射
     excel_buttons = driver.find_elements(By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)]")
     button_count = len(excel_buttons)
     logging.info(f"CPLUS: 找到 {button_count} 個 Excel 下載按鈕")
-
     if button_count == 0:
         logging.debug("CPLUS: 未找到 Excel 按鈕，嘗試備用定位...")
         excel_buttons = driver.find_elements(By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button[not(@disabled)]//svg[@viewBox='0 0 24 24']//path[@fill='#036e11']")
         button_count = len(excel_buttons)
         logging.info(f"CPLUS: 備用定位找到 {button_count} 個 Excel 下載按鈕")
-
     for idx in range(button_count):
         success = False
         try:
@@ -429,18 +435,16 @@ def process_cplus_house(driver, wait, initial_files):
                 logging.info(f"CPLUS: 準備點擊第 {idx+1} 個 Excel 按鈕，報告名稱: {report_name}")
             except:
                 logging.debug(f"CPLUS: 無法獲取第 {idx+1} 個按鈕的報告名稱")
-
             button.click()
             logging.info(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕點擊成功")
             handle_popup(driver, wait)
-
             temp_new = wait_for_new_file(cplus_download_dir, local_initial)
             if temp_new:
-                file_name = temp_new.pop()  # 假設每次只下載一個新檔案
+                file_name = temp_new.pop() # 假設每次只下載一個新檔案
                 logging.info(f"CPLUS: 第 {idx+1} 個按鈕下載新文件: {file_name}")
                 local_initial.add(file_name)
                 new_files.add(file_name)
-                report_files[report_name] = file_name  # 記錄報告名稱與檔案名稱的映射
+                report_files[report_name] = file_name # 記錄報告名稱與檔案名稱的映射
                 success = True
             else:
                 logging.warning(f"CPLUS: 第 {idx+1} 個按鈕未觸發新文件下載")
@@ -463,7 +467,6 @@ def process_cplus_house(driver, wait, initial_files):
         with open("house_download_failure.html", "w", encoding="utf-8") as f:
             f.write(driver.page_source)
         raise Exception("CPLUS: Housekeeping Reports 未下載任何文件")
-
 def process_cplus():
     driver = None
     downloaded_files = set()
