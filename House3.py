@@ -64,18 +64,14 @@ def get_chrome_options(download_dir):
     chrome_options.add_argument('--disable-popup-blocking')
     chrome_options.add_argument('--disable-extensions')
     chrome_options.add_argument('--no-first-run')
-    chrome_options.add_argument('--disable-blink-features=AutomationControlled')
-    chrome_options.add_argument('--disable-infobars')
-    chrome_options.add_argument('--start-maximized')
-    chrome_options.add_argument('--disable-software-rasterizer')
-    chrome_options.add_experimental_option('excludeSwitches', ['enable-automation'])
-    chrome_options.add_experimental_option('useAutomationExtension', False)
     user_agents = [
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36"
     ]
     chrome_options.add_argument(f'--user-agent={random.choice(user_agents)}')
     chrome_options.add_argument(f'--window-size={random.randint(1200, 1920)},{random.randint(800, 1080)}')
+    chrome_options.add_argument('--disable-blink-features=AutomationControlled')
+    chrome_options.add_experimental_option('excludeSwitches', ['enable-automation'])
     prefs = {
         "download.default_directory": download_dir,
         "download.prompt_for_download": False,
@@ -250,6 +246,22 @@ def process_cplus_onhand(driver, wait, initial_files):
     driver.get("https://cplus.hit.com.hk/app/#/enquiry/OnHandContainerList")
     time.sleep(1)
     wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
+    # 加: 檢查 JS 是否執行（試執行簡單 script）
+    try:
+        js_test = driver.execute_script("return document.readyState;")
+        if js_test != "complete":
+            logging.warning("CPLUS: JS 未完全載入，等待...")
+            time.sleep(10)  # 加延遲
+        # 加: 檢查 noscript 是否存在（如果有，JS 失敗）
+        noscript_elements = driver.find_elements(By.TAG_NAME, "noscript")
+        if noscript_elements:
+            logging.error("CPLUS: 偵測到 noscript，JS 未執行，記錄狀態...")
+            driver.save_screenshot("onhand_js_failure.png")
+            with open("onhand_js_failure.html", "w", encoding="utf-8") as f:
+                f.write(driver.page_source)
+            raise Exception("CPLUS: JS 執行失敗")
+    except Exception as e:
+        logging.error(f"CPLUS: JS 檢查失敗: {str(e)}")
     logging.info("CPLUS: OnHandContainerList 頁面加載完成")
     logging.info("CPLUS: 點擊 Search...")
     local_initial = initial_files.copy()
@@ -274,13 +286,8 @@ def process_cplus_onhand(driver, wait, initial_files):
                 logging.info("CPLUS: 第三備用 Search 按鈕點擊成功")
             except TimeoutException:
                 logging.error("CPLUS: 所有 Search 按鈕定位失敗，記錄頁面狀態...")
-                # 改: 加 attempt 參數，但因為函數無 attempt，我建議在外 loop 加
-                # 但為完整，假設在外 process_cplus() 傳 attempt
-                # 簡單改: 用時間戳
-                import datetime
-                timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-                driver.save_screenshot(f"onhand_search_failure_{timestamp}.png")
-                with open(f"onhand_search_failure_{timestamp}.html", "w", encoding="utf-8") as f:
+                driver.save_screenshot("onhand_search_failure.png")
+                with open("onhand_search_failure.html", "w", encoding="utf-8") as f:
                     f.write(driver.page_source)
                 raise Exception("CPLUS: OnHandContainerList Search 按鈕點擊失敗")
     time.sleep(0.5)
@@ -320,6 +327,7 @@ def process_cplus_house(driver, wait, initial_files):
     driver.get("https://cplus.hit.com.hk/app/#/report/housekeepReport")
     wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
     logging.info("CPLUS: Housekeeping Reports 頁面加載完成")
+
     logging.info("CPLUS: 等待表格加載...")
     try:
         rows = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
@@ -340,18 +348,21 @@ def process_cplus_house(driver, wait, initial_files):
         driver.refresh()
         wait.until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
         logging.info("CPLUS: 表格加載完成 (after refresh)")
+
     logging.info("CPLUS: 定位並點擊所有 Excel 下載按鈕...")
     local_initial = initial_files.copy()
     new_files = set()
-    report_files = {}
+    report_files = {}  # 儲存報告名稱與檔案名稱的映射
     excel_buttons = driver.find_elements(By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)]")
     button_count = len(excel_buttons)
     logging.info(f"CPLUS: 找到 {button_count} 個 Excel 下載按鈕")
+
     if button_count == 0:
         logging.debug("CPLUS: 未找到 Excel 按鈕，嘗試備用定位...")
         excel_buttons = driver.find_elements(By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button[not(@disabled)]//svg[@viewBox='0 0 24 24']//path[@fill='#036e11']")
         button_count = len(excel_buttons)
         logging.info(f"CPLUS: 備用定位找到 {button_count} 個 Excel 下載按鈕")
+
     for idx in range(button_count):
         success = False
         try:
@@ -362,18 +373,18 @@ def process_cplus_house(driver, wait, initial_files):
                 logging.info(f"CPLUS: 準備點擊第 {idx+1} 個 Excel 按鈕，報告名稱: {report_name}")
             except:
                 logging.debug(f"CPLUS: 無法獲取第 {idx+1} 個按鈕的報告名稱")
-            # 新加：before click handle_popup 避 intercepted
-            handle_popup(driver, wait)
-            driver.execute_script("arguments[0].click();", button)  # JS click 避 intercepted
+
+            button.click()
             logging.info(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕點擊成功")
             handle_popup(driver, wait)
+
             temp_new = wait_for_new_file(cplus_download_dir, local_initial)
             if temp_new:
-                file_name = temp_new.pop()
+                file_name = temp_new.pop()  # 假設每次只下載一個新檔案
                 logging.info(f"CPLUS: 第 {idx+1} 個按鈕下載新文件: {file_name}")
                 local_initial.add(file_name)
                 new_files.add(file_name)
-                report_files[report_name] = file_name
+                report_files[report_name] = file_name  # 記錄報告名稱與檔案名稱的映射
                 success = True
             else:
                 logging.warning(f"CPLUS: 第 {idx+1} 個按鈕未觸發新文件下載")
