@@ -122,36 +122,41 @@ def cplus_login(driver, wait):
     driver.get("https://cplus.hit.com.hk/frontpage/#/")
     logging.info(f"CPLUS: 網站已成功打開，當前 URL: {driver.current_url}")
     time.sleep(2)
-
     logging.info("CPLUS: 點擊登錄前按鈕...")
     login_button_pre = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
     ActionChains(driver).move_to_element(login_button_pre).click().perform()
     logging.info("CPLUS: 登錄前按鈕點擊成功")
     time.sleep(2)
-
     logging.info("CPLUS: 輸入 COMPANY CODE...")
     company_code_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='companyCode']")))
     company_code_field.send_keys("CKL")
     logging.info("CPLUS: COMPANY CODE 輸入完成")
     time.sleep(1)
-
     logging.info("CPLUS: 輸入 USER ID...")
     user_id_field = driver.find_element(By.XPATH, "//*[@id='userId']")
     user_id_field.send_keys("KEN")
     logging.info("CPLUS: USER ID 輸入完成")
     time.sleep(1)
-
     logging.info("CPLUS: 輸入 PASSWORD...")
     password_field = driver.find_element(By.XPATH, "//*[@id='passwd']")
     password_field.send_keys(os.environ.get('SITE_PASSWORD'))
     logging.info("CPLUS: PASSWORD 輸入完成")
     time.sleep(1)
-
     logging.info("CPLUS: 點擊 LOGIN 按鈕...")
     login_button = driver.find_element(By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/div[2]/div/div/form/button/span[1]")
     ActionChains(driver).move_to_element(login_button).click().perform()
     logging.info("CPLUS: LOGIN 按鈕點擊成功")
     time.sleep(2)
+    # 加: 檢查 session 是否有效（看用戶菜單元素是否存在）
+    try:
+        wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))  # 用戶按鈕
+        logging.info("CPLUS: 登入 session 有效")
+    except TimeoutException:
+        logging.error("CPLUS: 登入後 session 失效或 cookie 問題，記錄狀態...")
+        driver.save_screenshot("login_session_failure.png")
+        with open("login_session_failure.html", "w", encoding="utf-8") as f:
+            f.write(driver.page_source)
+        raise Exception("CPLUS: 登入 session 失效")
 
 def simulate_user_activity(driver):
     ActionChains(driver).move_by_offset(random.randint(-50, 50), random.randint(-50, 50)).perform()
