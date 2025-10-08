@@ -257,17 +257,17 @@ def process_cplus_onhand(driver, wait, initial_files):
         js_state = driver.execute_script("return document.readyState;")
         if js_state != "complete":
             logging.warning("CPLUS OnHand: JS 未完全執行，狀態: {js_state}，嘗試等待...")
-            time.sleep(10)  # 加延遲，等 JS 跑
+            time.sleep(10) # 加延遲，等 JS 跑
             # 再檢查
             js_state = driver.execute_script("return document.readyState;")
             if js_state != "complete":
                 raise Exception("CPLUS OnHand: JS 執行失敗，狀態: {js_state}")
         # 檢查 noscript 是否 visible（如果 visible，JS 未跑）
         try:
-            wait.until_not(EC.visibility_of_element_located((By.TAG_NAME, "noscript")))  # 如果 noscript 可見，JS 未跑
+            wait.until_not(EC.visibility_of_element_located((By.TAG_NAME, "noscript"))) # 如果 noscript 可見，JS 未跑
         except TimeoutException:
             logging.error("CPLUS OnHand: noscript 可見，JS 執行或相容問題，記錄狀態...")
-            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")  # 加 timestamp 避免 overwrite
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S") # 加 timestamp 避免 overwrite
             driver.save_screenshot(f"onhand_js_failure_{timestamp}.png")
             with open(f"onhand_js_failure_{timestamp}.html", "w", encoding="utf-8") as f:
                 f.write(driver.page_source)
@@ -279,15 +279,31 @@ def process_cplus_onhand(driver, wait, initial_files):
                 wait.until_not(EC.visibility_of_element_located((By.TAG_NAME, "noscript")))
             except TimeoutException:
                 raise Exception("CPLUS OnHand: JS 執行或相容問題，noscript 仍可見")
-        # 改: 檢查渲染元素是否存在（用更準 XPath match Search）
+        time.sleep(10)  # 新加：額外等待 JS 完全渲染
+        # 改: 檢查渲染元素是否存在（用更準 XPath match Search），加長等待時間
         try:
-            wait.until(EC.presence_of_element_located((By.XPATH, "//button//span[contains(text(), 'Search')]")))  # match span 內 text
+            extended_wait = WebDriverWait(driver, 60)  # 加長到 60 秒
+            extended_wait.until(EC.presence_of_element_located((By.XPATH, "//button//span[contains(text(), 'Search')]"))) # match span 內 text
             logging.info("CPLUS OnHand: 渲染元素存在，JS 執行正常")
         except TimeoutException:
-            raise Exception("CPLUS OnHand: JS 執行問題，無渲染元素")
+            # 新加：如果超時，嘗試刷新頁面再檢查
+            logging.warning("CPLUS OnHand: 渲染元素未出現，嘗試刷新頁面...")
+            driver.refresh()
+            time.sleep(10)
+            try:
+                extended_wait.until(EC.presence_of_element_located((By.XPATH, "//button//span[contains(text(), 'Search')]")))
+                logging.info("CPLUS OnHand: 刷新後渲染元素存在，JS 執行正常")
+            except TimeoutException:
+                # 新加 debug 部分：儲存 screenshot 同 page_source
+                timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                driver.save_screenshot(f"onhand_render_failure_{timestamp}.png")
+                with open(f"onhand_render_failure_{timestamp}.html", "w", encoding="utf-8") as f:
+                    f.write(driver.page_source)
+                logging.error("CPLUS OnHand: 渲染元素未出現，已儲存 screenshot 同 page_source 作 debug")
+                raise Exception("CPLUS OnHand: JS 執行問題，無渲染元素")
     except Exception as e:
         logging.error(f"CPLUS OnHand: JS 檢查失敗: {str(e)}")
-        raise  # 繼續 raise，讓 retry
+        raise # 繼續 raise，讓 retry
     logging.info("CPLUS: OnHandContainerList 頁面加載完成")
     logging.info("CPLUS: 點擊 Search...")
     local_initial = initial_files.copy()
