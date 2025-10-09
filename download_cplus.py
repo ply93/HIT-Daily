@@ -25,7 +25,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 cplus_download_dir = os.path.abspath("downloads_cplus")
 barge_download_dir = os.path.abspath("downloads_barge")
 MAX_RETRIES = 3
-DOWNLOAD_TIMEOUT = 60  # 延長至 60 秒
+DOWNLOAD_TIMEOUT = 30  # 延長至 60 秒
 
 def clear_download_dirs():
     for dir_path in [cplus_download_dir, barge_download_dir]:
@@ -93,7 +93,7 @@ def wait_for_new_file(download_dir, initial_files, timeout=DOWNLOAD_TIMEOUT):
 
 def handle_popup(driver, wait):
     try:
-        error_div = WebDriverWait(driver, 3).until(
+        error_div = (driver, 3).until(
             EC.presence_of_element_located((By.XPATH, "//div[contains(text(), 'System Error') or contains(@class, 'MuiDialog-container') or contains(@class, 'MuiDialog') and not(@aria-label='menu')]"))
         )
         logging.info("檢測到彈出視窗")
@@ -105,7 +105,7 @@ def handle_popup(driver, wait):
         time.sleep(0.5)
         close_button.click()
         logging.info("已點擊關閉按鈕")
-        WebDriverWait(driver, 3).until(
+        (driver, 3).until(
             EC.invisibility_of_element_located((By.XPATH, "//div[contains(text(), 'System Error') or contains(@class, 'MuiDialog-container') or contains(@class, 'MuiDialog')]"))
         )
         logging.info("彈出視窗已消失")
@@ -168,7 +168,7 @@ def process_cplus_movement(driver, wait, initial_files):
     driver.get("https://cplus.hit.com.hk/app/#/enquiry/ContainerMovementLog")
     time.sleep(2)
     wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
-    WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[2]//form")))
+    (driver, 20).until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[2]//form")))
     logging.info("CPLUS: Container Movement Log 頁面加載完成")
 
     logging.info("CPLUS: 點擊 Search...")
@@ -406,7 +406,7 @@ def process_cplus_house(driver, wait, initial_files):
     time.sleep(5)  # 額外等待 JS 渲染按鈕
     logging.info("CPLUS: 等待 Excel 按鈕出現...")
     try:
-        WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)]")))
+        WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)]")))
         logging.info("CPLUS: Excel 按鈕已出現")
     except TimeoutException:
         logging.warning("CPLUS: Excel 按鈕未出現，記錄狀態...")
