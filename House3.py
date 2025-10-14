@@ -379,6 +379,7 @@ def process_cplus_onhand(driver, wait, initial_files):
         raise Exception("CPLUS: OnHandContainerList 未觸發新文件下載")
 
 def process_cplus_house(driver, wait, initial_files):
+    clean_house_files(cplus_download_dir)  # 新加：清理舊 House 檔案
     logging.info("CPLUS: 前往 Housekeeping Reports 頁面...")
     driver.get("https://cplus.hit.com.hk/app/#/report/housekeepReport")
     wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
@@ -406,7 +407,7 @@ def process_cplus_house(driver, wait, initial_files):
     time.sleep(5)  # 額外等待 JS 渲染按鈕
     logging.info("CPLUS: 等待 Excel 按鈕出現...")
     try:
-        WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)]")))
+        WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)]")))
         logging.info("CPLUS: Excel 按鈕已出現")
     except TimeoutException:
         logging.warning("CPLUS: Excel 按鈕未出現，記錄狀態...")
@@ -743,9 +744,18 @@ def main():
     required_patterns = {'movement': 'cntrMoveLog', 'onhand': 'data_', 'barge': 'ContainerDetailReport'}
     housekeep_prefixes = ['IE2_', 'DM1C_', 'IA17_', 'GA1_', 'IA5_', 'IA15_', 'INV-114_']  # 修改：添加 'INV-114_'
     has_required = all(any(pattern in f for f in downloaded_files) for pattern in required_patterns.values())
-    house_files = [f for f in downloaded_files if any(p in f for p in housekeep_prefixes)]
-    house_download_count = len(house_files)
-    house_ok = (house_button_count == 0) or (house_download_count == house_button_count)  # 修改為 ==，嚴格檢查相等
+    # 新加：收集獨特 House 檔案，按前綴選最新
+    house_files_dict = {}
+    for file in os.listdir(cplus_download_dir):
+        for prefix in housekeep_prefixes:
+            if file.startswith(prefix) and file.endswith('.csv'):
+                file_path = os.path.join(cplus_download_dir, file)
+                mod_time = os.path.getmtime(file_path)
+                if prefix not in house_files_dict or mod_time > house_files_dict[prefix]['mod_time']:
+                    house_files_dict[prefix] = {'file': file, 'mod_time': mod_time}
+    house_unique_files = [info['file'] for info in house_files_dict.values()]
+    house_download_count = len(house_unique_files)
+    house_ok = house_download_count >= 6  # 修改：改為 >= 6，忽略多餘
     if has_required and house_ok:
         logging.info("所有必須文件齊全，開始發送郵件...")
         try:
@@ -753,12 +763,12 @@ def main():
             smtp_port = int(os.environ.get('SMTP_PORT', 587))
             sender_email = os.environ['ZOHO_EMAIL']
             sender_password = os.environ['ZOHO_PASSWORD']
-            receiver_emails = os.environ.get('RECEIVER_EMAILS', 'paklun@ckline.com.hk').split(',')
+            receiver_emails = os.environ.get('RECEIVER_EMAILS', 'ckeqc@ckline.com.hk').split(',')
             cc_emails = os.environ.get('CC_EMAILS', '').split(',') if os.environ.get('CC_EMAILS') else []
             dry_run = os.environ.get('DRY_RUN', 'False').lower() == 'true'
             if dry_run:
                 logging.info("Dry run 模式：只打印郵件內容，不發送。")
-            # 動態生成表格內容
+            # 動態生成表格內容（改用獨特檔案）
             body_html = f"""
             <html><body><p>Attached are the daily reports downloaded from CPLUS and Barge. Generated at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
             <table border="1" style="border-collapse: collapse; width: 100%;"><thead><tr><th>Category</th><th>Report</th><th>File Names</th><th>Status</th></tr></thead><tbody>
@@ -766,8 +776,9 @@ def main():
             <tr><td>OnHandContainerList</td><td>{', '.join([f for f in downloaded_files if 'data_' in f]) or 'N/A'}</td><td>{'✓' if any('data_' in f for f in downloaded_files) else '-'}</td></tr>
             """
             for report_name, file_name in house_report_files.items():
-                status = '✓' if file_name in downloaded_files else '-'
-                body_html += f"<tr><td>{report_name}</td><td>{file_name}</td><td>{status}</td></tr>\n"
+                if file_name in house_unique_files:  # 只列獨特
+                    status = '✓' if file_name in downloaded_files else '-'
+                    body_html += f"<tr><td>{report_name}</td><td>{file_name}</td><td>{status}</td></tr>\n"
             body_html += f"""
             <tr><td rowspan="1">BARGE</td><td>Container Detail</td><td>{', '.join([f for f in downloaded_files if 'ContainerDetailReport' in f]) or 'N/A'}</td><td>{'✓' if any('ContainerDetailReport' in f for f in downloaded_files) else '-'}</td></tr>
             <tr><td colspan="2"><strong>TOTAL</strong></td><td><strong>{len(downloaded_files)} files attached</strong></td><td><strong>{len(downloaded_files)}</strong></td></tr>
@@ -782,7 +793,24 @@ def main():
             msg.attach(MIMEText(body_html, 'html'))
             plain_text = body_html.replace('<br>', '\n').replace('<table>', '').replace('</table>', '').replace('<tr>', '\n').replace('<td>', ' | ').replace('</td>', '').replace('<th>', ' | ').replace('</th>', '').strip()
             msg.attach(MIMEText(plain_text, 'plain'))
-            for file in downloaded_files:
+            # 修改：附件只加獨特 House + 其他
+            attachments = house_unique_files[:]  # House 獨特
+            # 加 OnHand
+            for file in os.listdir(cplus_download_dir):
+                if file.startswith('data_') and file.endswith('.csv'):
+                    attachments.append(file)
+                    break
+            # 加 Movement
+            for file in os.listdir(cplus_download_dir):
+                if 'cntrMoveLog' in file and file.endswith('.xlsx'):
+                    attachments.append(file)
+                    break
+            # 加 Barge
+            for file in os.listdir(barge_download_dir):
+                if file.startswith('ContainerDetailReport') and file.endswith('.csv'):
+                    attachments.append(file)
+                    break
+            for file in attachments:
                 if file in os.listdir(cplus_download_dir):
                     file_path = os.path.join(cplus_download_dir, file)
                 else:
