@@ -498,7 +498,7 @@ def process_cplus():
     initial_files = set(os.listdir(cplus_download_dir))
     house_file_count = 0
     house_button_count = 0
-    house_report_files = {}
+    house_report_files = {}  # 移出循環，累積跨重試
     try:
         driver = webdriver.Chrome(options=get_chrome_options(cplus_download_dir))
         logging.info("CPLUS WebDriver 初始化成功")
@@ -528,9 +528,19 @@ def process_cplus():
                     # 修改: 加延遲同刷新，避免載入崩潰
                     if section_name == 'movement':
                         time.sleep(5)  # 加延遲讓頁面穩定
-                    new_files = section_func(driver, wait, initial_files) if section_name != 'house' else section_func(driver, wait, initial_files)
-                    if section_name == 'house':
-                        new_files, house_file_count, house_button_count, house_report_files = new_files  # unpack
+                    if section_name != 'house':
+                        new_files = section_func(driver, wait, initial_files)
+                    else:
+                        new_files, this_file_count, this_button_count, this_report_files = section_func(driver, wait, initial_files)
+                        # 合併 report_files，選最新
+                        for report_name, info in this_report_files.items():
+                            if report_name in house_report_files:
+                                if info['mod_time'] > house_report_files[report_name]['mod_time']:
+                                    house_report_files[report_name] = info
+                            else:
+                                house_report_files[report_name] = info
+                        house_file_count = this_file_count
+                        house_button_count = this_button_count
                     downloaded_files.update(new_files)
                     initial_files.update(new_files)
                     success = True
@@ -549,7 +559,7 @@ def process_cplus():
         return downloaded_files, house_file_count, house_button_count, driver, house_report_files
     except Exception as e:
         logging.error(f"CPLUS 總錯誤: {str(e)}")
-        return downloaded_files, house_file_count, house_button_count, driver, {}
+        return downloaded_files, house_file_count, house_button_count, driver, house_report_files
     finally:
         try:
             if driver:
@@ -776,21 +786,20 @@ def main():
             dry_run = os.environ.get('DRY_RUN', 'False').lower() == 'true'
             if dry_run:
                 logging.info("Dry run 模式：只打印郵件內容，不發送。")
-            # 修改: 動態生成表格，用 report_files 但匹配最新檔案
+            # 修改: 動態生成表格，用 house_report_files 匹配最新檔案
             body_html = f"""
             <html><body><p>Attached are the daily reports downloaded from CPLUS and Barge. Generated at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
             <table border="1" style="border-collapse: collapse; width: 100%;"><thead><tr><th>Category</th><th>Report</th><th>File Names</th><th>Status</th></tr></thead><tbody>
             <tr><td rowspan="{2 + len(house_report_files)}">CPLUS</td><td>Container Movement</td><td>{', '.join([f for f in downloaded_files if 'cntrMoveLog' in f]) or 'N/A'}</td><td>{'✓' if any('cntrMoveLog' in f for f in downloaded_files) else '-'}</td></tr>
             <tr><td>OnHandContainerList</td><td>{', '.join([f for f in downloaded_files if 'data_' in f]) or 'N/A'}</td><td>{'✓' if any('data_' in f for f in downloaded_files) else '-'}</td></tr>
             """
-            for report_name, old_file in house_report_files.items():
-                # 找最新檔案
-                latest_file = next((house_files_dict[prefix]['file'] for prefix in housekeep_prefixes if old_file.startswith(prefix)), old_file)
+            for report_name, info in house_report_files.items():
+                latest_file = info['file']  # 已係最新
                 status = '✓' if latest_file in downloaded_files else '-'
                 body_html += f"<tr><td>{report_name}</td><td>{latest_file}</td><td>{status}</td></tr>\n"
             body_html += f"""
             <tr><td rowspan="1">BARGE</td><td>Container Detail</td><td>{', '.join([f for f in downloaded_files if 'ContainerDetailReport' in f]) or 'N/A'}</td><td>{'✓' if any('ContainerDetailReport' in f for f in downloaded_files) else '-'}</td></tr>
-            <tr><td colspan="2"><strong>TOTAL</strong></td><td><strong>{len(house_unique_files) + 3} files attached</strong></td><td><strong>{len(house_unique_files) + 3}</strong></td></tr>
+            <tr><td colspan="2"><strong>TOTAL</strong></td><td><strong>9 files attached</strong></td><td><strong>9</strong></td></tr>
             </tbody></table></body></html>
             """
             msg = MIMEMultipart('alternative')
@@ -802,7 +811,7 @@ def main():
             msg.attach(MIMEText(body_html, 'html'))
             plain_text = body_html.replace('<br>', '\n').replace('<table>', '').replace('</table>', '').replace('<tr>', '\n').replace('<td>', ' | ').replace('</td>', '').replace('<th>', ' | ').replace('</th>', '').strip()
             msg.attach(MIMEText(plain_text, 'plain'))
-            # 修改: 附件只加獨特 House + 其他
+            # 附件只加獨特 House + 其他
             attachments = house_unique_files[:]  # House 最新
             # 加 OnHand
             for file in os.listdir(cplus_download_dir):
