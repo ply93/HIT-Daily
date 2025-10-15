@@ -443,13 +443,22 @@ def process_cplus_house(driver, wait, initial_files):
                 logging.info(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 JavaScript 點擊成功")
                 time.sleep(0.5)  # 加小延遲等待彈出
                 handle_popup(driver, wait)
-                temp_new = wait_for_new_file(cplus_download_dir, local_initial)
+                temp_new = wait_for_new_file(cplus_download_dir, local_initial, timeout=120)  # 加: 延長等待到 120 秒，避免慢
                 if temp_new:
                     file_name = temp_new.pop()
                     logging.info(f"CPLUS: 第 {idx+1} 個按鈕下載新文件: {file_name}")
                     local_initial.add(file_name)
                     new_files.add(file_name)
-                    report_files[report_name] = file_name
+                    # 修改: 如果報告已存在，選最新檔案
+                    file_path = os.path.join(cplus_download_dir, file_name)
+                    mod_time = os.path.getmtime(file_path)
+                    if report_name in report_files:
+                        old_file = report_files[report_name]
+                        old_path = os.path.join(cplus_download_dir, old_file)
+                        if mod_time > os.path.getmtime(old_path):
+                            report_files[report_name] = file_name
+                    else:
+                        report_files[report_name] = file_name
                     success = True
                     break
                 else:
@@ -741,9 +750,9 @@ def main():
     for file in downloaded_files:
         logging.info(f"找到檔案: {file}")
     required_patterns = {'movement': 'cntrMoveLog', 'onhand': 'data_', 'barge': 'ContainerDetailReport'}
-    housekeep_prefixes = ['IE2_', 'DM1C_', 'IA17_', 'GA1_', 'IA5_', 'IA15_', 'INV-114_']  # 修改：添加 'INV-114_'
+    housekeep_prefixes = ['IE2_', 'DM1C_', 'IA17_', 'GA1_', 'IA5_', 'IA15_', 'INV-114_']  # 保持原
     has_required = all(any(pattern in f for f in downloaded_files) for pattern in required_patterns.values())
-    # 新加：收集獨特 House 檔案，按前綴選最新
+    # 收集獨特 House 檔案，按前綴選最新
     house_files_dict = {}
     for file in os.listdir(cplus_download_dir):
         for prefix in housekeep_prefixes:
@@ -754,7 +763,7 @@ def main():
                     house_files_dict[prefix] = {'file': file, 'mod_time': mod_time}
     house_unique_files = [info['file'] for info in house_files_dict.values()]
     house_download_count = len(house_unique_files)
-    house_ok = house_download_count >= 6  # 修改：改為 >= 6，忽略多餘
+    house_ok = house_download_count >= 6  # >= 6 容許多餘
     if has_required and house_ok:
         logging.info("所有必須文件齊全，開始發送郵件...")
         try:
@@ -762,25 +771,26 @@ def main():
             smtp_port = int(os.environ.get('SMTP_PORT', 587))
             sender_email = os.environ['ZOHO_EMAIL']
             sender_password = os.environ['ZOHO_PASSWORD']
-            receiver_emails = os.environ.get('RECEIVER_EMAILS', 'paklun@ckline.com.hk').split(',')
+            receiver_emails = os.environ.get('RECEIVER_EMAILS', 'ckeqc@ckline.com.hk').split(',')
             cc_emails = os.environ.get('CC_EMAILS', '').split(',') if os.environ.get('CC_EMAILS') else []
             dry_run = os.environ.get('DRY_RUN', 'False').lower() == 'true'
             if dry_run:
                 logging.info("Dry run 模式：只打印郵件內容，不發送。")
-            # 動態生成表格內容（改用獨特檔案）
+            # 修改: 動態生成表格，用 report_files 但匹配最新檔案
             body_html = f"""
             <html><body><p>Attached are the daily reports downloaded from CPLUS and Barge. Generated at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
             <table border="1" style="border-collapse: collapse; width: 100%;"><thead><tr><th>Category</th><th>Report</th><th>File Names</th><th>Status</th></tr></thead><tbody>
             <tr><td rowspan="{2 + len(house_report_files)}">CPLUS</td><td>Container Movement</td><td>{', '.join([f for f in downloaded_files if 'cntrMoveLog' in f]) or 'N/A'}</td><td>{'✓' if any('cntrMoveLog' in f for f in downloaded_files) else '-'}</td></tr>
             <tr><td>OnHandContainerList</td><td>{', '.join([f for f in downloaded_files if 'data_' in f]) or 'N/A'}</td><td>{'✓' if any('data_' in f for f in downloaded_files) else '-'}</td></tr>
             """
-            for report_name, file_name in house_report_files.items():
-                if file_name in house_unique_files:  # 只列獨特
-                    status = '✓' if file_name in downloaded_files else '-'
-                    body_html += f"<tr><td>{report_name}</td><td>{file_name}</td><td>{status}</td></tr>\n"
+            for report_name, old_file in house_report_files.items():
+                # 找最新檔案
+                latest_file = next((house_files_dict[prefix]['file'] for prefix in housekeep_prefixes if old_file.startswith(prefix)), old_file)
+                status = '✓' if latest_file in downloaded_files else '-'
+                body_html += f"<tr><td>{report_name}</td><td>{latest_file}</td><td>{status}</td></tr>\n"
             body_html += f"""
             <tr><td rowspan="1">BARGE</td><td>Container Detail</td><td>{', '.join([f for f in downloaded_files if 'ContainerDetailReport' in f]) or 'N/A'}</td><td>{'✓' if any('ContainerDetailReport' in f for f in downloaded_files) else '-'}</td></tr>
-            <tr><td colspan="2"><strong>TOTAL</strong></td><td><strong>{len(downloaded_files)} files attached</strong></td><td><strong>{len(downloaded_files)}</strong></td></tr>
+            <tr><td colspan="2"><strong>TOTAL</strong></td><td><strong>{len(house_unique_files) + 3} files attached</strong></td><td><strong>{len(house_unique_files) + 3}</strong></td></tr>
             </tbody></table></body></html>
             """
             msg = MIMEMultipart('alternative')
@@ -792,8 +802,8 @@ def main():
             msg.attach(MIMEText(body_html, 'html'))
             plain_text = body_html.replace('<br>', '\n').replace('<table>', '').replace('</table>', '').replace('<tr>', '\n').replace('<td>', ' | ').replace('</td>', '').replace('<th>', ' | ').replace('</th>', '').strip()
             msg.attach(MIMEText(plain_text, 'plain'))
-            # 修改：附件只加獨特 House + 其他
-            attachments = house_unique_files[:]  # House 獨特
+            # 修改: 附件只加獨特 House + 其他
+            attachments = house_unique_files[:]  # House 最新
             # 加 OnHand
             for file in os.listdir(cplus_download_dir):
                 if file.startswith('data_') and file.endswith('.csv'):
