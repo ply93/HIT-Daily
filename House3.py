@@ -389,25 +389,29 @@ def process_cplus_house(driver, wait, initial_files):
     wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
     logging.info("CPLUS: Housekeeping Reports 頁面加載完成")
     logging.info("CPLUS: 等待表格加載...")
-    try:
-        rows = WebDriverWait(driver, 15).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))  # 減到15s
-        if len(rows) == 0 or all(not row.text.strip() for row in rows):
-            logging.debug("表格數據空或無效，刷新頁面...")
-            driver.refresh()
-            WebDriverWait(driver, 15).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))  # 減到15s
+    success_load = False
+    for load_retry in range(3):
+        try:
             rows = WebDriverWait(driver, 15).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))  # 減到15s
-            if len(rows) < 6:
-                logging.warning("刷新後表格數據仍不足，記錄頁面狀態...")
-                driver.save_screenshot("house_load_failure.png")
-                with open("house_load_failure.html", "w", encoding="utf-8") as f:
-                    f.write(driver.page_source)
-                raise Exception("CPLUS: Housekeeping Reports 表格數據不足")
-        logging.info("CPLUS: 表格加載完成")
-    except TimeoutException:
-        logging.warning("CPLUS: 表格未加載，嘗試刷新頁面...")
-        driver.refresh()
-        WebDriverWait(driver, 15).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))  # 減到15s
-        logging.info("CPLUS: 表格加載完成 (after refresh)")
+            if len(rows) == 0 or all(not row.text.strip() for row in rows):
+                logging.debug("表格數據空或無效，刷新頁面...")
+                driver.refresh()
+                WebDriverWait(driver, 15).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))  # 減到15s
+                rows = WebDriverWait(driver, 15).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))  # 減到15s
+                if len(rows) < 6:
+                    logging.warning("刷新後表格數據仍不足，記錄頁面狀態...")
+                    driver.save_screenshot("house_load_failure.png")
+                    with open("house_load_failure.html", "w", encoding="utf-8") as f:
+                        f.write(driver.page_source)
+                    break  # 不 raise，繼續
+            logging.info("CPLUS: 表格加載完成")
+            success_load = True
+            break
+        except TimeoutException:
+            logging.warning(f"CPLUS: 表格未加載 (重試 {load_retry+1}/3)，嘗試刷新頁面...")
+            driver.refresh()
+    if not success_load:
+        logging.error("CPLUS: Housekeeping Reports 表格加載失敗3次，繼續其他邏輯...")
     time.sleep(1)  # 減到1s
     logging.info("CPLUS: 等待 Excel 按鈕出現...")
     try:
@@ -485,19 +489,8 @@ def process_cplus_house(driver, wait, initial_files):
     if new_files:
         logging.info(f"CPLUS: Housekeeping Reports 下載完成，共 {len(new_files)} 個文件，預期 {button_count} 個")
         if len(new_files) != button_count:
-            logging.error(f"CPLUS: 下載數 {len(new_files)} 不等於按鈕數 {button_count}，可能漏下載，記錄狀態...")
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            driver.save_screenshot(f"house_download_mismatch_{timestamp}.png")
-            with open(f"house_download_mismatch_{timestamp}.html", "w", encoding="utf-8") as f:
-                f.write(driver.page_source)
-            raise Exception("CPLUS: Housekeeping Reports 下載數不匹配")
-        return new_files, len(new_files), button_count, report_files
-    else:
-        logging.warning("CPLUS: Housekeeping Reports 未下載任何文件，記錄頁面狀態...")
-        driver.save_screenshot("house_download_failure.png")
-        with open("house_download_failure.html", "w", encoding="utf-8") as f:
-            f.write(driver.page_source)
-        raise Exception("CPLUS: Housekeeping Reports 未下載任何文件")
+            logging.warning(f"CPLUS: 下載數 {len(new_files)} 不等於按鈕數 {button_count}，但繼續抽取現有檔案")  # 不 raise，繼續抽取
+    return new_files, len(new_files), button_count, report_files  # 無 new_files 也繼續
         
 def process_cplus():
     driver = None
@@ -520,8 +513,6 @@ def process_cplus():
         for section_name, section_func in sections:
             success = False
             for attempt in range(MAX_RETRIES):
-                if section_name == 'house' and attempt > 0:
-                    clean_house_files(cplus_download_dir)  # 加: 只在 House 重試時清，避免丟失但減 (1)
                 try:
                     # 加: 在每個 attempt 前檢查 session
                     try:
@@ -536,7 +527,7 @@ def process_cplus():
                             f.write(driver.page_source)
                     # 修改: 加延遲同刷新，避免載入崩潰
                     if section_name == 'movement':
-                        time.sleep(1)  # 減到1s
+                        time.sleep(0.5)  # 減到0.5s
                     if section_name != 'house':
                         new_files = section_func(driver, wait, initial_files)
                     else:
@@ -557,14 +548,14 @@ def process_cplus():
                 except Exception as e:
                     logging.error(f"CPLUS {section_name} 嘗試 {attempt+1}/{MAX_RETRIES} 失敗: {str(e)}")
                     if attempt < MAX_RETRIES - 1:
-                        time.sleep(1)  # 減到1s
+                        time.sleep(0.5)  # 減到0.5s
                         # 修改: 加刷新頁面或重新導航，避免內部崩潰殘留
                         try:
                             driver.refresh()
                         except:
                             pass
             if not success:
-                logging.error(f"CPLUS {section_name} 經過 {MAX_RETRIES} 次嘗試失敗")  # 不 raise，繼續其他部分
+                logging.error(f"CPLUS {section_name} 經過 {MAX_RETRIES} 次嘗試失敗")  # 不 raise，繼續抽取現有檔案
         return downloaded_files, house_file_count, house_button_count, driver, house_report_files
     except Exception as e:
         logging.error(f"CPLUS 總錯誤: {str(e)}")
@@ -779,14 +770,14 @@ def main():
                 file_path = os.path.join(cplus_download_dir, file)
                 mod_time = os.path.getmtime(file_path)
                 is_preferred = ' (' not in file  # 優先無 (1)
-                current = house_files_dict.get(prefix, {'mod_time': 0, 'is_preferred': False})
+                current = house_files_dict.get(prefix, {'mod_time': 0, 'is_preferred': False, 'file': 'N/A'})
                 if mod_time > current['mod_time'] or (is_preferred and not current['is_preferred']):
                     house_files_dict[prefix] = {'file': file, 'mod_time': mod_time, 'is_preferred': is_preferred}
     house_unique_files = [info['file'] for info in house_files_dict.values()]
     house_download_count = len(house_unique_files)
     house_ok = house_download_count >= 6  # >= 6 容許多餘
-    if has_required and house_ok:
-        logging.info("所有必須文件齊全，開始發送郵件...")
+    if has_required or house_ok:  # 如果 House 不足也發現有
+        logging.info("開始發送郵件（即使部份缺失）...")
         try:
             smtp_server = os.environ.get('SMTP_SERVER', 'smtp.zoho.com')
             smtp_port = int(os.environ.get('SMTP_PORT', 587))
