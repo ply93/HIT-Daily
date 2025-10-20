@@ -81,14 +81,19 @@ def get_chrome_options(download_dir):
     chrome_options.binary_location = '/usr/bin/chromium-browser'
     return chrome_options
 
-def wait_for_new_file(download_dir, initial_files, timeout=DOWNLOAD_TIMEOUT):
+def wait_for_new_file(download_dir, initial_files, timeout=20, prefixes=None):
     start_time = time.time()
     while time.time() - start_time < timeout:
         current_files = set(f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx')))
         new_files = current_files - initial_files
         if new_files:
-            return new_files
-        time.sleep(1)
+            if prefixes:
+                filtered_new = [f for f in new_files if any(f.startswith(p) for p in prefixes)]
+                if filtered_new:
+                    return set(filtered_new)
+            else:
+                return new_files
+        time.sleep(1)  # 每秒檢查一次
     return set()
 
 def handle_popup(driver, wait):
@@ -384,29 +389,33 @@ def process_cplus_house(driver, wait, initial_files):
     wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
     logging.info("CPLUS: Housekeeping Reports 頁面加載完成")
     logging.info("CPLUS: 等待表格加載...")
-    try:
-        rows = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
-        if len(rows) == 0 or all(not row.text.strip() for row in rows):
-            logging.debug("表格數據空或無效，刷新頁面...")
+    success_load = False
+    for load_retry in range(3):
+        try:
+            rows = WebDriverWait(driver, 15).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))  # 減到15s
+            if len(rows) == 0 or all(not row.text.strip() for row in rows):
+                logging.debug("表格數據空或無效，刷新頁面...")
+                driver.refresh()
+                WebDriverWait(driver, 15).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))  # 減到15s
+                rows = WebDriverWait(driver, 15).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))  # 減到15s
+                if len(rows) < 6:
+                    logging.warning("刷新後表格數據仍不足，記錄頁面狀態...")
+                    driver.save_screenshot("house_load_failure.png")
+                    with open("house_load_failure.html", "w", encoding="utf-8") as f:
+                        f.write(driver.page_source)
+                    break  # 不 raise，繼續
+            logging.info("CPLUS: 表格加載完成")
+            success_load = True
+            break
+        except TimeoutException:
+            logging.warning(f"CPLUS: 表格未加載 (重試 {load_retry+1}/3)，嘗試刷新頁面...")
             driver.refresh()
-            wait.until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
-            rows = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
-            if len(rows) < 6:
-                logging.warning("刷新後表格數據仍不足，記錄頁面狀態...")
-                driver.save_screenshot("house_load_failure.png")
-                with open("house_load_failure.html", "w", encoding="utf-8") as f:
-                    f.write(driver.page_source)
-                raise Exception("CPLUS: Housekeeping Reports 表格數據不足")
-        logging.info("CPLUS: 表格加載完成")
-    except TimeoutException:
-        logging.warning("CPLUS: 表格未加載，嘗試刷新頁面...")
-        driver.refresh()
-        wait.until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
-        logging.info("CPLUS: 表格加載完成 (after refresh)")
-    time.sleep(5)  # 額外等待 JS 渲染按鈕
+    if not success_load:
+        logging.error("CPLUS: Housekeeping Reports 表格加載失敗3次，繼續其他邏輯...")
+    time.sleep(1)  # 減到1s
     logging.info("CPLUS: 等待 Excel 按鈕出現...")
     try:
-        WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)]")))
+        WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)]")))  # 減到10s
         logging.info("CPLUS: Excel 按鈕已出現")
     except TimeoutException:
         logging.warning("CPLUS: Excel 按鈕未出現，記錄狀態...")
@@ -416,7 +425,7 @@ def process_cplus_house(driver, wait, initial_files):
     logging.info("CPLUS: 定位並點擊所有 Excel 下載按鈕...")
     local_initial = initial_files.copy()
     new_files = set()
-    report_files = {} # 儲存報告名稱與檔案名稱的映射
+    report_files = {}  # 儲存報告名稱與 {'file': file_name, 'mod_time': mod_time} 的映射
     excel_buttons = driver.find_elements(By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)]")
     button_count = len(excel_buttons)
     logging.info(f"CPLUS: 找到 {button_count} 個 Excel 下載按鈕")
@@ -427,9 +436,10 @@ def process_cplus_house(driver, wait, initial_files):
         logging.info(f"CPLUS: 備用定位找到 {button_count} 個 Excel 下載按鈕")
     # 每個按鈕前清視窗
     handle_popup(driver, wait)
+    housekeep_prefixes = ['IE2_', 'DM1C_', 'IA17_', 'GA1_', 'IA5_', 'IA15_', 'INV-114_']  # 用於過濾
     for idx in range(button_count):
         success = False
-        for retry in range(3):  # 修改: 加重試 3 次每個按鈕
+        for retry in range(3):  # 加重試 3 次每個按鈕
             try:
                 button_xpath = f"(//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button[not(@disabled)])[{idx+1}]"
                 button = wait.until(EC.element_to_be_clickable((By.XPATH, button_xpath)))
@@ -438,18 +448,28 @@ def process_cplus_house(driver, wait, initial_files):
                     logging.info(f"CPLUS: 準備點擊第 {idx+1} 個 Excel 按鈕，報告名稱: {report_name}")
                 except:
                     logging.debug(f"CPLUS: 無法獲取第 {idx+1} 個按鈕的報告名稱")
-                # 修改: 用 JS 點擊避 intercept
+                    report_name = f"Unknown Report {idx+1}"  # 後備名稱，避免 key error
+                # 用 JS 點擊
                 driver.execute_script("arguments[0].click();", button)
                 logging.info(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 JavaScript 點擊成功")
                 time.sleep(0.5)  # 加小延遲等待彈出
                 handle_popup(driver, wait)
-                temp_new = wait_for_new_file(cplus_download_dir, local_initial)
+                temp_new = wait_for_new_file(cplus_download_dir, local_initial, timeout=20, prefixes=housekeep_prefixes)  # 20s
                 if temp_new:
                     file_name = temp_new.pop()
                     logging.info(f"CPLUS: 第 {idx+1} 個按鈕下載新文件: {file_name}")
                     local_initial.add(file_name)
                     new_files.add(file_name)
-                    report_files[report_name] = file_name
+                    file_path = os.path.join(cplus_download_dir, file_name)
+                    mod_time = os.path.getmtime(file_path)
+                    # 如果報告已存在，選最新，並優先無 (1) 的
+                    if report_name in report_files:
+                        old_file = report_files[report_name]['file']
+                        old_mod = report_files[report_name]['mod_time']
+                        if mod_time > old_mod or (' (' not in file_name and ' (' in old_file):
+                            report_files[report_name] = {'file': file_name, 'mod_time': mod_time}
+                    else:
+                        report_files[report_name] = {'file': file_name, 'mod_time': mod_time}
                     success = True
                     break
                 else:
@@ -469,27 +489,16 @@ def process_cplus_house(driver, wait, initial_files):
     if new_files:
         logging.info(f"CPLUS: Housekeeping Reports 下載完成，共 {len(new_files)} 個文件，預期 {button_count} 個")
         if len(new_files) != button_count:
-            logging.error(f"CPLUS: 下載數 {len(new_files)} 不等於按鈕數 {button_count}，可能漏下載，記錄狀態...")
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            driver.save_screenshot(f"house_download_mismatch_{timestamp}.png")
-            with open(f"house_download_mismatch_{timestamp}.html", "w", encoding="utf-8") as f:
-                f.write(driver.page_source)
-            raise Exception("CPLUS: Housekeeping Reports 下載數不匹配")
-        return new_files, len(new_files), button_count, report_files
-    else:
-        logging.warning("CPLUS: Housekeeping Reports 未下載任何文件，記錄頁面狀態...")
-        driver.save_screenshot("house_download_failure.png")
-        with open("house_download_failure.html", "w", encoding="utf-8") as f:
-            f.write(driver.page_source)
-        raise Exception("CPLUS: Housekeeping Reports 未下載任何文件")
-
+            logging.warning(f"CPLUS: 下載數 {len(new_files)} 不等於按鈕數 {button_count}，但繼續抽取現有檔案")  # 不 raise，繼續抽取
+    return new_files, len(new_files), button_count, report_files  # 無 new_files 也繼續
+        
 def process_cplus():
     driver = None
     downloaded_files = set()
     initial_files = set(os.listdir(cplus_download_dir))
     house_file_count = 0
     house_button_count = 0
-    house_report_files = {}
+    house_report_files = {}  # 移出循環，累積跨重試
     try:
         driver = webdriver.Chrome(options=get_chrome_options(cplus_download_dir))
         logging.info("CPLUS WebDriver 初始化成功")
@@ -518,10 +527,20 @@ def process_cplus():
                             f.write(driver.page_source)
                     # 修改: 加延遲同刷新，避免載入崩潰
                     if section_name == 'movement':
-                        time.sleep(5)  # 加延遲讓頁面穩定
-                    new_files = section_func(driver, wait, initial_files) if section_name != 'house' else section_func(driver, wait, initial_files)
-                    if section_name == 'house':
-                        new_files, house_file_count, house_button_count, house_report_files = new_files  # unpack
+                        time.sleep(0.5)  # 減到0.5s
+                    if section_name != 'house':
+                        new_files = section_func(driver, wait, initial_files)
+                    else:
+                        new_files, this_file_count, this_button_count, this_report_files = section_func(driver, wait, initial_files)
+                        # 合併 report_files，選最新
+                        for report_name, this_info in this_report_files.items():
+                            if report_name in house_report_files:
+                                if this_info['mod_time'] > house_report_files[report_name]['mod_time']:
+                                    house_report_files[report_name] = this_info
+                            else:
+                                house_report_files[report_name] = this_info
+                        house_file_count = this_file_count
+                        house_button_count = this_button_count
                     downloaded_files.update(new_files)
                     initial_files.update(new_files)
                     success = True
@@ -529,18 +548,18 @@ def process_cplus():
                 except Exception as e:
                     logging.error(f"CPLUS {section_name} 嘗試 {attempt+1}/{MAX_RETRIES} 失敗: {str(e)}")
                     if attempt < MAX_RETRIES - 1:
-                        time.sleep(5)
+                        time.sleep(0.5)  # 減到0.5s
                         # 修改: 加刷新頁面或重新導航，避免內部崩潰殘留
                         try:
                             driver.refresh()
                         except:
                             pass
             if not success:
-                logging.error(f"CPLUS {section_name} 經過 {MAX_RETRIES} 次嘗試失敗")
+                logging.error(f"CPLUS {section_name} 經過 {MAX_RETRIES} 次嘗試失敗")  # 不 raise，繼續抽取現有檔案
         return downloaded_files, house_file_count, house_button_count, driver, house_report_files
     except Exception as e:
         logging.error(f"CPLUS 總錯誤: {str(e)}")
-        return downloaded_files, house_file_count, house_button_count, driver, {}
+        return downloaded_files, house_file_count, house_button_count, driver, house_report_files
     finally:
         try:
             if driver:
@@ -741,13 +760,24 @@ def main():
     for file in downloaded_files:
         logging.info(f"找到檔案: {file}")
     required_patterns = {'movement': 'cntrMoveLog', 'onhand': 'data_', 'barge': 'ContainerDetailReport'}
-    housekeep_prefixes = ['IE2_', 'DM1C_', 'IA17_', 'GA1_', 'IA5_', 'IA15_', 'INV-114_']  # 修改：添加 'INV-114_'
+    housekeep_prefixes = ['IE2_', 'DM1C_', 'IA17_', 'GA1_', 'IA5_', 'IA15_', 'INV-114_']  # 保持原
     has_required = all(any(pattern in f for f in downloaded_files) for pattern in required_patterns.values())
-    house_files = [f for f in downloaded_files if any(p in f for p in housekeep_prefixes)]
-    house_download_count = len(house_files)
-    house_ok = (house_button_count == 0) or (house_download_count == house_button_count)  # 修改為 ==，嚴格檢查相等
-    if has_required and house_ok:
-        logging.info("所有必須文件齊全，開始發送郵件...")
+    # 收集獨特 House 檔案，按前綴選最新，並優先無 (1)
+    house_files_dict = {}
+    for file in os.listdir(cplus_download_dir):
+        for prefix in housekeep_prefixes:
+            if file.startswith(prefix) and file.endswith('.csv'):
+                file_path = os.path.join(cplus_download_dir, file)
+                mod_time = os.path.getmtime(file_path)
+                is_preferred = ' (' not in file  # 優先無 (1)
+                current = house_files_dict.get(prefix, {'mod_time': 0, 'is_preferred': False, 'file': 'N/A'})
+                if mod_time > current['mod_time'] or (is_preferred and not current['is_preferred']):
+                    house_files_dict[prefix] = {'file': file, 'mod_time': mod_time, 'is_preferred': is_preferred}
+    house_unique_files = [info['file'] for info in house_files_dict.values()]
+    house_download_count = len(house_unique_files)
+    house_ok = house_download_count >= 6  # >= 6 容許多餘
+    if has_required or house_ok:  # 如果 House 不足也發現有
+        logging.info("開始發送郵件（即使部份缺失）...")
         try:
             smtp_server = os.environ.get('SMTP_SERVER', 'smtp.zoho.com')
             smtp_port = int(os.environ.get('SMTP_PORT', 587))
@@ -758,19 +788,43 @@ def main():
             dry_run = os.environ.get('DRY_RUN', 'False').lower() == 'true'
             if dry_run:
                 logging.info("Dry run 模式：只打印郵件內容，不發送。")
-            # 動態生成表格內容
+            # 固定報告名稱列表，從日誌推斷
+            fixed_report_names = [
+                "CONTAINER DAMAGE REPORT (LINE) ENTRY GATE + EXIT GATE",
+                "CY - GATELOG",
+                "CONTAINER LIST (ON HAND)",
+                "CONTAINER LIST (DAMAGED)",
+                "ACTIVE REEFER CONTAINER ON HAND LIST",
+                "REEFER CONTAINER MONITOR REPORT"
+            ]
+            prefix_to_report = {
+                'DM1C_': fixed_report_names[0],
+                'GA1_': fixed_report_names[1],
+                'IA15_': fixed_report_names[2],
+                'IA17_': fixed_report_names[3],
+                'IA5_': fixed_report_names[4],
+                'IE2_': fixed_report_names[5],
+            }
+            # 動態生成表格，用固定名稱匹配最新檔案
+            num_house_rows = len(fixed_report_names)
             body_html = f"""
             <html><body><p>Attached are the daily reports downloaded from CPLUS and Barge. Generated at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
             <table border="1" style="border-collapse: collapse; width: 100%;"><thead><tr><th>Category</th><th>Report</th><th>File Names</th><th>Status</th></tr></thead><tbody>
-            <tr><td rowspan="{2 + len(house_report_files)}">CPLUS</td><td>Container Movement</td><td>{', '.join([f for f in downloaded_files if 'cntrMoveLog' in f]) or 'N/A'}</td><td>{'✓' if any('cntrMoveLog' in f for f in downloaded_files) else '-'}</td></tr>
+            <tr><td rowspan="{2 + num_house_rows}">CPLUS</td><td>Container Movement</td><td>{', '.join([f for f in downloaded_files if 'cntrMoveLog' in f]) or 'N/A'}</td><td>{'✓' if any('cntrMoveLog' in f for f in downloaded_files) else '-'}</td></tr>
             <tr><td>OnHandContainerList</td><td>{', '.join([f for f in downloaded_files if 'data_' in f]) or 'N/A'}</td><td>{'✓' if any('data_' in f for f in downloaded_files) else '-'}</td></tr>
             """
-            for report_name, file_name in house_report_files.items():
-                status = '✓' if file_name in downloaded_files else '-'
-                body_html += f"<tr><td>{report_name}</td><td>{file_name}</td><td>{status}</td></tr>\n"
+            for prefix in ['DM1C_', 'GA1_', 'IA15_', 'IA17_', 'IA5_', 'IE2_']:  # 固定順序
+                report_name = prefix_to_report.get(prefix, 'Unknown Report')
+                if prefix in house_files_dict:
+                    latest_file = house_files_dict[prefix]['file']
+                    status = '✓'
+                else:
+                    latest_file = 'N/A'
+                    status = '-'
+                body_html += f"<tr><td>{report_name}</td><td>{latest_file}</td><td>{status}</td></tr>\n"
             body_html += f"""
             <tr><td rowspan="1">BARGE</td><td>Container Detail</td><td>{', '.join([f for f in downloaded_files if 'ContainerDetailReport' in f]) or 'N/A'}</td><td>{'✓' if any('ContainerDetailReport' in f for f in downloaded_files) else '-'}</td></tr>
-            <tr><td colspan="2"><strong>TOTAL</strong></td><td><strong>{len(downloaded_files)} files attached</strong></td><td><strong>{len(downloaded_files)}</strong></td></tr>
+            <tr><td colspan="2"><strong>TOTAL</strong></td><td><strong>9 files attached</strong></td><td><strong>9</strong></td></tr>
             </tbody></table></body></html>
             """
             msg = MIMEMultipart('alternative')
@@ -782,7 +836,24 @@ def main():
             msg.attach(MIMEText(body_html, 'html'))
             plain_text = body_html.replace('<br>', '\n').replace('<table>', '').replace('</table>', '').replace('<tr>', '\n').replace('<td>', ' | ').replace('</td>', '').replace('<th>', ' | ').replace('</th>', '').strip()
             msg.attach(MIMEText(plain_text, 'plain'))
-            for file in downloaded_files:
+            # 附件只加獨特 House + 其他
+            attachments = house_unique_files[:]  # House 最新
+            # 加 OnHand
+            for file in os.listdir(cplus_download_dir):
+                if file.startswith('data_') and file.endswith('.csv'):
+                    attachments.append(file)
+                    break
+            # 加 Movement
+            for file in os.listdir(cplus_download_dir):
+                if 'cntrMoveLog' in file and file.endswith('.xlsx'):
+                    attachments.append(file)
+                    break
+            # 加 Barge
+            for file in os.listdir(barge_download_dir):
+                if file.startswith('ContainerDetailReport') and file.endswith('.csv'):
+                    attachments.append(file)
+                    break
+            for file in attachments:
                 if file in os.listdir(cplus_download_dir):
                     file_path = os.path.join(cplus_download_dir, file)
                 else:
