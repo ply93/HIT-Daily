@@ -81,14 +81,19 @@ def get_chrome_options(download_dir):
     chrome_options.binary_location = '/usr/bin/chromium-browser'
     return chrome_options
 
-def wait_for_new_file(download_dir, initial_files, timeout=DOWNLOAD_TIMEOUT):
+def wait_for_new_file(download_dir, initial_files, timeout=20, prefixes=None):
     start_time = time.time()
     while time.time() - start_time < timeout:
         current_files = set(f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx')))
         new_files = current_files - initial_files
         if new_files:
-            return new_files
-        time.sleep(1)
+            if prefixes:
+                filtered_new = [f for f in new_files if any(f.startswith(p) for p in prefixes)]
+                if filtered_new:
+                    return set(filtered_new)
+            else:
+                return new_files
+        time.sleep(1)  # 每秒檢查一次
     return set()
 
 def handle_popup(driver, wait):
@@ -416,7 +421,7 @@ def process_cplus_house(driver, wait, initial_files):
     logging.info("CPLUS: 定位並點擊所有 Excel 下載按鈕...")
     local_initial = initial_files.copy()
     new_files = set()
-    report_files = {} # 儲存報告名稱與檔案名稱的映射
+    report_files = {}  # 儲存報告名稱與 {'file': file_name, 'mod_time': mod_time} 的映射
     excel_buttons = driver.find_elements(By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)]")
     button_count = len(excel_buttons)
     logging.info(f"CPLUS: 找到 {button_count} 個 Excel 下載按鈕")
@@ -427,9 +432,10 @@ def process_cplus_house(driver, wait, initial_files):
         logging.info(f"CPLUS: 備用定位找到 {button_count} 個 Excel 下載按鈕")
     # 每個按鈕前清視窗
     handle_popup(driver, wait)
+    housekeep_prefixes = ['IE2_', 'DM1C_', 'IA17_', 'GA1_', 'IA5_', 'IA15_', 'INV-114_']  # 用於過濾
     for idx in range(button_count):
         success = False
-        for retry in range(3):  # 修改: 加重試 3 次每個按鈕
+        for retry in range(3):  # 加重試 3 次每個按鈕
             try:
                 button_xpath = f"(//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button[not(@disabled)])[{idx+1}]"
                 button = wait.until(EC.element_to_be_clickable((By.XPATH, button_xpath)))
@@ -438,27 +444,26 @@ def process_cplus_house(driver, wait, initial_files):
                     logging.info(f"CPLUS: 準備點擊第 {idx+1} 個 Excel 按鈕，報告名稱: {report_name}")
                 except:
                     logging.debug(f"CPLUS: 無法獲取第 {idx+1} 個按鈕的報告名稱")
-                # 修改: 用 JS 點擊避 intercept
+                    report_name = f"Unknown Report {idx+1}"  # 後備名稱，避免 key error
+                # 用 JS 點擊
                 driver.execute_script("arguments[0].click();", button)
                 logging.info(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 JavaScript 點擊成功")
                 time.sleep(0.5)  # 加小延遲等待彈出
                 handle_popup(driver, wait)
-                temp_new = wait_for_new_file(cplus_download_dir, local_initial, timeout=120)  # 加: 延長等待到 120 秒，避免慢
+                temp_new = wait_for_new_file(cplus_download_dir, local_initial, timeout=20, prefixes=housekeep_prefixes)  # 改總超時為20s
                 if temp_new:
                     file_name = temp_new.pop()
                     logging.info(f"CPLUS: 第 {idx+1} 個按鈕下載新文件: {file_name}")
                     local_initial.add(file_name)
                     new_files.add(file_name)
-                    # 修改: 如果報告已存在，選最新檔案
                     file_path = os.path.join(cplus_download_dir, file_name)
                     mod_time = os.path.getmtime(file_path)
+                    # 如果報告已存在，選最新
                     if report_name in report_files:
-                        old_file = report_files[report_name]
-                        old_path = os.path.join(cplus_download_dir, old_file)
-                        if mod_time > os.path.getmtime(old_path):
-                            report_files[report_name] = file_name
+                        if mod_time > report_files[report_name]['mod_time']:
+                            report_files[report_name] = {'file': file_name, 'mod_time': mod_time}
                     else:
-                        report_files[report_name] = file_name
+                        report_files[report_name] = {'file': file_name, 'mod_time': mod_time}
                     success = True
                     break
                 else:
@@ -491,7 +496,7 @@ def process_cplus_house(driver, wait, initial_files):
         with open("house_download_failure.html", "w", encoding="utf-8") as f:
             f.write(driver.page_source)
         raise Exception("CPLUS: Housekeeping Reports 未下載任何文件")
-
+        
 def process_cplus():
     driver = None
     downloaded_files = set()
@@ -533,12 +538,12 @@ def process_cplus():
                     else:
                         new_files, this_file_count, this_button_count, this_report_files = section_func(driver, wait, initial_files)
                         # 合併 report_files，選最新
-                        for report_name, info in this_report_files.items():
+                        for report_name, this_info in this_report_files.items():
                             if report_name in house_report_files:
-                                if info['mod_time'] > house_report_files[report_name]['mod_time']:
-                                    house_report_files[report_name] = info
+                                if this_info['mod_time'] > house_report_files[report_name]['mod_time']:
+                                    house_report_files[report_name] = this_info
                             else:
-                                house_report_files[report_name] = info
+                                house_report_files[report_name] = this_info
                         house_file_count = this_file_count
                         house_button_count = this_button_count
                     downloaded_files.update(new_files)
@@ -786,16 +791,39 @@ def main():
             dry_run = os.environ.get('DRY_RUN', 'False').lower() == 'true'
             if dry_run:
                 logging.info("Dry run 模式：只打印郵件內容，不發送。")
-            # 修改: 動態生成表格，用 house_report_files 匹配最新檔案
+            # 固定報告名稱列表，從日誌推斷
+            fixed_report_names = [
+                "CONTAINER DAMAGE REPORT (LINE) ENTRY GATE + EXIT GATE",
+                "CY - GATELOG",
+                "CONTAINER LIST (ON HAND)",
+                "CONTAINER LIST (DAMAGED)",
+                "ACTIVE REEFER CONTAINER ON HAND LIST",
+                "REEFER CONTAINER MONITOR REPORT"
+            ]
+            prefix_to_report = {
+                'DM1C_': fixed_report_names[0],
+                'GA1_': fixed_report_names[1],
+                'IA15_': fixed_report_names[2],
+                'IA17_': fixed_report_names[3],
+                'IA5_': fixed_report_names[4],
+                'IE2_': fixed_report_names[5],
+            }
+            # 動態生成表格，用固定名稱匹配最新檔案
+            num_house_rows = len(fixed_report_names)
             body_html = f"""
             <html><body><p>Attached are the daily reports downloaded from CPLUS and Barge. Generated at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
             <table border="1" style="border-collapse: collapse; width: 100%;"><thead><tr><th>Category</th><th>Report</th><th>File Names</th><th>Status</th></tr></thead><tbody>
-            <tr><td rowspan="{2 + len(house_report_files)}">CPLUS</td><td>Container Movement</td><td>{', '.join([f for f in downloaded_files if 'cntrMoveLog' in f]) or 'N/A'}</td><td>{'✓' if any('cntrMoveLog' in f for f in downloaded_files) else '-'}</td></tr>
+            <tr><td rowspan="{2 + num_house_rows}">CPLUS</td><td>Container Movement</td><td>{', '.join([f for f in downloaded_files if 'cntrMoveLog' in f]) or 'N/A'}</td><td>{'✓' if any('cntrMoveLog' in f for f in downloaded_files) else '-'}</td></tr>
             <tr><td>OnHandContainerList</td><td>{', '.join([f for f in downloaded_files if 'data_' in f]) or 'N/A'}</td><td>{'✓' if any('data_' in f for f in downloaded_files) else '-'}</td></tr>
             """
-            for report_name, info in house_report_files.items():
-                latest_file = info['file']  # 已係最新
-                status = '✓' if latest_file in downloaded_files else '-'
+            for prefix in ['DM1C_', 'GA1_', 'IA15_', 'IA17_', 'IA5_', 'IE2_']:  # 固定順序
+                report_name = prefix_to_report.get(prefix, 'Unknown Report')
+                if prefix in house_files_dict:
+                    latest_file = house_files_dict[prefix]['file']
+                    status = '✓'
+                else:
+                    latest_file = 'N/A'
+                    status = '-'
                 body_html += f"<tr><td>{report_name}</td><td>{latest_file}</td><td>{status}</td></tr>\n"
             body_html += f"""
             <tr><td rowspan="1">BARGE</td><td>Container Detail</td><td>{', '.join([f for f in downloaded_files if 'ContainerDetailReport' in f]) or 'N/A'}</td><td>{'✓' if any('ContainerDetailReport' in f for f in downloaded_files) else '-'}</td></tr>
