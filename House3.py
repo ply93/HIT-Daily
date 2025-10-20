@@ -390,12 +390,12 @@ def process_cplus_house(driver, wait, initial_files):
     logging.info("CPLUS: Housekeeping Reports 頁面加載完成")
     logging.info("CPLUS: 等待表格加載...")
     try:
-        rows = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
+        rows = WebDriverWait(driver, 30).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))  # 減到30s
         if len(rows) == 0 or all(not row.text.strip() for row in rows):
             logging.debug("表格數據空或無效，刷新頁面...")
             driver.refresh()
-            wait.until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
-            rows = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
+            WebDriverWait(driver, 30).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))  # 減到30s
+            rows = WebDriverWait(driver, 30).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))  # 減到30s
             if len(rows) < 6:
                 logging.warning("刷新後表格數據仍不足，記錄頁面狀態...")
                 driver.save_screenshot("house_load_failure.png")
@@ -406,12 +406,12 @@ def process_cplus_house(driver, wait, initial_files):
     except TimeoutException:
         logging.warning("CPLUS: 表格未加載，嘗試刷新頁面...")
         driver.refresh()
-        wait.until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
+        WebDriverWait(driver, 30).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))  # 減到30s
         logging.info("CPLUS: 表格加載完成 (after refresh)")
-    time.sleep(5)  # 額外等待 JS 渲染按鈕
+    time.sleep(1)  # 減到1s
     logging.info("CPLUS: 等待 Excel 按鈕出現...")
     try:
-        WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)]")))
+        WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)]")))  # 減到10s
         logging.info("CPLUS: Excel 按鈕已出現")
     except TimeoutException:
         logging.warning("CPLUS: Excel 按鈕未出現，記錄狀態...")
@@ -450,7 +450,7 @@ def process_cplus_house(driver, wait, initial_files):
                 logging.info(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 JavaScript 點擊成功")
                 time.sleep(0.5)  # 加小延遲等待彈出
                 handle_popup(driver, wait)
-                temp_new = wait_for_new_file(cplus_download_dir, local_initial, timeout=20, prefixes=housekeep_prefixes)  # 改總超時為20s
+                temp_new = wait_for_new_file(cplus_download_dir, local_initial, timeout=20, prefixes=housekeep_prefixes)  # 20s
                 if temp_new:
                     file_name = temp_new.pop()
                     logging.info(f"CPLUS: 第 {idx+1} 個按鈕下載新文件: {file_name}")
@@ -774,7 +774,7 @@ def main():
             if file.startswith(prefix) and file.endswith('.csv'):
                 file_path = os.path.join(cplus_download_dir, file)
                 mod_time = os.path.getmtime(file_path)
-                if prefix not in house_files_dict or mod_time > house_files_dict[prefix]['mod_time']:
+                if prefix not in house_files_dict or mod_time > house_files_dict[prefix].get('mod_time', 0):  # 修復 string error，用 .get
                     house_files_dict[prefix] = {'file': file, 'mod_time': mod_time}
     house_unique_files = [info['file'] for info in house_files_dict.values()]
     house_download_count = len(house_unique_files)
@@ -786,7 +786,7 @@ def main():
             smtp_port = int(os.environ.get('SMTP_PORT', 587))
             sender_email = os.environ['ZOHO_EMAIL']
             sender_password = os.environ['ZOHO_PASSWORD']
-            receiver_emails = os.environ.get('RECEIVER_EMAILS', 'paklun@ckline.com.hk').split(',')
+            receiver_emails = os.environ.get('RECEIVER_EMAILS', 'ckeqc@ckline.com.hk').split(',')
             cc_emails = os.environ.get('CC_EMAILS', '').split(',') if os.environ.get('CC_EMAILS') else []
             dry_run = os.environ.get('DRY_RUN', 'False').lower() == 'true'
             if dry_run:
