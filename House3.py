@@ -38,25 +38,24 @@ def setup_environment():
     try:
         result = subprocess.run(['which', 'chromium-browser'], capture_output=True, text=True)
         if result.returncode != 0:
-            subprocess.run(['sudo', 'apt-get', 'update', '-qq'], check=True)
-            subprocess.run(['sudo', 'apt-get', 'install', '-y', 'chromium-browser', 'chromium-chromedriver'], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            logging.info("Chromium 及 ChromeDriver 已安裝")
+            raise Exception("Chromium 未安裝，請檢查 GitHub Actions YML 安裝步驟")
         else:
             logging.info("Chromium 及 ChromeDriver 已存在，跳過安裝")
-
+        
         result = subprocess.run(['pip', 'show', 'selenium'], capture_output=True, text=True)
-        if "selenium" not in result.stdout or "webdriver-manager" not in subprocess.run(['pip', 'show', 'webdriver-manager'], capture_output=True, text=True).stdout:
-            subprocess.run(['pip', 'install', 'selenium', 'webdriver-manager'], check=True)
-            logging.info("Selenium 及 WebDriver Manager 已安裝")
-        else:
-            logging.info("Selenium 及 WebDriver Manager 已存在，跳過安裝")
-    except subprocess.CalledProcessError as e:
-        logging.error(f"環境準備失敗: {e}")
+        if "selenium" not in result.stdout:
+            raise Exception("Selenium 未安裝，請檢查 GitHub Actions YML pip 步驟")
+        result = subprocess.run(['pip', 'show', 'webdriver-manager'], capture_output=True, text=True)
+        if "webdriver-manager" not in result.stdout:
+            raise Exception("WebDriver Manager 未安裝，請檢查 GitHub Actions YML pip 步驟")
+        logging.info("Selenium 及 WebDriver Manager 已存在，跳過安裝")
+    except Exception as e:
+        logging.error(f"環境檢查失敗: {e}")
         raise
 
 def get_chrome_options(download_dir):
     chrome_options = Options()
-    chrome_options.add_argument('--headless=new')  # 改成新 headless 模式
+    chrome_options.add_argument('--headless=new') # 改成新 headless 模式
     chrome_options.add_argument('--no-sandbox')
     chrome_options.add_argument('--disable-dev-shm-usage')
     chrome_options.add_argument('--disable-gpu')
@@ -500,7 +499,8 @@ def process_cplus():
     house_button_count = 0
     house_report_files = {}  # 移出循環，累積跨重試
     try:
-        driver = webdriver.Chrome(options=get_chrome_options(cplus_download_dir))
+        driver_path = ChromeDriverManager().install()
+        driver = webdriver.Chrome(executable_path=driver_path, options=get_chrome_options(cplus_download_dir))
         logging.info("CPLUS WebDriver 初始化成功")
         driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
         wait = WebDriverWait(driver, 15)
@@ -668,7 +668,8 @@ def process_barge():
     downloaded_files = set()
     initial_files = set(os.listdir(barge_download_dir))
     try:
-        driver = webdriver.Chrome(options=get_chrome_options(barge_download_dir))
+        driver_path = ChromeDriverManager().install()
+        driver = webdriver.Chrome(executable_path=driver_path, options=get_chrome_options(barge_download_dir))
         logging.info("Barge WebDriver 初始化成功")
         driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
         wait = WebDriverWait(driver, 15)
