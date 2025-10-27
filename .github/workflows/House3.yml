@@ -13,7 +13,6 @@ jobs:
           path: |
             ~/.cache/pip
             ~/.wdm
-            ~/chromium-bin
           key: ${{ runner.os }}-pip-chromium-wdm-${{ hashFiles('**/requirements.txt') }}
           restore-keys: |
             ${{ runner.os }}-pip-chromium-wdm-
@@ -24,16 +23,8 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --no-cache-dir selenium webdriver-manager pytz
-          mkdir -p ~/chromium-bin
-          if [ ! -f ~/chromium-bin/chromium-browser ] || [ ! -f ~/chromium-bin/chromedriver ]; then
-            wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
-            sudo dpkg -i google-chrome-stable_current_amd64.deb || sudo apt-get -f install -y
-            sudo apt-get install -y xvfb
-            sudo cp /opt/google/chrome/google-chrome ~/chromium-bin/chromium-browser
-            chromedriver_version=$(curl -s https://chromedriver.storage.googleapis.com/LATEST_RELEASE)
-            wget -q https://chromedriver.storage.googleapis.com/${chromedriver_version}/chromedriver_linux64.zip
-            unzip chromedriver_linux64.zip -d ~/chromium-bin/
-          fi
+          sudo apt-get update -qq
+          sudo apt-get install -y chromium-browser chromium-chromedriver xvfb
       - name: Set timezone to HKT
         run: |
           sudo ln -sf /usr/share/zoneinfo/Asia/Hong_Kong /etc/localtime
