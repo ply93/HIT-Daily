@@ -497,10 +497,9 @@ def process_cplus():
     initial_files = set(os.listdir(cplus_download_dir))
     house_file_count = 0
     house_button_count = 0
-    house_report_files = {}  # 移出循環，累積跨重試
+    house_report_files = {} # 移出循環，累積跨重試
     try:
-        driver_path = ChromeDriverManager().install()
-        driver = webdriver.Chrome(executable_path=driver_path, options=get_chrome_options(cplus_download_dir))
+        driver = webdriver.Chrome(options=get_chrome_options(cplus_download_dir))
         logging.info("CPLUS WebDriver 初始化成功")
         driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
         wait = WebDriverWait(driver, 15)
@@ -527,7 +526,7 @@ def process_cplus():
                             f.write(driver.page_source)
                     # 修改: 加延遲同刷新，避免載入崩潰
                     if section_name == 'movement':
-                        time.sleep(0.5)  # 減到0.5s
+                        time.sleep(0.5) # 減到0.5s
                     if section_name != 'house':
                         new_files = section_func(driver, wait, initial_files)
                     else:
@@ -548,14 +547,14 @@ def process_cplus():
                 except Exception as e:
                     logging.error(f"CPLUS {section_name} 嘗試 {attempt+1}/{MAX_RETRIES} 失敗: {str(e)}")
                     if attempt < MAX_RETRIES - 1:
-                        time.sleep(0.5)  # 減到0.5s
+                        time.sleep(0.5) # 減到0.5s
                         # 修改: 加刷新頁面或重新導航，避免內部崩潰殘留
                         try:
                             driver.refresh()
                         except:
                             pass
             if not success:
-                logging.error(f"CPLUS {section_name} 經過 {MAX_RETRIES} 次嘗試失敗")  # 不 raise，繼續抽取現有檔案
+                logging.error(f"CPLUS {section_name} 經過 {MAX_RETRIES} 次嘗試失敗") # 不 raise，繼續抽取現有檔案
         return downloaded_files, house_file_count, house_button_count, driver, house_report_files
     except Exception as e:
         logging.error(f"CPLUS 總錯誤: {str(e)}")
@@ -570,7 +569,7 @@ def process_cplus():
                 logout_option = wait.until(EC.element_to_be_clickable((By.XPATH, "//li[contains(text(), 'Logout')]")))
                 logout_option.click()
                 logging.info("CPLUS: Logout 選項點擊成功")
-                time.sleep(1)  # 等待視窗出現
+                time.sleep(1) # 等待視窗出現
                 close_success = False
                 for retry in range(3):
                     try:
@@ -668,14 +667,11 @@ def process_barge():
     downloaded_files = set()
     initial_files = set(os.listdir(barge_download_dir))
     try:
-        driver_path = ChromeDriverManager().install()
-        driver = webdriver.Chrome(executable_path=driver_path, options=get_chrome_options(barge_download_dir))
+        driver = webdriver.Chrome(options=get_chrome_options(barge_download_dir))
         logging.info("Barge WebDriver 初始化成功")
         driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
         wait = WebDriverWait(driver, 15)
-
         barge_login(driver, wait)
-
         success = False
         for attempt in range(MAX_RETRIES):
             try:
@@ -690,13 +686,10 @@ def process_barge():
                     time.sleep(5)
         if not success:
             logging.error(f"Barge 下載經過 {MAX_RETRIES} 次嘗試失敗")
-
         return downloaded_files, driver
-
     except Exception as e:
         logging.error(f"Barge 總錯誤: {str(e)}")
         return downloaded_files, driver
-
     finally:
         try:
             if driver:
@@ -710,9 +703,7 @@ def process_barge():
                 except TimeoutException:
                     logging.debug("Barge: 主工具欄登出按鈕未找到，嘗試備用定位...")
                     raise
-
                 time.sleep(2)
-
                 logging.info("Barge: 點擊 Logout 選項...")
                 try:
                     logout_span_xpath = "//div[contains(@class, 'mat-menu-panel')]//button//span[contains(text(), 'Logout')]"
@@ -729,9 +720,7 @@ def process_barge():
                     time.sleep(1)
                     driver.execute_script("arguments[0].click();", logout_button_barge)
                     logging.info("Barge: 備用 Logout 選項點擊成功")
-
                 time.sleep(5)
-
         except Exception as e:
             logging.error(f"Barge: 登出失敗: {str(e)}")
 
