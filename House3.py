@@ -172,7 +172,7 @@ def process_cplus_movement(driver, wait, initial_files):
     driver.get("https://cplus.hit.com.hk/app/#/enquiry/ContainerMovementLog")
     time.sleep(1)
     wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
-    WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[2]//form")))
+    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[2]//form")))
     logging.info("CPLUS: Container Movement Log 頁面加載完成")
 
     logging.info("CPLUS: 點擊 Search...")
@@ -261,14 +261,14 @@ def process_cplus_onhand(driver, wait, initial_files):
         js_state = driver.execute_script("return document.readyState;")
         if js_state != "complete":
             logging.warning("CPLUS OnHand: JS 未完全執行，狀態: {js_state}，嘗試等待...")
-            time.sleep(5) # 加延遲，等 JS 跑
+            time.sleep(5)
             # 再檢查
             js_state = driver.execute_script("return document.readyState;")
             if js_state != "complete":
                 raise Exception("CPLUS OnHand: JS 執行失敗，狀態: {js_state}")
-        # 檢查 noscript 是否 visible（如果 visible，JS 未跑）
+
         try:
-            wait.until_not(EC.visibility_of_element_located((By.TAG_NAME, "noscript"))) # 如果 noscript 可見，JS 未跑
+            wait.until_not(EC.visibility_of_element_located((By.TAG_NAME, "noscript")))
         except TimeoutException:
             logging.error("CPLUS OnHand: noscript 可見，JS 執行或相容問題，記錄狀態...")
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S") # 修正：移除多餘 datetime.datetime
@@ -306,7 +306,7 @@ def process_cplus_onhand(driver, wait, initial_files):
             # 新加：如果超時，嘗試刷新頁面再檢查
             logging.warning("CPLUS OnHand: 渲染元素未出現，嘗試刷新頁面...")
             driver.refresh()
-            time.sleep(10)
+            time.sleep(5)
             try:
                 extended_wait.until(EC.presence_of_element_located((By.XPATH, "//button//span[contains(text(), 'Search')]")))
                 logging.info("CPLUS OnHand: 刷新後渲染元素存在，JS 執行正常")
