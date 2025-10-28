@@ -750,7 +750,7 @@ def get_latest_file(download_dir, pattern):
         
 def send_daily_email(house_report_files, house_button_count, cplus_dir, barge_dir):
     """
-    全英Email：動態House 1-7行，嚴格全齊才call。
+    全英Email：Subject大寫 + 日誌列所有附件file。
     """
     load_dotenv()
     try:
@@ -772,7 +772,7 @@ def send_daily_email(house_report_files, house_button_count, cplus_dir, barge_di
         sorted_house = sorted(house_report_files.items(), key=lambda x: x[1]['mod_time'], reverse=True)
         house_download_count = len(sorted_house)
 
-        # 附件
+        # 附件清單
         attachments = []
         if movement_file: attachments.append((cplus_dir, movement_file))
         if onhand_file: attachments.append((cplus_dir, onhand_file))
@@ -780,12 +780,15 @@ def send_daily_email(house_report_files, house_button_count, cplus_dir, barge_di
         for _, info in sorted_house:
             attachments.append((cplus_dir, info['file']))
 
-        # HTML (全英+改名)
+        # **日誌：列所有附件file**
+        attach_names = [f[1] for f in attachments]
+        logging.info("📤 Email Attachments (%s files): %s", len(attach_names), ', '.join(attach_names))
+
+        # HTML (全英)
         style = """
         <style>table{border-collapse:collapse;width:100%;font-family:Arial;font-size:14px;}
         th,td{border:1px solid #ddd;padding:10px;text-align:left;}
         th{background:#f2f2f2;font-weight:bold;}
-        .ok{color:#28a745;font-weight:bold;font-size:18px;}
         .sum{background:#e7f3ff;font-weight:bold;}
         </style>
         """
@@ -826,16 +829,16 @@ Total Attachments: {len(attachments)}
 All files OK!
 """
 
-        # Email
+        # Email (Subject **全大寫**)
         msg = MIMEMultipart('alternative')
         msg['From'] = sender_email
         msg['To'] = ', '.join(receiver_emails)
         if cc_emails: msg['Cc'] = ', '.join(cc_emails)
-        msg['Subject'] = f"HIT Daily Reports - {gen_time}"
+        msg['Subject'] = f"HIT DAILY REPORTS - {gen_time.upper()}"
         msg.attach(MIMEText(body_html, 'html'))
         msg.attach(MIMEText(plain_body, 'plain'))
 
-        # 附件
+        # 加附件
         for dir_path, file_name in attachments:
             file_path = os.path.join(dir_path, file_name)
             if os.path.exists(file_path):
@@ -847,7 +850,7 @@ All files OK!
                 msg.attach(part)
 
         if dry_run:
-            logging.info("🧪 DRY RUN: All OK | Attachments=%s", len(attachments))
+            logging.info("🧪 DRY RUN: Subject=%s | Files listed above", msg['Subject'])
             return
 
         server = smtplib.SMTP(smtp_server, smtp_port)
@@ -855,7 +858,7 @@ All files OK!
         server.login(sender_email, sender_password)
         server.sendmail(sender_email, receiver_emails + cc_emails, msg.as_string())
         server.quit()
-        logging.info("✅ Email Sent: All %s files OK!", len(attachments))
+        logging.info("✅ Email Sent: %s files (listed above)", len(attachments))
 
     except Exception as e:
         logging.error("❌ Email ERR: %s", str(e))
@@ -889,7 +892,7 @@ def main():
     onhand_ok = onhand_file is not None
     barge_ok = barge_file is not None
     house_download_count = len(house_report_files)
-    house_ok = (house_download_count == house_button_count)  # 全匹配按鈕數
+    house_ok = (house_download_count == house_button_count)
 
     total_ok = int(movement_ok) + int(onhand_ok) + house_download_count + int(barge_ok)
     total_exp = 3 + house_button_count
@@ -897,6 +900,12 @@ def main():
     logging.info("📊 最終檢查: Movement=%s | OnHand=%s | Barge=%s | House=%s/%s | Total=%s/%s", 
                  '✓' if movement_ok else '✗', '✓' if onhand_ok else '✗', 
                  '✓' if barge_ok else '✗', house_download_count, house_button_count, total_ok, total_exp)
+
+    # **總日誌：列** **所有** **下載file**（即使唔發）
+    all_cplus_files = [f for f in os.listdir(cplus_download_dir) if f.endswith(('.csv', '.xlsx'))]
+    all_barge_files = [f for f in os.listdir(barge_download_dir) if f.endswith(('.csv', '.xlsx'))]
+    all_files = all_cplus_files + all_barge_files
+    logging.info("📋 **所有** 下載 File (%s 個): %s", len(all_files), ', '.join(sorted(all_files)))
 
     if movement_ok and onhand_ok and barge_ok and house_ok:
         logging.info("🚀 全齊！發Email...")
