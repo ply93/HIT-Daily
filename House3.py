@@ -546,7 +546,7 @@ def process_cplus():
                 except Exception as e:
                     logging.error(f"CPLUS {section_name} 嘗試 {attempt+1}/{MAX_RETRIES} 失敗: {str(e)}")
                     if attempt < MAX_RETRIES - 1:
-                        time.sleep(0.5) # 減到0.5s
+                        time.sleep(0.5)
                         # 修改: 加刷新頁面或重新導航，避免內部崩潰殘留
                         try:
                             driver.refresh()
@@ -580,7 +580,7 @@ def process_cplus():
                     except Exception as ce:
                         logging.warning(f"CPLUS: CLOSE 按鈕點擊失敗 (重試 {retry+1}/3): {str(ce)}")
                         handle_popup(driver, wait)
-                        time.sleep(0.5)
+                        time.sleep(1)
                 if not close_success:
                     logging.error("CPLUS: CLOSE 按鈕經過 3 次重試失敗，記錄狀態...")
                     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
