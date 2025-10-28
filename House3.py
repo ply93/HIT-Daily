@@ -741,15 +741,9 @@ def get_latest_file(download_dir, pattern):
     except Exception as e:
         logging.error(f"get_latest_file 錯誤 ({pattern}): {str(e)}")
         return None
+        
 def send_daily_email(house_report_files, house_button_count, cplus_dir, barge_dir):
-    """
-    發送改善版每日報告Email。
-    :param house_report_files: {報告名: {'file': 名稱, 'mod_time': time}} dict
-    :param house_button_count: 找到嘅House按鈕數
-    :param cplus_dir: CPLUS下載目錄
-    :param barge_dir: Barge下載目錄
-    """
-    load_dotenv()  # 確保env載入
+    load_dotenv()
     try:
         smtp_server = os.environ.get('SMTP_SERVER', 'smtp.zoho.com')
         smtp_port = int(os.environ.get('SMTP_PORT', 587))
@@ -758,106 +752,89 @@ def send_daily_email(house_report_files, house_button_count, cplus_dir, barge_di
         receiver_emails = os.environ.get('RECEIVER_EMAILS', 'paklun@ckline.com.hk').split(',')
         cc_emails = os.environ.get('CC_EMAILS', '').split(',') if os.environ.get('CC_EMAILS') else []
         dry_run = os.environ.get('DRY_RUN', 'False').lower() == 'true'
-        gen_time = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
+        gen_time = datetime.now().strftime('%d/%m/%Y %H:%M')
 
-        # 固定House報告順序（對應house_report_files key）
-        fixed_report_names = [
-            "CONTAINER DAMAGE REPORT (LINE) ENTRY GATE + EXIT GATE",
-            "CY - GATELOG",
-            "CONTAINER LIST (ON HAND)",
-            "CONTAINER LIST (DAMAGED)",
-            "ACTIVE REEFER CONTAINER ON HAND LIST",
-            "REEFER CONTAINER MONITOR REPORT"
-        ]
-
-        # 取最新檔案
+        # 最新檔案
         movement_file = get_latest_file(cplus_dir, 'cntrMoveLog')
         onhand_file = get_latest_file(cplus_dir, 'data_')
         barge_file = get_latest_file(barge_dir, 'ContainerDetailReport')
 
-        # 計算狀態
+        # 狀態
         movement_ok = movement_file is not None
         onhand_ok = onhand_file is not None
         barge_ok = barge_file is not None
         house_download_count = len(house_report_files)
+        house_ok_rate = f"{house_download_count}/{house_button_count}"
         total_ok = int(movement_ok) + int(onhand_ok) + house_download_count + int(barge_ok)
+        total_exp = 3 + house_button_count
 
-        # 準備附件清單 [(dir, file), ...]
+        # 附件
         attachments = []
         if movement_file: attachments.append((cplus_dir, movement_file))
         if onhand_file: attachments.append((cplus_dir, onhand_file))
         if barge_file: attachments.append((barge_dir, barge_file))
-        for info in house_report_files.values():
+        # House: 按mod_time排序(最新先)
+        sorted_house = sorted(house_report_files.items(), key=lambda x: x[1]['mod_time'], reverse=True)
+        for _, info in sorted_house:
             attachments.append((cplus_dir, info['file']))
 
-        # HTML 內容（美化版）
+        # HTML
         style = """
-        <style>
-        table {border-collapse: collapse; width: 100%; font-family: Arial, sans-serif; font-size: 14px;}
-        th, td {border: 1px solid #ddd; padding: 12px; text-align: left;}
-        th {background: #f2f2f2; font-weight: bold;}
-        .success {color: #28a745; font-weight: bold; font-size: 18px;}
-        .fail {color: #dc3545; font-weight: bold; font-size: 18px;}
-        .summary {background: #e7f3ff; font-weight: bold;}
+        <style>table{border-collapse:collapse;width:100%;font-family:Arial;font-size:14px;}
+        th,td{border:1px solid #ddd;padding:10px;text-align:left;}
+        th{background:#f2f2f2;font-weight:bold;}
+        .ok{color:#28a745;font-weight:bold;font-size:18px;}
+        .no{color:#dc3545;font-weight:bold;font-size:18px;}
+        .sum{background:#e7f3ff;font-weight:bold;}
         </style>
         """
+        num_house = len(sorted_house)
         body_html = f"""
         <html><head>{style}</head><body>
-        <h2>✅ HIT Daily Reports ({gen_time})</h2>
-        <p>附件包含今日從 CPLUS & Barge 下載嘅報告。總成功: <strong>{total_ok}/9</strong></p>
+        <h2>HIT Daily ({gen_time})</h2>
+        <p>總成功: <strong>{total_ok}/{total_exp}</strong></p>
         <table>
-        <thead><tr><th>Category</th><th>Report</th><th>File Name</th><th>Status</th></tr></thead>
+        <thead><tr><th>Category</th><th>Report</th><th>File</th><th>Status</th></tr></thead>
         <tbody>
-        <tr><td rowspan="{2 + len(fixed_report_names)}">CPLUS</td><td>Container Movement</td><td>{movement_file or 'N/A'}</td><td><span class="{'success' if movement_ok else 'fail'}">{'✓' if movement_ok else '✗'}</span></td></tr>
-        <tr><td>OnHand Container List</td><td>{onhand_file or 'N/A'}</td><td><span class="{'success' if onhand_ok else 'fail'}">{'✓' if onhand_ok else '✗'}</span></td></tr>
+        <tr><td rowspan="{2+num_house}">CPLUS</td><td>Movement</td><td>{movement_file or 'N/A'}</td><td><span class="{'ok' if movement_ok else 'no'}">{'✓' if movement_ok else '✗'}</span></td></tr>
+        <tr><td>OnHand</td><td>{onhand_file or 'N/A'}</td><td><span class="{'ok' if onhand_ok else 'no'}">{'✓' if onhand_ok else '✗'}</span></td></tr>
         """
-        for name in fixed_report_names:
-            file_n = house_report_files.get(name, {}).get('file', 'N/A')
-            status_ok = file_n != 'N/A'
-            body_html += f"""
-            <tr><td>{name}</td><td>{file_n}</td><td><span class="{'success' if status_ok else 'fail'}">{'✓' if status_ok else '✗'}</span></td></tr>
-            """
+        for name, info in sorted_house:
+            body_html += f'<tr><td>{name}</td><td>{info["file"]}</td><td class="ok">✓</td></tr>'
         body_html += f"""
-        <tr><td rowspan="1">BARGE</td><td>Container Detail</td><td>{barge_file or 'N/A'}</td><td><span class="{'success' if barge_ok else 'fail'}">{'✓' if barge_ok else '✗'}</span></td></tr>
-        <tr class="summary"><td colspan="4">📊 統計: Housekeeping {house_download_count}/{house_button_count} | 總附件: {len(attachments)}</td></tr>
-        <tr><td colspan="4"><strong>TOTAL: {total_ok}/9 ✅</strong></td></tr>
-        </tbody></table>
-        <p style="color: #666;">如有問題，請聯絡開發團隊。</p>
-        </body></html>
+        <tr><td rowspan="1">BARGE</td><td>Detail</td><td>{barge_file or 'N/A'}</td><td><span class="{'ok' if barge_ok else 'no'}">{'✓' if barge_ok else '✗'}</span></td></tr>
+        <tr class="sum"><td colspan="4">House: {house_ok_rate} | 附件: {len(attachments)}</td></tr>
+        <tr><td colspan="4"><strong>TOTAL: {total_ok}/{total_exp}</strong></td></tr>
+        </tbody></table></body></html>
         """
 
-        # Plain Text 版本（清晰清單）
-        house_list = '\n'.join([f"  - {name}: {house_report_files.get(name, {}).get('file', 'Missing')}" for name in fixed_report_names])
-        plain_body = f"""HIT Daily Reports ({gen_time})
+        # Plain
+        house_list = '\n'.join([f"  - {name}: {info['file']}" for name, info in sorted_house])
+        plain_body = f"""HIT Daily ({gen_time})
 
 CPLUS:
-- Container Movement: {movement_file or 'Missing'}
-- OnHand Container List: {onhand_file or 'Missing'}
+- Movement: {movement_file or '✗'}
+- OnHand: {onhand_file or '✗'}
 
-Housekeeping Reports:
-{house_list}
+House ({house_ok_rate}):
+{house_list or '  None'}
 
 BARGE:
-- Container Detail: {barge_file or 'Missing'}
+- Detail: {barge_file or '✗'}
 
-📊 統計:
-- Housekeeping: {house_download_count}/{house_button_count}
-- Total Successful: {total_ok}/9
-- Attached Files: {len(attachments)}
-
-如有問題，請聯絡開發團隊。
+總: {total_ok}/{total_exp} | 附件: {len(attachments)}
 """
 
-        # 建Email
+        # Email
         msg = MIMEMultipart('alternative')
         msg['From'] = sender_email
         msg['To'] = ', '.join(receiver_emails)
         if cc_emails: msg['Cc'] = ', '.join(cc_emails)
-        msg['Subject'] = f"HIT Daily Reports - {gen_time}"
+        msg['Subject'] = f"HIT Daily - {gen_time}"
         msg.attach(MIMEText(body_html, 'html'))
         msg.attach(MIMEText(plain_body, 'plain'))
 
-        # 加附件
+        # 附件
         for dir_path, file_name in attachments:
             file_path = os.path.join(dir_path, file_name)
             if os.path.exists(file_path):
@@ -865,39 +842,22 @@ BARGE:
                 with open(file_path, 'rb') as f:
                     part.set_payload(f.read())
                 encoders.encode_base64(part)
-                part.add_header('Content-Disposition', f'attachment; filename="{file_name}"')
+                part.add_header(f'Content-Disposition', f'attachment; filename="{file_name}"')
                 msg.attach(part)
-                logging.info(f"附件已加: {file_name}")
-            else:
-                logging.warning(f"附件缺失: {file_path}")
 
-        # Dry Run or Send
         if dry_run:
-            logging.info("🧪 DRY RUN 模式 - 模擬Email:")
-            logging.info(f"From: {sender_email}")
-            logging.info(f"To: {msg['To']}")
-            logging.info(f"CC: {msg.get('Cc', 'None')}")
-            logging.info(f"Subject: {msg['Subject']}")
-            logging.info(f"HTML Preview: {body_html[:500]}...")  # 截斷preview
-            logging.info(f"附件列表: {', '.join([f[1] for f in attachments])}")
+            logging.info("DRY: Subject=%s | 總=%s/%s | 附件=%s", msg['Subject'], total_ok, total_exp, len(attachments))
             return
-        else:
-            server = smtplib.SMTP(smtp_server, smtp_port)
-            server.starttls()
-            server.login(sender_email, sender_password)
-            all_receivers = receiver_emails + cc_emails
-            server.sendmail(sender_email, all_receivers, msg.as_string())
-            server.quit()
-            logging.info(f"✅ Email 發送成功! 總成功 {total_ok}/9，附件 {len(attachments)} 個")
 
-    except KeyError as ke:
-        logging.error(f"❌ 缺少環境變量: {ke}")
-    except smtplib.SMTPAuthenticationError:
-        logging.error("❌ SMTP 認證失敗：檢查 ZOHO_EMAIL / ZOHO_PASSWORD")
-    except smtplib.SMTPConnectError:
-        logging.error("❌ SMTP 連接失敗：檢查 SMTP_SERVER / SMTP_PORT")
+        server = smtplib.SMTP(smtp_server, smtp_port)
+        server.starttls()
+        server.login(sender_email, sender_password)
+        server.sendmail(sender_email, receiver_emails + cc_emails, msg.as_string())
+        server.quit()
+        logging.info("✅ Email OK: %s/%s", total_ok, total_exp)
+
     except Exception as e:
-        logging.error(f"❌ Email 發送失敗: {str(e)}")
+        logging.error("Email ERR: %s", str(e))
         
 def main():
     load_dotenv()
