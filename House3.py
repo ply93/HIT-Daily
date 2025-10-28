@@ -806,7 +806,7 @@ def send_daily_email(house_report_files, house_button_count, cplus_dir, barge_di
         for name, info in sorted_house:
             body_html += f'<tr><td>{name}</td><td>{info["file"]}</td></tr>'
         body_html += f"""
-        <tr><td rowspan="1">BARGE</td><td>CONTAINER DETAIL</td><td>{barge_file}</td></tr>
+        <tr><td rowspan="1">BARGE</td><td>CONTAINER DETAIL REPORT</td><td>{barge_file}</td></tr>
         <tr class="sum"><td colspan="3">Housekeeping: {house_download_count}/{house_button_count} | Total Attachments: {len(attachments)}</td></tr>
         </tbody></table></body></html>
         """
