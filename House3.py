@@ -816,14 +816,14 @@ def send_daily_email(house_report_files, house_button_count, cplus_dir, barge_di
         plain_body = f"""HIT Daily Reports ({gen_time})
 
 CPLUS:
-- Container Movement: {movement_file}
-- OnHandContainerList: {onhand_file}
+- CONTAINER MOVEMENT: {movement_file}
+- ONHAND CONTAINER LIST: {onhand_file}
 
 Housekeeping Reports ({house_download_count}/{house_button_count}):
 {house_list}
 
 BARGE:
-- Container Detail: {barge_file}
+- CONTAINER DETAIL REPORT: {barge_file}
 
 Total Attachments: {len(attachments)}
 All files OK!
