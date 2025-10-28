@@ -261,7 +261,7 @@ def process_cplus_onhand(driver, wait, initial_files):
         js_state = driver.execute_script("return document.readyState;")
         if js_state != "complete":
             logging.warning("CPLUS OnHand: JS 未完全執行，狀態: {js_state}，嘗試等待...")
-            time.sleep(10) # 加延遲，等 JS 跑
+            time.sleep(5) # 加延遲，等 JS 跑
             # 再檢查
             js_state = driver.execute_script("return document.readyState;")
             if js_state != "complete":
@@ -278,13 +278,12 @@ def process_cplus_onhand(driver, wait, initial_files):
             # 試 refresh 解決
             logging.warning("CPLUS OnHand: 嘗試刷新頁面解決 JS 問題...")
             driver.refresh()
-            time.sleep(5)
+            time.sleep(3)
             try:
                 wait.until_not(EC.visibility_of_element_located((By.TAG_NAME, "noscript")))
             except TimeoutException:
                 raise Exception("CPLUS OnHand: JS 執行或相容問題，noscript 仍可見")
-        time.sleep(5)  # 優化：從 10 秒縮短到 5 秒，等 JS 完全渲染
-        # 改: 檢查渲染元素是否存在（用更準 XPath match Search），縮短等待時間，並加備用 locator
+        time.sleep(5)
         try:
             extended_wait = WebDriverWait(driver, 10)
             search_element_locators = [
