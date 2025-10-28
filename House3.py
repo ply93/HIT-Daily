@@ -725,24 +725,33 @@ def process_barge():
 
 def get_latest_file(download_dir, pattern):
     """
-    從下載目錄取最新嘅匹配檔案。
-    :param download_dir: 下載目錄路徑
-    :param pattern: 檔案名關鍵字 (e.g. 'cntrMoveLog')
-    :return: 最新檔案名 or None
+    取匹配pattern最新file：**優先冇'(1)'括號**，再最新mod_time。
     """
     try:
-        files = [f for f in os.listdir(download_dir) 
-                 if pattern in f and (f.endswith('.csv') or f.endswith('.xlsx'))]
-        if not files:
+        all_files = [f for f in os.listdir(download_dir) 
+                     if pattern in f and (f.endswith('.csv') or f.endswith('.xlsx'))]
+        if not all_files:
             return None
-        latest_file = max(files, key=lambda f: os.path.getmtime(os.path.join(download_dir, f)))
-        logging.info(f"選取最新檔案 [{pattern}]: {latest_file}")
-        return latest_file
+        
+        # **優先篩選：冇括號**
+        no_bracket_files = [f for f in all_files if '( ' not in f and ' (' not in f]
+        if no_bracket_files:
+            # 無括號中選最新
+            latest = max(no_bracket_files, key=lambda f: os.path.getmtime(os.path.join(download_dir, f)))
+        else:
+            # 全有括號，選最新
+            latest = max(all_files, key=lambda f: os.path.getmtime(os.path.join(download_dir, f)))
+        
+        logging.info(f"✅ 選最新 [{pattern}]: {latest} (優先無括號)")
+        return latest
     except Exception as e:
-        logging.error(f"get_latest_file 錯誤 ({pattern}): {str(e)}")
+        logging.error(f"❌ get_latest_file ERR ({pattern}): {str(e)}")
         return None
         
 def send_daily_email(house_report_files, house_button_count, cplus_dir, barge_dir):
+    """
+    全英Email：動態House 1-7行，嚴格全齊才call。
+    """
     load_dotenv()
     try:
         smtp_server = os.environ.get('SMTP_SERVER', 'smtp.zoho.com')
@@ -754,75 +763,67 @@ def send_daily_email(house_report_files, house_button_count, cplus_dir, barge_di
         dry_run = os.environ.get('DRY_RUN', 'False').lower() == 'true'
         gen_time = datetime.now().strftime('%d/%m/%Y %H:%M')
 
-        # 最新檔案
+        # 最新file (優先無(1))
         movement_file = get_latest_file(cplus_dir, 'cntrMoveLog')
         onhand_file = get_latest_file(cplus_dir, 'data_')
         barge_file = get_latest_file(barge_dir, 'ContainerDetailReport')
 
-        # 狀態
-        movement_ok = movement_file is not None
-        onhand_ok = onhand_file is not None
-        barge_ok = barge_file is not None
-        house_download_count = len(house_report_files)
-        house_ok_rate = f"{house_download_count}/{house_button_count}"
-        total_ok = int(movement_ok) + int(onhand_ok) + house_download_count + int(barge_ok)
-        total_exp = 3 + house_button_count
+        # House: 按mod_time排序(最新先)
+        sorted_house = sorted(house_report_files.items(), key=lambda x: x[1]['mod_time'], reverse=True)
+        house_download_count = len(sorted_house)
 
         # 附件
         attachments = []
         if movement_file: attachments.append((cplus_dir, movement_file))
         if onhand_file: attachments.append((cplus_dir, onhand_file))
         if barge_file: attachments.append((barge_dir, barge_file))
-        # House: 按mod_time排序(最新先)
-        sorted_house = sorted(house_report_files.items(), key=lambda x: x[1]['mod_time'], reverse=True)
         for _, info in sorted_house:
             attachments.append((cplus_dir, info['file']))
 
-        # HTML
+        # HTML (全英+改名)
         style = """
         <style>table{border-collapse:collapse;width:100%;font-family:Arial;font-size:14px;}
         th,td{border:1px solid #ddd;padding:10px;text-align:left;}
         th{background:#f2f2f2;font-weight:bold;}
         .ok{color:#28a745;font-weight:bold;font-size:18px;}
-        .no{color:#dc3545;font-weight:bold;font-size:18px;}
         .sum{background:#e7f3ff;font-weight:bold;}
         </style>
         """
         num_house = len(sorted_house)
         body_html = f"""
         <html><head>{style}</head><body>
-        <h2>HIT Daily ({gen_time})</h2>
-        <p>總成功: <strong>{total_ok}/{total_exp}</strong></p>
+        <h2>HIT Daily Reports ({gen_time})</h2>
+        <p><strong>All files downloaded successfully!</strong></p>
         <table>
-        <thead><tr><th>Category</th><th>Report</th><th>File</th><th>Status</th></tr></thead>
+        <thead><tr><th>Category</th><th>Report</th><th>File</th></tr></thead>
         <tbody>
-        <tr><td rowspan="{2+num_house}">CPLUS</td><td>Movement</td><td>{movement_file or 'N/A'}</td><td><span class="{'ok' if movement_ok else 'no'}">{'✓' if movement_ok else '✗'}</span></td></tr>
-        <tr><td>OnHand</td><td>{onhand_file or 'N/A'}</td><td><span class="{'ok' if onhand_ok else 'no'}">{'✓' if onhand_ok else '✗'}</span></td></tr>
+        <tr><td rowspan="{2+num_house}">CPLUS</td><td>Container Movement</td><td>{movement_file}</td></tr>
+        <tr><td>OnHandContainerList</td><td>{onhand_file}</td></tr>
         """
         for name, info in sorted_house:
-            body_html += f'<tr><td>{name}</td><td>{info["file"]}</td><td class="ok">✓</td></tr>'
+            body_html += f'<tr><td>{name}</td><td>{info["file"]}</td></tr>'
         body_html += f"""
-        <tr><td rowspan="1">BARGE</td><td>Detail</td><td>{barge_file or 'N/A'}</td><td><span class="{'ok' if barge_ok else 'no'}">{'✓' if barge_ok else '✗'}</span></td></tr>
-        <tr class="sum"><td colspan="4">House: {house_ok_rate} | 附件: {len(attachments)}</td></tr>
-        <tr><td colspan="4"><strong>TOTAL: {total_ok}/{total_exp}</strong></td></tr>
+        <tr><td rowspan="1">BARGE</td><td>Container Detail</td><td>{barge_file}</td></tr>
+        <tr class="sum"><td colspan="3">Housekeeping: {house_download_count}/{house_button_count} | Total Attachments: {len(attachments)}</td></tr>
         </tbody></table></body></html>
         """
 
-        # Plain
+        # Plain (全英)
         house_list = '\n'.join([f"  - {name}: {info['file']}" for name, info in sorted_house])
-        plain_body = f"""HIT Daily ({gen_time})
+        plain_body = f"""HIT Daily Reports ({gen_time})
 
 CPLUS:
-- Movement: {movement_file or '✗'}
-- OnHand: {onhand_file or '✗'}
+- Container Movement: {movement_file}
+- OnHandContainerList: {onhand_file}
 
-House ({house_ok_rate}):
-{house_list or '  None'}
+Housekeeping Reports ({house_download_count}/{house_button_count}):
+{house_list}
 
 BARGE:
-- Detail: {barge_file or '✗'}
+- Container Detail: {barge_file}
 
-總: {total_ok}/{total_exp} | 附件: {len(attachments)}
+Total Attachments: {len(attachments)}
+All files OK!
 """
 
         # Email
@@ -830,7 +831,7 @@ BARGE:
         msg['From'] = sender_email
         msg['To'] = ', '.join(receiver_emails)
         if cc_emails: msg['Cc'] = ', '.join(cc_emails)
-        msg['Subject'] = f"HIT Daily - {gen_time}"
+        msg['Subject'] = f"HIT Daily Reports - {gen_time}"
         msg.attach(MIMEText(body_html, 'html'))
         msg.attach(MIMEText(plain_body, 'plain'))
 
@@ -846,7 +847,7 @@ BARGE:
                 msg.attach(part)
 
         if dry_run:
-            logging.info("DRY: Subject=%s | 總=%s/%s | 附件=%s", msg['Subject'], total_ok, total_exp, len(attachments))
+            logging.info("🧪 DRY RUN: All OK | Attachments=%s", len(attachments))
             return
 
         server = smtplib.SMTP(smtp_server, smtp_port)
@@ -854,10 +855,10 @@ BARGE:
         server.login(sender_email, sender_password)
         server.sendmail(sender_email, receiver_emails + cc_emails, msg.as_string())
         server.quit()
-        logging.info("✅ Email OK: %s/%s", total_ok, total_exp)
+        logging.info("✅ Email Sent: All %s files OK!", len(attachments))
 
     except Exception as e:
-        logging.error("Email ERR: %s", str(e))
+        logging.error("❌ Email ERR: %s", str(e))
         
 def main():
     load_dotenv()
@@ -879,25 +880,29 @@ def main():
         barge_driver.quit()
         logging.info("Barge WebDriver 關閉")
     # Check all downloaded files
-    logging.info("檢查所有下載文件...")
-    # 新增：計算狀態（用新sub）
+    # **嚴格檢查：全齊才發**
     movement_file = get_latest_file(cplus_download_dir, 'cntrMoveLog')
     onhand_file = get_latest_file(cplus_download_dir, 'data_')
     barge_file = get_latest_file(barge_download_dir, 'ContainerDetailReport')
+    
     movement_ok = movement_file is not None
     onhand_ok = onhand_file is not None
     barge_ok = barge_file is not None
     house_download_count = len(house_report_files)
-    house_ok = house_download_count >= 6
-    has_required = movement_ok and onhand_ok and barge_ok
+    house_ok = (house_download_count == house_button_count)  # 全匹配按鈕數
 
-    logging.info(f"📊 狀態總結 - Movement:{' ✓' if movement_ok else ' ✗'} | OnHand:{' ✓' if onhand_ok else ' ✗'} | Barge:{' ✓' if barge_ok else ' ✗'} | House:{house_download_count}/{house_button_count}")
+    total_ok = int(movement_ok) + int(onhand_ok) + house_download_count + int(barge_ok)
+    total_exp = 3 + house_button_count
 
-    if has_required or house_ok:
-        logging.info("🚀 開始發送Email（條件滿足）...")
+    logging.info("📊 最終檢查: Movement=%s | OnHand=%s | Barge=%s | House=%s/%s | Total=%s/%s", 
+                 '✓' if movement_ok else '✗', '✓' if onhand_ok else '✗', 
+                 '✓' if barge_ok else '✗', house_download_count, house_button_count, total_ok, total_exp)
+
+    if movement_ok and onhand_ok and barge_ok and house_ok:
+        logging.info("🚀 全齊！發Email...")
         send_daily_email(house_report_files, house_button_count, cplus_download_dir, barge_download_dir)
     else:
-        logging.warning(f"⚠️ 跳過發送：文件不齊全 (Movement✗/OnHand✗/Barge✗ or House<{house_download_count}/6+)")
+        logging.warning("⚠️ 唔齊file，跳過Email！(需全✓)")
 
     logging.info("✅ 腳本完成")
 
