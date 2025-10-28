@@ -391,12 +391,12 @@ def process_cplus_house(driver, wait, initial_files):
     success_load = False
     for load_retry in range(3):
         try:
-            rows = WebDriverWait(driver, 10).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))  # 減到15s
+            rows = WebDriverWait(driver, 20).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))  # 減到15s
             if len(rows) == 0 or all(not row.text.strip() for row in rows):
                 logging.debug("表格數據空或無效，刷新頁面...")
                 driver.refresh()
-                WebDriverWait(driver, 10).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))  # 減到15s
-                rows = WebDriverWait(driver, 10).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))  # 減到15s
+                WebDriverWait(driver, 20).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))  # 減到15s
+                rows = WebDriverWait(driver, 20).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))  # 減到15s
                 if len(rows) < 6:
                     logging.warning("刷新後表格數據仍不足，記錄頁面狀態...")
                     driver.save_screenshot("house_load_failure.png")
@@ -414,7 +414,7 @@ def process_cplus_house(driver, wait, initial_files):
     time.sleep(1)  # 減到1s
     logging.info("CPLUS: 等待 Excel 按鈕出現...")
     try:
-        WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)]")))  # 減到10s
+        WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)]")))
         logging.info("CPLUS: Excel 按鈕已出現")
     except TimeoutException:
         logging.warning("CPLUS: Excel 按鈕未出現，記錄狀態...")
