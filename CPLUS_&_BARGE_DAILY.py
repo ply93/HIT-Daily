@@ -796,7 +796,6 @@ def send_daily_email(house_report_files, house_button_count, cplus_dir, barge_di
         body_html = f"""
         <html><head>{style}</head><body>
         <h2>HIT Daily Reports ({gen_time})</h2>
-        <p><strong>All files downloaded successfully!</strong></p>
         <table>
         <thead><tr><th>Category</th><th>Report</th><th>File</th></tr></thead>
         <tbody>
