@@ -800,8 +800,8 @@ def send_daily_email(house_report_files, house_button_count, cplus_dir, barge_di
         <table>
         <thead><tr><th>Category</th><th>Report</th><th>File</th></tr></thead>
         <tbody>
-        <tr><td rowspan="{2+num_house}">CPLUS</td><td>Container Movement</td><td>{movement_file}</td></tr>
-        <tr><td>OnHandContainerList</td><td>{onhand_file}</td></tr>
+        <tr><td rowspan="{2+num_house}">CPLUS</td><td>CONTAINER MOVEMENT</td><td>{movement_file}</td></tr>
+        <tr><td>ONHAND CONTAINER LIST</td><td>{onhand_file}</td></tr>
         """
         for name, info in sorted_house:
             body_html += f'<tr><td>{name}</td><td>{info["file"]}</td></tr>'
