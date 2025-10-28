@@ -125,12 +125,12 @@ def cplus_login(driver, wait):
     logging.info("CPLUS: 嘗試打開網站 https://cplus.hit.com.hk/frontpage/#/")
     driver.get("https://cplus.hit.com.hk/frontpage/#/")
     logging.info(f"CPLUS: 網站已成功打開，當前 URL: {driver.current_url}")
-    time.sleep(1)
+    time.sleep(2)
     logging.info("CPLUS: 點擊登錄前按鈕...")
     login_button_pre = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
     ActionChains(driver).move_to_element(login_button_pre).click().perform()
     logging.info("CPLUS: 登錄前按鈕點擊成功")
-    time.sleep(1)
+    time.sleep(2)
     logging.info("CPLUS: 輸入 COMPANY CODE...")
     company_code_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='companyCode']")))
     company_code_field.send_keys("CKL")
@@ -150,7 +150,7 @@ def cplus_login(driver, wait):
     login_button = driver.find_element(By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/div[2]/div/div/form/button/span[1]")
     ActionChains(driver).move_to_element(login_button).click().perform()
     logging.info("CPLUS: LOGIN 按鈕點擊成功")
-    time.sleep(1)
+    time.sleep(2)
     # 加: 檢查 session 是否有效（看用戶菜單元素是否存在）
     try:
         wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))  # 用戶按鈕
@@ -172,28 +172,28 @@ def process_cplus_movement(driver, wait, initial_files):
     driver.get("https://cplus.hit.com.hk/app/#/enquiry/ContainerMovementLog")
     time.sleep(1)
     wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
-    WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[2]//form")))
+    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[2]//form")))
     logging.info("CPLUS: Container Movement Log 頁面加載完成")
 
     logging.info("CPLUS: 點擊 Search...")
     local_initial = initial_files.copy()
     for attempt in range(2):
         try:
-            search_button = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[1]/div/form/div[2]/div/div[4]/button")))
+            search_button = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div[3]/div/div[1]/div/form/div[2]/div/div[4]/button")))
             ActionChains(driver).move_to_element(search_button).click().perform()
             logging.info("CPLUS: Search 按鈕點擊成功")
             break
         except TimeoutException:
             logging.debug(f"CPLUS: Search 按鈕未找到，嘗試備用定位 {attempt+1}/2...")
             try:
-                search_button = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'MuiButtonBase-root') and .//span[contains(text(), 'Search')]]")))
+                search_button = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'MuiButtonBase-root') and .//span[contains(text(), 'Search')]]")))
                 ActionChains(driver).move_to_element(search_button).click().perform()
                 logging.info("CPLUS: 備用 Search 按鈕 1 點擊成功")
                 break
             except TimeoutException:
                 logging.debug(f"CPLUS: 備用 Search 按鈕 1 失敗，嘗試備用定位 2 (嘗試 {attempt+1}/2)...")
                 try:
-                    search_button = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Search')]")))
+                    search_button = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Search')]")))
                     ActionChains(driver).move_to_element(search_button).click().perform()
                     logging.info("CPLUS: 備用 Search 按鈕 2 點擊成功")
                     break
@@ -255,13 +255,13 @@ def process_cplus_onhand(driver, wait, initial_files):
     driver.get("https://cplus.hit.com.hk/app/#/enquiry/OnHandContainerList")
     time.sleep(1)
     wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
-
+    # 加: 檢查 JS 執行或相容問題
     try:
         # 檢查 document.readyState 是否 complete（JS 載入完成）
         js_state = driver.execute_script("return document.readyState;")
         if js_state != "complete":
             logging.warning("CPLUS OnHand: JS 未完全執行，狀態: {js_state}，嘗試等待...")
-            time.sleep(2)
+            time.sleep(5)
             # 再檢查
             js_state = driver.execute_script("return document.readyState;")
             if js_state != "complete":
@@ -275,17 +275,17 @@ def process_cplus_onhand(driver, wait, initial_files):
             driver.save_screenshot(f"onhand_js_failure_{timestamp}.png")
             with open(f"onhand_js_failure_{timestamp}.html", "w", encoding="utf-8") as f:
                 f.write(driver.page_source)
-
+            # 試 refresh 解決
             logging.warning("CPLUS OnHand: 嘗試刷新頁面解決 JS 問題...")
             driver.refresh()
-            time.sleep(2)
+            time.sleep(3)
             try:
                 wait.until_not(EC.visibility_of_element_located((By.TAG_NAME, "noscript")))
             except TimeoutException:
                 raise Exception("CPLUS OnHand: JS 執行或相容問題，noscript 仍可見")
-        time.sleep(2)
+        time.sleep(5)
         try:
-            extended_wait = WebDriverWait(driver, 5)
+            extended_wait = WebDriverWait(driver, 10)
             search_element_locators = [
                 (By.XPATH, "//button//span[contains(text(), 'Search')]"),  # 原有
                 (By.CSS_SELECTOR, "button.MuiButton-containedPrimary span.MuiButton-label"),  # 備用 CSS，基於 Material-UI
@@ -306,7 +306,7 @@ def process_cplus_onhand(driver, wait, initial_files):
             # 新加：如果超時，嘗試刷新頁面再檢查
             logging.warning("CPLUS OnHand: 渲染元素未出現，嘗試刷新頁面...")
             driver.refresh()
-            time.sleep(3)
+            time.sleep(5)
             try:
                 extended_wait.until(EC.presence_of_element_located((By.XPATH, "//button//span[contains(text(), 'Search')]")))
                 logging.info("CPLUS OnHand: 刷新後渲染元素存在，JS 執行正常")
@@ -325,21 +325,21 @@ def process_cplus_onhand(driver, wait, initial_files):
     logging.info("CPLUS: 點擊 Search...")
     local_initial = initial_files.copy()
     try:
-        search_button_onhand = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div[1]/form/div[1]/div[24]/div[2]/button/span[1]")))
+        search_button_onhand = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[2]/div/div/div/div[3]/div/div[1]/form/div[1]/div[24]/div[2]/button/span[1]")))
         time.sleep(0.5)
         ActionChains(driver).move_to_element(search_button_onhand).click().perform()
         logging.info("CPLUS: Search 按鈕點擊成功")
     except TimeoutException:
         logging.debug("CPLUS: Search 按鈕未找到，嘗試備用定位...")
         try:
-            search_button_onhand = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'MuiButtonBase-root') and .//span[contains(text(), 'Search')]]")))
+            search_button_onhand = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'MuiButtonBase-root') and .//span[contains(text(), 'Search')]]")))
             time.sleep(0.5)
             ActionChains(driver).move_to_element(search_button_onhand).click().perform()
             logging.info("CPLUS: 備用 Search 按鈕 1 點擊成功")
         except TimeoutException:
             logging.debug("CPLUS: 備用 Search 按鈕 1 失敗，嘗試第三備用定位...")
             try:
-                search_button_onhand = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button.MuiButton-contained span.MuiButton-label")))
+                search_button_onhand = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button.MuiButton-contained span.MuiButton-label")))
                 time.sleep(0.5)
                 ActionChains(driver).move_to_element(search_button_onhand).click().perform()
                 logging.info("CPLUS: 第三備用 Search 按鈕點擊成功")
@@ -390,12 +390,12 @@ def process_cplus_house(driver, wait, initial_files):
     success_load = False
     for load_retry in range(3):
         try:
-            rows = WebDriverWait(driver, 15).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
+            rows = WebDriverWait(driver, 20).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))  # 減到15s
             if len(rows) == 0 or all(not row.text.strip() for row in rows):
                 logging.debug("表格數據空或無效，刷新頁面...")
                 driver.refresh()
-                WebDriverWait(driver, 15).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
-                rows = WebDriverWait(driver, 15).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
+                WebDriverWait(driver, 20).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))  # 減到15s
+                rows = WebDriverWait(driver, 20).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))  # 減到15s
                 if len(rows) < 6:
                     logging.warning("刷新後表格數據仍不足，記錄頁面狀態...")
                     driver.save_screenshot("house_load_failure.png")
@@ -410,10 +410,10 @@ def process_cplus_house(driver, wait, initial_files):
             driver.refresh()
     if not success_load:
         logging.error("CPLUS: Housekeeping Reports 表格加載失敗3次，繼續其他邏輯...")
-    time.sleep(1) 
+    time.sleep(1)  # 減到1s
     logging.info("CPLUS: 等待 Excel 按鈕出現...")
     try:
-        WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)]")))
+        WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)]")))
         logging.info("CPLUS: Excel 按鈕已出現")
     except TimeoutException:
         logging.warning("CPLUS: Excel 按鈕未出現，記錄狀態...")
@@ -501,7 +501,7 @@ def process_cplus():
         driver = webdriver.Chrome(options=get_chrome_options(cplus_download_dir))
         logging.info("CPLUS WebDriver 初始化成功")
         driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-        wait = WebDriverWait(driver, 5)
+        wait = WebDriverWait(driver, 10)
         cplus_login(driver, wait)
         sections = [
             ('movement', process_cplus_movement),
@@ -546,7 +546,7 @@ def process_cplus():
                 except Exception as e:
                     logging.error(f"CPLUS {section_name} 嘗試 {attempt+1}/{MAX_RETRIES} 失敗: {str(e)}")
                     if attempt < MAX_RETRIES - 1:
-                        time.sleep(0.5)
+                        time.sleep(0.5) # 減到0.5s
                         # 修改: 加刷新頁面或重新導航，避免內部崩潰殘留
                         try:
                             driver.refresh()
@@ -580,7 +580,7 @@ def process_cplus():
                     except Exception as ce:
                         logging.warning(f"CPLUS: CLOSE 按鈕點擊失敗 (重試 {retry+1}/3): {str(ce)}")
                         handle_popup(driver, wait)
-                        time.sleep(1)
+                        time.sleep(0.5)
                 if not close_success:
                     logging.error("CPLUS: CLOSE 按鈕經過 3 次重試失敗，記錄狀態...")
                     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -594,7 +594,7 @@ def barge_login(driver, wait):
     logging.info("Barge: 嘗試打開網站 https://barge.oneport.com/login...")
     driver.get("https://barge.oneport.com/login")
     logging.info(f"Barge: 網站已成功打開，當前 URL: {driver.current_url}")
-    time.sleep(2)
+    time.sleep(3)
 
     logging.info("Barge: 輸入 COMPANY ID...")
     company_id_field = wait.until(EC.presence_of_element_located((By.XPATH, "//input[contains(@id, 'mat-input') and @placeholder='Company ID' or contains(@id, 'mat-input-0')]")))
@@ -618,12 +618,12 @@ def barge_login(driver, wait):
     login_button_barge = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'LOGIN') or contains(@class, 'mat-raised-button')]")))
     ActionChains(driver).move_to_element(login_button_barge).click().perform()
     logging.info("Barge: LOGIN 按鈕點擊成功")
-    time.sleep(2)
+    time.sleep(3)
 
 def process_barge_download(driver, wait, initial_files):
     logging.info("Barge: 直接前往 https://barge.oneport.com/downloadReport...")
     driver.get("https://barge.oneport.com/downloadReport")
-    time.sleep(2)
+    time.sleep(3)
     wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
     logging.info("Barge: downloadReport 頁面加載完成")
 
@@ -669,7 +669,7 @@ def process_barge():
         driver = webdriver.Chrome(options=get_chrome_options(barge_download_dir))
         logging.info("Barge WebDriver 初始化成功")
         driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-        wait = WebDriverWait(driver, 5)
+        wait = WebDriverWait(driver, 10)
         barge_login(driver, wait)
         success = False
         for attempt in range(MAX_RETRIES):
@@ -682,7 +682,7 @@ def process_barge():
             except Exception as e:
                 logging.error(f"Barge 下載嘗試 {attempt+1}/{MAX_RETRIES} 失敗: {str(e)}")
                 if attempt < MAX_RETRIES - 1:
-                    time.sleep(3)
+                    time.sleep(5)
         if not success:
             logging.error(f"Barge 下載經過 {MAX_RETRIES} 次嘗試失敗")
         return downloaded_files, driver
@@ -694,7 +694,7 @@ def process_barge():
             if driver:
                 logging.info("Barge: 點擊工具欄進行登出...")
                 try:
-                    logout_toolbar_barge = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='main-toolbar']/button[4]/span[1]")))
+                    logout_toolbar_barge = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='main-toolbar']/button[4]/span[1]")))
                     driver.execute_script("arguments[0].scrollIntoView(true);", logout_toolbar_barge)
                     time.sleep(1)
                     driver.execute_script("arguments[0].click();", logout_toolbar_barge)
@@ -706,7 +706,7 @@ def process_barge():
                 logging.info("Barge: 點擊 Logout 選項...")
                 try:
                     logout_span_xpath = "//div[contains(@class, 'mat-menu-panel')]//button//span[contains(text(), 'Logout')]"
-                    logout_button_barge = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, logout_span_xpath)))
+                    logout_button_barge = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, logout_span_xpath)))
                     driver.execute_script("arguments[0].scrollIntoView(true);", logout_button_barge)
                     time.sleep(1)
                     driver.execute_script("arguments[0].click();", logout_button_barge)
@@ -714,12 +714,12 @@ def process_barge():
                 except TimeoutException:
                     logging.debug("Barge: Logout 選項未找到，嘗試備用定位...")
                     backup_logout_xpath = "//button[.//span[contains(text(), 'Logout')]]"
-                    logout_button_barge = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, backup_logout_xpath)))
+                    logout_button_barge = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, backup_logout_xpath)))
                     driver.execute_script("arguments[0].scrollIntoView(true);", logout_button_barge)
                     time.sleep(1)
                     driver.execute_script("arguments[0].click();", logout_button_barge)
                     logging.info("Barge: 備用 Logout 選項點擊成功")
-                time.sleep(2)
+                time.sleep(5)
         except Exception as e:
             logging.error(f"Barge: 登出失敗: {str(e)}")
 
@@ -749,7 +749,7 @@ def main():
     for file in downloaded_files:
         logging.info(f"找到檔案: {file}")
     required_patterns = {'movement': 'cntrMoveLog', 'onhand': 'data_', 'barge': 'ContainerDetailReport'}
-    housekeep_prefixes = ['IE2_', 'DM1C_', 'IA17_', 'GA1_', 'IA5_', 'IA15_', 'INV-114_'] # 保持原
+    housekeep_prefixes = ['IE2_', 'DM1C_', 'IA17_', 'GA1_', 'IA5_', 'IA15_', 'INV-114_']  # 保持原
     has_required = all(any(pattern in f for f in downloaded_files) for pattern in required_patterns.values())
     # 收集獨特 House 檔案，按前綴選最新，並優先無 (1)
     house_files_dict = {}
@@ -758,22 +758,14 @@ def main():
             if file.startswith(prefix) and file.endswith('.csv'):
                 file_path = os.path.join(cplus_download_dir, file)
                 mod_time = os.path.getmtime(file_path)
-                is_preferred = ' (' not in file # 優先無 (1)
+                is_preferred = ' (' not in file  # 優先無 (1)
                 current = house_files_dict.get(prefix, {'mod_time': 0, 'is_preferred': False, 'file': 'N/A'})
                 if mod_time > current['mod_time'] or (is_preferred and not current['is_preferred']):
                     house_files_dict[prefix] = {'file': file, 'mod_time': mod_time, 'is_preferred': is_preferred}
     house_unique_files = [info['file'] for info in house_files_dict.values()]
     house_download_count = len(house_unique_files)
-    house_ok = house_download_count >= 6 # >= 6 容許多餘
-
-    # ★★★ SUB 1 新增：計算成功狀態 ★★★
-    success_count = sum(1 for pattern in required_patterns.values() if any(pattern in f for f in downloaded_files))
-    house_success = house_download_count >= 6
-    total_success = success_count + (1 if house_success else 0)
-    status_emoji = "✅ 全成功" if total_success == 7 else "⚠️ 部份缺失" if total_success >= 4 else "❌ 嚴重缺失"
-    logging.info(f"Email 狀態: {status_emoji} (成功 {total_success}/7)")
-
-    if has_required or house_ok: # 如果 House 不足也發現有
+    house_ok = house_download_count >= 6  # >= 6 容許多餘
+    if has_required or house_ok:  # 如果 House 不足也發現有
         logging.info("開始發送郵件（即使部份缺失）...")
         try:
             smtp_server = os.environ.get('SMTP_SERVER', 'smtp.zoho.com')
@@ -785,75 +777,71 @@ def main():
             dry_run = os.environ.get('DRY_RUN', 'False').lower() == 'true'
             if dry_run:
                 logging.info("Dry run 模式：只打印郵件內容，不發送。")
-
-            # ★★★ SUB 1：動態主旨 ★★★
-            subject = f"HIT DAILY {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} {status_emoji}"
-
-            # ★★★ SUB 1：美化 HTML 表格（響應式 + 顏色 + Emoji） ★★★
+            # 固定報告名稱列表，從日誌推斷
+            fixed_report_names = [
+                "CONTAINER DAMAGE REPORT (LINE) ENTRY GATE + EXIT GATE",
+                "CY - GATELOG",
+                "CONTAINER LIST (ON HAND)",
+                "CONTAINER LIST (DAMAGED)",
+                "ACTIVE REEFER CONTAINER ON HAND LIST",
+                "REEFER CONTAINER MONITOR REPORT"
+            ]
+            prefix_to_report = {
+                'DM1C_': fixed_report_names[0],
+                'GA1_': fixed_report_names[1],
+                'IA15_': fixed_report_names[2],
+                'IA17_': fixed_report_names[3],
+                'IA5_': fixed_report_names[4],
+                'IE2_': fixed_report_names[5],
+            }
+            # 動態生成表格，用固定名稱匹配最新檔案
+            num_house_rows = len(fixed_report_names)
             body_html = f"""
-            <!DOCTYPE html>
-            <html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <style>
-                body {{ font-family: Arial, sans-serif; margin: 20px; }}
-                table {{ border-collapse: collapse; width: 100%; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
-                th, td {{ border: 1px solid #ddd; padding: 12px; text-align: left; }}
-                th {{ background-color: #4CAF50; color: white; font-weight: bold; }}
-                tr:nth-child(even) {{ background-color: #f9f9f9; }}
-                .success {{ color: #4CAF50; font-weight: bold; font-size: 1.2em; }} 
-                .error {{ color: #f44336; font-weight: bold; font-size: 1.2em; }}
-                .total {{ background-color: #2196F3; color: white; }}
-            </style></head>
-            <body>
-                <h2>📊 HIT Daily Reports - {status_emoji}</h2>
-                <p><strong>Generated at:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S %Z')}</p>
-                <table>
-                    <thead><tr><th>Category</th><th>Report</th><th>Latest File</th><th>Status</th></tr></thead>
-                    <tbody>
-                        <tr><td><strong>CPLUS</strong></td><td>Container Movement</td><td>{max((f for f in downloaded_files if 'cntrMoveLog' in f), default='N/A')}</td><td class="{'success' if any('cntrMoveLog' in f for f in downloaded_files) else 'error'}">{'✅' if any('cntrMoveLog' in f for f in downloaded_files) else '❌'}</td></tr>
-                        <tr><td rowspan="1"><strong>CPLUS</strong></td><td>OnHand (data_)</td><td>{max((f for f in downloaded_files if 'data_' in f), default='N/A')}</td><td class="{'success' if any('data_' in f for f in downloaded_files) else 'error'}">{'✅' if any('data_' in f for f in downloaded_files) else '❌'}</td></tr>
-                        <tr><td rowspan="6"><strong>CPLUS Housekeeping</strong></td><td>CONTAINER DAMAGE (DM1C_)</td><td>{house_files_dict.get('DM1C_', {}).get('file', 'N/A')}</td><td class="{'success' if 'DM1C_' in house_files_dict else 'error'}">{'✅' if 'DM1C_' in house_files_dict else '❌'}</td></tr>
-                        <tr><td>CY - GATELOG (GA1_)</td><td>{house_files_dict.get('GA1_', {}).get('file', 'N/A')}</td><td class="{'success' if 'GA1_' in house_files_dict else 'error'}">{'✅' if 'GA1_' in house_files_dict else '❌'}</td></tr>
-                        <tr><td>ON HAND (IA15_)</td><td>{house_files_dict.get('IA15_', {}).get('file', 'N/A')}</td><td class="{'success' if 'IA15_' in house_files_dict else 'error'}">{'✅' if 'IA15_' in house_files_dict else '❌'}</td></tr>
-                        <tr><td>DAMAGED (IA17_)</td><td>{house_files_dict.get('IA17_', {}).get('file', 'N/A')}</td><td class="{'success' if 'IA17_' in house_files_dict else 'error'}">{'✅' if 'IA17_' in house_files_dict else '❌'}</td></tr>
-                        <tr><td>REEFER ON HAND (IA5_)</td><td>{house_files_dict.get('IA5_', {}).get('file', 'N/A')}</td><td class="{'success' if 'IA5_' in house_files_dict else 'error'}">{'✅' if 'IA5_' in house_files_dict else '❌'}</td></tr>
-                        <tr><td>REEFER MONITOR (IE2_)</td><td>{house_files_dict.get('IE2_', {}).get('file', 'N/A')}</td><td class="{'success' if 'IE2_' in house_files_dict else 'error'}">{'✅' if 'IE2_' in house_files_dict else '❌'}</td></tr>
-                        <tr><td><strong>BARGE</strong></td><td>Container Detail</td><td>{max((f for f in downloaded_files if 'ContainerDetailReport' in f), default='N/A')}</td><td class="{'success' if any('ContainerDetailReport' in f for f in downloaded_files) else 'error'}">{'✅' if any('ContainerDetailReport' in f for f in downloaded_files) else '❌'}</td></tr>
-                        <tr class="total"><td colspan="2"><strong>TOTAL</strong></td><td><strong>{total_success}/8</strong></td><td><strong>{status_emoji}</strong></td></tr>
-                    </tbody>
-                </table>
-                <p><em>附件包含所有最新報告檔案。 如有問題，請檢查 GitHub Actions log。</em></p>
-            </body></html>
+            <html><body><p>Attached are the daily reports downloaded from CPLUS and Barge. Generated at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+            <table border="1" style="border-collapse: collapse; width: 100%;"><thead><tr><th>Category</th><th>Report</th><th>File Names</th><th>Status</th></tr></thead><tbody>
+            <tr><td rowspan="{2 + num_house_rows}">CPLUS</td><td>Container Movement</td><td>{', '.join([f for f in downloaded_files if 'cntrMoveLog' in f]) or 'N/A'}</td><td>{'✓' if any('cntrMoveLog' in f for f in downloaded_files) else '-'}</td></tr>
+            <tr><td>OnHandContainerList</td><td>{', '.join([f for f in downloaded_files if 'data_' in f]) or 'N/A'}</td><td>{'✓' if any('data_' in f for f in downloaded_files) else '-'}</td></tr>
             """
-
+            for prefix in ['DM1C_', 'GA1_', 'IA15_', 'IA17_', 'IA5_', 'IE2_']:  # 固定順序
+                report_name = prefix_to_report.get(prefix, 'Unknown Report')
+                if prefix in house_files_dict:
+                    latest_file = house_files_dict[prefix]['file']
+                    status = '✓'
+                else:
+                    latest_file = 'N/A'
+                    status = '-'
+                body_html += f"<tr><td>{report_name}</td><td>{latest_file}</td><td>{status}</td></tr>\n"
+            body_html += f"""
+            <tr><td rowspan="1">BARGE</td><td>Container Detail</td><td>{', '.join([f for f in downloaded_files if 'ContainerDetailReport' in f]) or 'N/A'}</td><td>{'✓' if any('ContainerDetailReport' in f for f in downloaded_files) else '-'}</td></tr>
+            <tr><td colspan="2"><strong>TOTAL</strong></td><td><strong>9 files attached</strong></td><td><strong>9</strong></td></tr>
+            </tbody></table></body></html>
+            """
             msg = MIMEMultipart('alternative')
             msg['From'] = sender_email
             msg['To'] = ', '.join(receiver_emails)
             if cc_emails:
                 msg['Cc'] = ', '.join(cc_emails)
-            msg['Subject'] = subject
+            msg['Subject'] = f"HIT DAILY {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
             msg.attach(MIMEText(body_html, 'html'))
-
-            # ★★★ SUB 1：附件只加最新 1 個/類（精簡！） ★★★
-            attachments = []
-            # House unique (6 個)
-            attachments.extend(house_unique_files)
-            # Movement 最新 1 個
-            movement_files = [f for f in os.listdir(cplus_download_dir) if 'cntrMoveLog' in f]
-            if movement_files:
-                latest_movement = max(movement_files, key=lambda f: os.path.getmtime(os.path.join(cplus_download_dir, f)))
-                attachments.append(latest_movement)
-            # OnHand 最新 1 個
-            onhand_files = [f for f in os.listdir(cplus_download_dir) if 'data_' in f]
-            if onhand_files:
-                latest_onhand = max(onhand_files, key=lambda f: os.path.getmtime(os.path.join(cplus_download_dir, f)))
-                attachments.append(latest_onhand)
-            # Barge 最新 1 個
-            barge_files_list = [f for f in os.listdir(barge_download_dir) if 'ContainerDetailReport' in f]
-            if barge_files_list:
-                latest_barge = max(barge_files_list, key=lambda f: os.path.getmtime(os.path.join(barge_download_dir, f)))
-                attachments.append(latest_barge)
-
-            # 附加檔案
+            plain_text = body_html.replace('<br>', '\n').replace('<table>', '').replace('</table>', '').replace('<tr>', '\n').replace('<td>', ' | ').replace('</td>', '').replace('<th>', ' | ').replace('</th>', '').strip()
+            msg.attach(MIMEText(plain_text, 'plain'))
+            # 附件只加獨特 House + 其他
+            attachments = house_unique_files[:]  # House 最新
+            # 加 OnHand
+            for file in os.listdir(cplus_download_dir):
+                if file.startswith('data_') and file.endswith('.csv'):
+                    attachments.append(file)
+                    break
+            # 加 Movement
+            for file in os.listdir(cplus_download_dir):
+                if 'cntrMoveLog' in file and file.endswith('.xlsx'):
+                    attachments.append(file)
+                    break
+            # 加 Barge
+            for file in os.listdir(barge_download_dir):
+                if file.startswith('ContainerDetailReport') and file.endswith('.csv'):
+                    attachments.append(file)
+                    break
             for file in attachments:
                 if file in os.listdir(cplus_download_dir):
                     file_path = os.path.join(cplus_download_dir, file)
@@ -861,25 +849,33 @@ def main():
                     file_path = os.path.join(barge_download_dir, file)
                 if os.path.exists(file_path):
                     attachment = MIMEBase('application', 'octet-stream')
-                    with open(file_path, 'rb') as f:
-                        attachment.set_payload(f.read())
+                    attachment.set_payload(open(file_path, 'rb').read())
                     encoders.encode_base64(attachment)
-                    attachment.add_header('Content-Disposition', f'attachment; filename="{file}"')
+                    attachment.add_header('Content-Disposition', f'attachment; filename={file}')
                     msg.attach(attachment)
-                    logging.info(f"附件已加: {file}")
                 else:
                     logging.warning(f"附件不存在: {file_path}")
-
-            if not dry_run:
+            if not os.environ.get('DRY_RUN', 'False').lower() == 'true':
                 server = smtplib.SMTP(smtp_server, smtp_port)
                 server.starttls()
                 server.login(sender_email, sender_password)
                 all_receivers = receiver_emails + cc_emails
                 server.sendmail(sender_email, all_receivers, msg.as_string())
                 server.quit()
-                logging.info("✅ 郵件發送成功!")
+                logging.info("郵件發送成功!")
             else:
-                logging.info(f"模擬發送郵件：\nFrom: {sender
+                logging.info(f"模擬發送郵件：\nFrom: {sender_email}\nTo: {msg['To']}\nCc: {msg.get('Cc', '')}\nSubject: {msg['Subject']}\nBody: {body_html}")
+        except KeyError as ke:
+            logging.error(f"缺少環境變量: {ke}")
+        except smtplib.SMTPAuthenticationError:
+            logging.error("SMTP 認證失敗：檢查用戶名/密碼")
+        except smtplib.SMTPConnectError:
+            logging.error("SMTP 連接失敗：檢查伺服器/端口")
+        except Exception as e:
+            logging.error(f"郵件發送失敗: {str(e)}")
+    else:
+        logging.warning(f"文件不齊全: 缺少必須文件 (has_required={has_required}) 或 House文件不足 (download={house_download_count}, button={house_button_count})")
+    logging.info("腳本完成")
 
 if __name__ == "__main__":
     setup_environment()
