@@ -723,6 +723,182 @@ def process_barge():
         except Exception as e:
             logging.error(f"Barge: 登出失敗: {str(e)}")
 
+def get_latest_file(download_dir, pattern):
+    """
+    從下載目錄取最新嘅匹配檔案。
+    :param download_dir: 下載目錄路徑
+    :param pattern: 檔案名關鍵字 (e.g. 'cntrMoveLog')
+    :return: 最新檔案名 or None
+    """
+    try:
+        files = [f for f in os.listdir(download_dir) 
+                 if pattern in f and (f.endswith('.csv') or f.endswith('.xlsx'))]
+        if not files:
+            return None
+        latest_file = max(files, key=lambda f: os.path.getmtime(os.path.join(download_dir, f)))
+        logging.info(f"選取最新檔案 [{pattern}]: {latest_file}")
+        return latest_file
+    except Exception as e:
+        logging.error(f"get_latest_file 錯誤 ({pattern}): {str(e)}")
+        return None
+def send_daily_email(house_report_files, house_button_count, cplus_dir, barge_dir):
+    """
+    發送改善版每日報告Email。
+    :param house_report_files: {報告名: {'file': 名稱, 'mod_time': time}} dict
+    :param house_button_count: 找到嘅House按鈕數
+    :param cplus_dir: CPLUS下載目錄
+    :param barge_dir: Barge下載目錄
+    """
+    load_dotenv()  # 確保env載入
+    try:
+        smtp_server = os.environ.get('SMTP_SERVER', 'smtp.zoho.com')
+        smtp_port = int(os.environ.get('SMTP_PORT', 587))
+        sender_email = os.environ['ZOHO_EMAIL']
+        sender_password = os.environ['ZOHO_PASSWORD']
+        receiver_emails = os.environ.get('RECEIVER_EMAILS', 'paklun@ckline.com.hk').split(',')
+        cc_emails = os.environ.get('CC_EMAILS', '').split(',') if os.environ.get('CC_EMAILS') else []
+        dry_run = os.environ.get('DRY_RUN', 'False').lower() == 'true'
+        gen_time = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
+
+        # 固定House報告順序（對應house_report_files key）
+        fixed_report_names = [
+            "CONTAINER DAMAGE REPORT (LINE) ENTRY GATE + EXIT GATE",
+            "CY - GATELOG",
+            "CONTAINER LIST (ON HAND)",
+            "CONTAINER LIST (DAMAGED)",
+            "ACTIVE REEFER CONTAINER ON HAND LIST",
+            "REEFER CONTAINER MONITOR REPORT"
+        ]
+
+        # 取最新檔案
+        movement_file = get_latest_file(cplus_dir, 'cntrMoveLog')
+        onhand_file = get_latest_file(cplus_dir, 'data_')
+        barge_file = get_latest_file(barge_dir, 'ContainerDetailReport')
+
+        # 計算狀態
+        movement_ok = movement_file is not None
+        onhand_ok = onhand_file is not None
+        barge_ok = barge_file is not None
+        house_download_count = len(house_report_files)
+        total_ok = int(movement_ok) + int(onhand_ok) + house_download_count + int(barge_ok)
+
+        # 準備附件清單 [(dir, file), ...]
+        attachments = []
+        if movement_file: attachments.append((cplus_dir, movement_file))
+        if onhand_file: attachments.append((cplus_dir, onhand_file))
+        if barge_file: attachments.append((barge_dir, barge_file))
+        for info in house_report_files.values():
+            attachments.append((cplus_dir, info['file']))
+
+        # HTML 內容（美化版）
+        style = """
+        <style>
+        table {border-collapse: collapse; width: 100%; font-family: Arial, sans-serif; font-size: 14px;}
+        th, td {border: 1px solid #ddd; padding: 12px; text-align: left;}
+        th {background: #f2f2f2; font-weight: bold;}
+        .success {color: #28a745; font-weight: bold; font-size: 18px;}
+        .fail {color: #dc3545; font-weight: bold; font-size: 18px;}
+        .summary {background: #e7f3ff; font-weight: bold;}
+        </style>
+        """
+        body_html = f"""
+        <html><head>{style}</head><body>
+        <h2>✅ HIT Daily Reports ({gen_time})</h2>
+        <p>附件包含今日從 CPLUS & Barge 下載嘅報告。總成功: <strong>{total_ok}/9</strong></p>
+        <table>
+        <thead><tr><th>Category</th><th>Report</th><th>File Name</th><th>Status</th></tr></thead>
+        <tbody>
+        <tr><td rowspan="{2 + len(fixed_report_names)}">CPLUS</td><td>Container Movement</td><td>{movement_file or 'N/A'}</td><td><span class="{'success' if movement_ok else 'fail'}">{'✓' if movement_ok else '✗'}</span></td></tr>
+        <tr><td>OnHand Container List</td><td>{onhand_file or 'N/A'}</td><td><span class="{'success' if onhand_ok else 'fail'}">{'✓' if onhand_ok else '✗'}</span></td></tr>
+        """
+        for name in fixed_report_names:
+            file_n = house_report_files.get(name, {}).get('file', 'N/A')
+            status_ok = file_n != 'N/A'
+            body_html += f"""
+            <tr><td>{name}</td><td>{file_n}</td><td><span class="{'success' if status_ok else 'fail'}">{'✓' if status_ok else '✗'}</span></td></tr>
+            """
+        body_html += f"""
+        <tr><td rowspan="1">BARGE</td><td>Container Detail</td><td>{barge_file or 'N/A'}</td><td><span class="{'success' if barge_ok else 'fail'}">{'✓' if barge_ok else '✗'}</span></td></tr>
+        <tr class="summary"><td colspan="4">📊 統計: Housekeeping {house_download_count}/{house_button_count} | 總附件: {len(attachments)}</td></tr>
+        <tr><td colspan="4"><strong>TOTAL: {total_ok}/9 ✅</strong></td></tr>
+        </tbody></table>
+        <p style="color: #666;">如有問題，請聯絡開發團隊。</p>
+        </body></html>
+        """
+
+        # Plain Text 版本（清晰清單）
+        house_list = '\n'.join([f"  - {name}: {house_report_files.get(name, {}).get('file', 'Missing')}" for name in fixed_report_names])
+        plain_body = f"""HIT Daily Reports ({gen_time})
+
+CPLUS:
+- Container Movement: {movement_file or 'Missing'}
+- OnHand Container List: {onhand_file or 'Missing'}
+
+Housekeeping Reports:
+{house_list}
+
+BARGE:
+- Container Detail: {barge_file or 'Missing'}
+
+📊 統計:
+- Housekeeping: {house_download_count}/{house_button_count}
+- Total Successful: {total_ok}/9
+- Attached Files: {len(attachments)}
+
+如有問題，請聯絡開發團隊。
+"""
+
+        # 建Email
+        msg = MIMEMultipart('alternative')
+        msg['From'] = sender_email
+        msg['To'] = ', '.join(receiver_emails)
+        if cc_emails: msg['Cc'] = ', '.join(cc_emails)
+        msg['Subject'] = f"HIT Daily Reports - {gen_time}"
+        msg.attach(MIMEText(body_html, 'html'))
+        msg.attach(MIMEText(plain_body, 'plain'))
+
+        # 加附件
+        for dir_path, file_name in attachments:
+            file_path = os.path.join(dir_path, file_name)
+            if os.path.exists(file_path):
+                part = MIMEBase('application', 'octet-stream')
+                with open(file_path, 'rb') as f:
+                    part.set_payload(f.read())
+                encoders.encode_base64(part)
+                part.add_header('Content-Disposition', f'attachment; filename="{file_name}"')
+                msg.attach(part)
+                logging.info(f"附件已加: {file_name}")
+            else:
+                logging.warning(f"附件缺失: {file_path}")
+
+        # Dry Run or Send
+        if dry_run:
+            logging.info("🧪 DRY RUN 模式 - 模擬Email:")
+            logging.info(f"From: {sender_email}")
+            logging.info(f"To: {msg['To']}")
+            logging.info(f"CC: {msg.get('Cc', 'None')}")
+            logging.info(f"Subject: {msg['Subject']}")
+            logging.info(f"HTML Preview: {body_html[:500]}...")  # 截斷preview
+            logging.info(f"附件列表: {', '.join([f[1] for f in attachments])}")
+            return
+        else:
+            server = smtplib.SMTP(smtp_server, smtp_port)
+            server.starttls()
+            server.login(sender_email, sender_password)
+            all_receivers = receiver_emails + cc_emails
+            server.sendmail(sender_email, all_receivers, msg.as_string())
+            server.quit()
+            logging.info(f"✅ Email 發送成功! 總成功 {total_ok}/9，附件 {len(attachments)} 個")
+
+    except KeyError as ke:
+        logging.error(f"❌ 缺少環境變量: {ke}")
+    except smtplib.SMTPAuthenticationError:
+        logging.error("❌ SMTP 認證失敗：檢查 ZOHO_EMAIL / ZOHO_PASSWORD")
+    except smtplib.SMTPConnectError:
+        logging.error("❌ SMTP 連接失敗：檢查 SMTP_SERVER / SMTP_PORT")
+    except Exception as e:
+        logging.error(f"❌ Email 發送失敗: {str(e)}")
+        
 def main():
     load_dotenv()
     clear_download_dirs()
@@ -744,138 +920,26 @@ def main():
         logging.info("Barge WebDriver 關閉")
     # Check all downloaded files
     logging.info("檢查所有下載文件...")
-    downloaded_files = [f for f in os.listdir(cplus_download_dir) if f.endswith(('.csv', '.xlsx'))] + [f for f in os.listdir(barge_download_dir) if f.endswith(('.csv', '.xlsx'))]
-    logging.info(f"總下載文件: {len(downloaded_files)} 個")
-    for file in downloaded_files:
-        logging.info(f"找到檔案: {file}")
-    required_patterns = {'movement': 'cntrMoveLog', 'onhand': 'data_', 'barge': 'ContainerDetailReport'}
-    housekeep_prefixes = ['IE2_', 'DM1C_', 'IA17_', 'GA1_', 'IA5_', 'IA15_', 'INV-114_']  # 保持原
-    has_required = all(any(pattern in f for f in downloaded_files) for pattern in required_patterns.values())
-    # 收集獨特 House 檔案，按前綴選最新，並優先無 (1)
-    house_files_dict = {}
-    for file in os.listdir(cplus_download_dir):
-        for prefix in housekeep_prefixes:
-            if file.startswith(prefix) and file.endswith('.csv'):
-                file_path = os.path.join(cplus_download_dir, file)
-                mod_time = os.path.getmtime(file_path)
-                is_preferred = ' (' not in file  # 優先無 (1)
-                current = house_files_dict.get(prefix, {'mod_time': 0, 'is_preferred': False, 'file': 'N/A'})
-                if mod_time > current['mod_time'] or (is_preferred and not current['is_preferred']):
-                    house_files_dict[prefix] = {'file': file, 'mod_time': mod_time, 'is_preferred': is_preferred}
-    house_unique_files = [info['file'] for info in house_files_dict.values()]
-    house_download_count = len(house_unique_files)
-    house_ok = house_download_count >= 6  # >= 6 容許多餘
-    if has_required or house_ok:  # 如果 House 不足也發現有
-        logging.info("開始發送郵件（即使部份缺失）...")
-        try:
-            smtp_server = os.environ.get('SMTP_SERVER', 'smtp.zoho.com')
-            smtp_port = int(os.environ.get('SMTP_PORT', 587))
-            sender_email = os.environ['ZOHO_EMAIL']
-            sender_password = os.environ['ZOHO_PASSWORD']
-            receiver_emails = os.environ.get('RECEIVER_EMAILS', 'paklun@ckline.com.hk').split(',')
-            cc_emails = os.environ.get('CC_EMAILS', '').split(',') if os.environ.get('CC_EMAILS') else []
-            dry_run = os.environ.get('DRY_RUN', 'False').lower() == 'true'
-            if dry_run:
-                logging.info("Dry run 模式：只打印郵件內容，不發送。")
-            # 固定報告名稱列表，從日誌推斷
-            fixed_report_names = [
-                "CONTAINER DAMAGE REPORT (LINE) ENTRY GATE + EXIT GATE",
-                "CY - GATELOG",
-                "CONTAINER LIST (ON HAND)",
-                "CONTAINER LIST (DAMAGED)",
-                "ACTIVE REEFER CONTAINER ON HAND LIST",
-                "REEFER CONTAINER MONITOR REPORT"
-            ]
-            prefix_to_report = {
-                'DM1C_': fixed_report_names[0],
-                'GA1_': fixed_report_names[1],
-                'IA15_': fixed_report_names[2],
-                'IA17_': fixed_report_names[3],
-                'IA5_': fixed_report_names[4],
-                'IE2_': fixed_report_names[5],
-            }
-            # 動態生成表格，用固定名稱匹配最新檔案
-            num_house_rows = len(fixed_report_names)
-            body_html = f"""
-            <html><body><p>Attached are the daily reports downloaded from CPLUS and Barge. Generated at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
-            <table border="1" style="border-collapse: collapse; width: 100%;"><thead><tr><th>Category</th><th>Report</th><th>File Names</th><th>Status</th></tr></thead><tbody>
-            <tr><td rowspan="{2 + num_house_rows}">CPLUS</td><td>Container Movement</td><td>{', '.join([f for f in downloaded_files if 'cntrMoveLog' in f]) or 'N/A'}</td><td>{'✓' if any('cntrMoveLog' in f for f in downloaded_files) else '-'}</td></tr>
-            <tr><td>OnHandContainerList</td><td>{', '.join([f for f in downloaded_files if 'data_' in f]) or 'N/A'}</td><td>{'✓' if any('data_' in f for f in downloaded_files) else '-'}</td></tr>
-            """
-            for prefix in ['DM1C_', 'GA1_', 'IA15_', 'IA17_', 'IA5_', 'IE2_']:  # 固定順序
-                report_name = prefix_to_report.get(prefix, 'Unknown Report')
-                if prefix in house_files_dict:
-                    latest_file = house_files_dict[prefix]['file']
-                    status = '✓'
-                else:
-                    latest_file = 'N/A'
-                    status = '-'
-                body_html += f"<tr><td>{report_name}</td><td>{latest_file}</td><td>{status}</td></tr>\n"
-            body_html += f"""
-            <tr><td rowspan="1">BARGE</td><td>Container Detail</td><td>{', '.join([f for f in downloaded_files if 'ContainerDetailReport' in f]) or 'N/A'}</td><td>{'✓' if any('ContainerDetailReport' in f for f in downloaded_files) else '-'}</td></tr>
-            <tr><td colspan="2"><strong>TOTAL</strong></td><td><strong>9 files attached</strong></td><td><strong>9</strong></td></tr>
-            </tbody></table></body></html>
-            """
-            msg = MIMEMultipart('alternative')
-            msg['From'] = sender_email
-            msg['To'] = ', '.join(receiver_emails)
-            if cc_emails:
-                msg['Cc'] = ', '.join(cc_emails)
-            msg['Subject'] = f"HIT DAILY {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-            msg.attach(MIMEText(body_html, 'html'))
-            plain_text = body_html.replace('<br>', '\n').replace('<table>', '').replace('</table>', '').replace('<tr>', '\n').replace('<td>', ' | ').replace('</td>', '').replace('<th>', ' | ').replace('</th>', '').strip()
-            msg.attach(MIMEText(plain_text, 'plain'))
-            # 附件只加獨特 House + 其他
-            attachments = house_unique_files[:]  # House 最新
-            # 加 OnHand
-            for file in os.listdir(cplus_download_dir):
-                if file.startswith('data_') and file.endswith('.csv'):
-                    attachments.append(file)
-                    break
-            # 加 Movement
-            for file in os.listdir(cplus_download_dir):
-                if 'cntrMoveLog' in file and file.endswith('.xlsx'):
-                    attachments.append(file)
-                    break
-            # 加 Barge
-            for file in os.listdir(barge_download_dir):
-                if file.startswith('ContainerDetailReport') and file.endswith('.csv'):
-                    attachments.append(file)
-                    break
-            for file in attachments:
-                if file in os.listdir(cplus_download_dir):
-                    file_path = os.path.join(cplus_download_dir, file)
-                else:
-                    file_path = os.path.join(barge_download_dir, file)
-                if os.path.exists(file_path):
-                    attachment = MIMEBase('application', 'octet-stream')
-                    attachment.set_payload(open(file_path, 'rb').read())
-                    encoders.encode_base64(attachment)
-                    attachment.add_header('Content-Disposition', f'attachment; filename={file}')
-                    msg.attach(attachment)
-                else:
-                    logging.warning(f"附件不存在: {file_path}")
-            if not os.environ.get('DRY_RUN', 'False').lower() == 'true':
-                server = smtplib.SMTP(smtp_server, smtp_port)
-                server.starttls()
-                server.login(sender_email, sender_password)
-                all_receivers = receiver_emails + cc_emails
-                server.sendmail(sender_email, all_receivers, msg.as_string())
-                server.quit()
-                logging.info("郵件發送成功!")
-            else:
-                logging.info(f"模擬發送郵件：\nFrom: {sender_email}\nTo: {msg['To']}\nCc: {msg.get('Cc', '')}\nSubject: {msg['Subject']}\nBody: {body_html}")
-        except KeyError as ke:
-            logging.error(f"缺少環境變量: {ke}")
-        except smtplib.SMTPAuthenticationError:
-            logging.error("SMTP 認證失敗：檢查用戶名/密碼")
-        except smtplib.SMTPConnectError:
-            logging.error("SMTP 連接失敗：檢查伺服器/端口")
-        except Exception as e:
-            logging.error(f"郵件發送失敗: {str(e)}")
+    # 新增：計算狀態（用新sub）
+    movement_file = get_latest_file(cplus_download_dir, 'cntrMoveLog')
+    onhand_file = get_latest_file(cplus_download_dir, 'data_')
+    barge_file = get_latest_file(barge_download_dir, 'ContainerDetailReport')
+    movement_ok = movement_file is not None
+    onhand_ok = onhand_file is not None
+    barge_ok = barge_file is not None
+    house_download_count = len(house_report_files)
+    house_ok = house_download_count >= 6
+    has_required = movement_ok and onhand_ok and barge_ok
+
+    logging.info(f"📊 狀態總結 - Movement:{' ✓' if movement_ok else ' ✗'} | OnHand:{' ✓' if onhand_ok else ' ✗'} | Barge:{' ✓' if barge_ok else ' ✗'} | House:{house_download_count}/{house_button_count}")
+
+    if has_required or house_ok:
+        logging.info("🚀 開始發送Email（條件滿足）...")
+        send_daily_email(house_report_files, house_button_count, cplus_download_dir, barge_download_dir)
     else:
-        logging.warning(f"文件不齊全: 缺少必須文件 (has_required={has_required}) 或 House文件不足 (download={house_download_count}, button={house_button_count})")
-    logging.info("腳本完成")
+        logging.warning(f"⚠️ 跳過發送：文件不齊全 (Movement✗/OnHand✗/Barge✗ or House<{house_download_count}/6+)")
+
+    logging.info("✅ 腳本完成")
 
 if __name__ == "__main__":
     setup_environment()
