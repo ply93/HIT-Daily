@@ -255,13 +255,13 @@ def process_cplus_onhand(driver, wait, initial_files):
     driver.get("https://cplus.hit.com.hk/app/#/enquiry/OnHandContainerList")
     time.sleep(1)
     wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
-    # 加: 檢查 JS 執行或相容問題
+
     try:
         # 檢查 document.readyState 是否 complete（JS 載入完成）
         js_state = driver.execute_script("return document.readyState;")
         if js_state != "complete":
             logging.warning("CPLUS OnHand: JS 未完全執行，狀態: {js_state}，嘗試等待...")
-            time.sleep(5)
+            time.sleep(2)
             # 再檢查
             js_state = driver.execute_script("return document.readyState;")
             if js_state != "complete":
@@ -275,15 +275,15 @@ def process_cplus_onhand(driver, wait, initial_files):
             driver.save_screenshot(f"onhand_js_failure_{timestamp}.png")
             with open(f"onhand_js_failure_{timestamp}.html", "w", encoding="utf-8") as f:
                 f.write(driver.page_source)
-            # 試 refresh 解決
+
             logging.warning("CPLUS OnHand: 嘗試刷新頁面解決 JS 問題...")
             driver.refresh()
-            time.sleep(3)
+            time.sleep(2)
             try:
                 wait.until_not(EC.visibility_of_element_located((By.TAG_NAME, "noscript")))
             except TimeoutException:
                 raise Exception("CPLUS OnHand: JS 執行或相容問題，noscript 仍可見")
-        time.sleep(3)
+        time.sleep(2)
         try:
             extended_wait = WebDriverWait(driver, 5)
             search_element_locators = [
@@ -390,12 +390,12 @@ def process_cplus_house(driver, wait, initial_files):
     success_load = False
     for load_retry in range(3):
         try:
-            rows = WebDriverWait(driver, 20).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))  # 減到15s
+            rows = WebDriverWait(driver, 10).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))  # 減到15s
             if len(rows) == 0 or all(not row.text.strip() for row in rows):
                 logging.debug("表格數據空或無效，刷新頁面...")
                 driver.refresh()
-                WebDriverWait(driver, 20).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))  # 減到15s
-                rows = WebDriverWait(driver, 20).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))  # 減到15s
+                WebDriverWait(driver, 10).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
+                rows = WebDriverWait(driver, 10).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
                 if len(rows) < 6:
                     logging.warning("刷新後表格數據仍不足，記錄頁面狀態...")
                     driver.save_screenshot("house_load_failure.png")
@@ -410,7 +410,7 @@ def process_cplus_house(driver, wait, initial_files):
             driver.refresh()
     if not success_load:
         logging.error("CPLUS: Housekeeping Reports 表格加載失敗3次，繼續其他邏輯...")
-    time.sleep(1)  # 減到1s
+    time.sleep(1) 
     logging.info("CPLUS: 等待 Excel 按鈕出現...")
     try:
         WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)]")))
