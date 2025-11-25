@@ -15,7 +15,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, ElementClickInterceptedException, NoSuchElementException
+from selenium.common.exceptions import TimeoutException, JavascriptException, ElementClickInterceptedException, NoSuchElementException
 from webdriver_manager.chrome import ChromeDriverManager
 import logging
 from dotenv import load_dotenv
@@ -36,12 +36,11 @@ def clear_download_dirs():
 
 def setup_environment():
     try:
-        result = subprocess.run(['which', 'chromium-browser'], capture_output=True, text=True)
+        result = subprocess.run(['which', 'google-chrome'], capture_output=True, text=True)
         if result.returncode != 0:
-            raise Exception("Chromium 未安裝，請檢查 GitHub Actions YML 安裝步驟")
+            raise Exception("Google Chrome 未安裝，請檢查 GitHub Actions YML 安裝步驟")
         else:
-            logging.info("Chromium 及 ChromeDriver 已存在，跳過安裝")
-        
+            logging.info("Google Chrome 已存在，跳過安裝")
         result = subprocess.run(['pip', 'show', 'selenium'], capture_output=True, text=True)
         if "selenium" not in result.stdout:
             raise Exception("Selenium 未安裝，請檢查 GitHub Actions YML pip 步驟")
@@ -55,7 +54,7 @@ def setup_environment():
 
 def get_chrome_options(download_dir):
     chrome_options = Options()
-    chrome_options.add_argument('--headless=new') # 改成新 headless 模式
+    chrome_options.add_argument('--headless=new')  # 新 headless 模式
     chrome_options.add_argument('--no-sandbox')
     chrome_options.add_argument('--disable-dev-shm-usage')
     chrome_options.add_argument('--disable-gpu')
@@ -77,7 +76,7 @@ def get_chrome_options(download_dir):
         "safebrowsing.enabled": False
     }
     chrome_options.add_experimental_option("prefs", prefs)
-    chrome_options.binary_location = '/usr/bin/chromium-browser'
+    chrome_options.binary_location = '/usr/bin/google-chrome'  # 改用google-chrome
     return chrome_options
 
 def wait_for_new_file(download_dir, initial_files, timeout=20, prefixes=None):
@@ -122,45 +121,49 @@ def handle_popup(driver, wait):
             f.write(driver.page_source)
 
 def cplus_login(driver, wait):
-    logging.info("CPLUS: 嘗試打開網站 https://cplus.hit.com.hk/frontpage/#/")
-    driver.get("https://cplus.hit.com.hk/frontpage/#/")
-    logging.info(f"CPLUS: 網站已成功打開，當前 URL: {driver.current_url}")
-    time.sleep(2)
-    logging.info("CPLUS: 點擊登錄前按鈕...")
-    login_button_pre = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
-    ActionChains(driver).move_to_element(login_button_pre).click().perform()
-    logging.info("CPLUS: 登錄前按鈕點擊成功")
-    time.sleep(2)
-    logging.info("CPLUS: 輸入 COMPANY CODE...")
-    company_code_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='companyCode']")))
-    company_code_field.send_keys("CKL")
-    logging.info("CPLUS: COMPANY CODE 輸入完成")
-    time.sleep(1)
-    logging.info("CPLUS: 輸入 USER ID...")
-    user_id_field = driver.find_element(By.XPATH, "//*[@id='userId']")
-    user_id_field.send_keys("KEN")
-    logging.info("CPLUS: USER ID 輸入完成")
-    time.sleep(1)
-    logging.info("CPLUS: 輸入 PASSWORD...")
-    password_field = driver.find_element(By.XPATH, "//*[@id='passwd']")
-    password_field.send_keys(os.environ.get('SITE_PASSWORD'))
-    logging.info("CPLUS: PASSWORD 輸入完成")
-    time.sleep(1)
-    logging.info("CPLUS: 點擊 LOGIN 按鈕...")
-    login_button = driver.find_element(By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/div[2]/div/div/form/button/span[1]")
-    ActionChains(driver).move_to_element(login_button).click().perform()
-    logging.info("CPLUS: LOGIN 按鈕點擊成功")
-    time.sleep(2)
-    # 加: 檢查 session 是否有效（看用戶菜單元素是否存在）
-    try:
-        wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))  # 用戶按鈕
-        logging.info("CPLUS: 登入 session 有效")
-    except TimeoutException:
-        logging.error("CPLUS: 登入後 session 失效或 cookie 問題，記錄狀態...")
-        driver.save_screenshot("login_session_failure.png")
-        with open("login_session_failure.html", "w", encoding="utf-8") as f:
-            f.write(driver.page_source)
-        raise Exception("CPLUS: 登入 session 失效")
+    for retry in range(MAX_RETRIES):
+        try:
+            logging.info("CPLUS: 嘗試打開網站 https://cplus.hit.com.hk/frontpage/#/")
+            driver.get("https://cplus.hit.com.hk/frontpage/#/")
+            logging.info(f"CPLUS: 網站已成功打開，當前 URL: {driver.current_url}")
+            time.sleep(2)
+            logging.info("CPLUS: 點擊登錄前按鈕...")
+            login_button_pre = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
+            ActionChains(driver).move_to_element(login_button_pre).click().perform()
+            logging.info("CPLUS: 登錄前按鈕點擊成功")
+            time.sleep(2)
+            logging.info("CPLUS: 輸入 COMPANY CODE...")
+            company_code_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='companyCode']")))
+            company_code_field.send_keys("CKL")
+            logging.info("CPLUS: COMPANY CODE 輸入完成")
+            time.sleep(1)
+            logging.info("CPLUS: 輸入 USER ID...")
+            user_id_field = driver.find_element(By.XPATH, "//*[@id='userId']")
+            user_id_field.send_keys("KEN")
+            logging.info("CPLUS: USER ID 輸入完成")
+            time.sleep(1)
+            logging.info("CPLUS: 輸入 PASSWORD...")
+            password_field = driver.find_element(By.XPATH, "//*[@id='passwd']")
+            password_field.send_keys(os.environ.get('SITE_PASSWORD'))
+            logging.info("CPLUS: PASSWORD 輸入完成")
+            time.sleep(1)
+            logging.info("CPLUS: 點擊 LOGIN 按鈕...")
+            login_button = driver.find_element(By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/div[2]/div/div/form/button/span[1]")
+            ActionChains(driver).move_to_element(login_button).click().perform()
+            logging.info("CPLUS: LOGIN 按鈕點擊成功")
+            time.sleep(2)
+            # 檢查 session
+            wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
+            logging.info("CPLUS: 登入 session 有效")
+            break
+        except Exception as e:
+            logging.warning(f"CPLUS: 登入失敗 (重試 {retry+1}/{MAX_RETRIES}): {str(e)}")
+            if retry == MAX_RETRIES - 1:
+                driver.save_screenshot("login_failure.png")
+                with open("login_failure.html", "w", encoding="utf-8") as f:
+                    f.write(driver.page_source)
+                raise Exception("CPLUS: 登入失敗超過重試次數")
+            time.sleep(5)  # 重試前等待
 
 def simulate_user_activity(driver):
     ActionChains(driver).move_by_offset(random.randint(-50, 50), random.randint(-50, 50)).perform()
@@ -390,12 +393,12 @@ def process_cplus_house(driver, wait, initial_files):
     success_load = False
     for load_retry in range(3):
         try:
-            rows = WebDriverWait(driver, 20).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))  # 減到15s
+            rows = WebDriverWait(driver, 30).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
             if len(rows) == 0 or all(not row.text.strip() for row in rows):
                 logging.debug("表格數據空或無效，刷新頁面...")
                 driver.refresh()
-                WebDriverWait(driver, 20).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))  # 減到15s
-                rows = WebDriverWait(driver, 20).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))  # 減到15s
+                WebDriverWait(driver, 30).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
+                rows = WebDriverWait(driver, 30).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
                 if len(rows) < 6:
                     logging.warning("刷新後表格數據仍不足，記錄頁面狀態...")
                     driver.save_screenshot("house_load_failure.png")
@@ -758,7 +761,7 @@ def send_daily_email(house_report_files, house_button_count, cplus_dir, barge_di
         smtp_port = int(os.environ.get('SMTP_PORT', 587))
         sender_email = os.environ['ZOHO_EMAIL']
         sender_password = os.environ['ZOHO_PASSWORD']
-        receiver_emails = os.environ.get('RECEIVER_EMAILS', 'paklun@ckline.com.hk').split(',')
+        receiver_emails = os.environ.get('RECEIVER_EMAILS', 'ckeqc@ckline.com.hk').split(',')
         cc_emails = os.environ.get('CC_EMAILS', '').split(',') if os.environ.get('CC_EMAILS') else []
         dry_run = os.environ.get('DRY_RUN', 'False').lower() == 'true'
         gen_time = datetime.now().strftime('%d/%m/%Y %H:%M')
@@ -796,7 +799,6 @@ def send_daily_email(house_report_files, house_button_count, cplus_dir, barge_di
         body_html = f"""
         <html><head>{style}</head><body>
         <h2>HIT Daily Reports ({gen_time})</h2>
-        <p><strong>All files downloaded successfully!</strong></p>
         <table>
         <thead><tr><th>Category</th><th>Report</th><th>File</th></tr></thead>
         <tbody>
