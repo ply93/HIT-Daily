@@ -23,8 +23,18 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --no-cache-dir selenium webdriver-manager pytz
-          sudo apt-get update -qq
-          sudo apt-get install -y chromium-browser chromium-chromedriver xvfb
+      - name: Setup Chrome
+        uses: browser-actions/setup-chrome@latest
+        with:
+          version: stable  # 保持為最新穩定版；如果你想指定版本，如 'latest' 或 '120.0.6099.109'，可以改
+      - name: Install dependencies
+        run: |
+          pip install --no-cache-dir selenium webdriver-manager pytz
+          # 移除原apt-get安裝Chromium同Chromedriver，因為action已處理
+      - name: Verify Chrome installation
+        run: |
+          google-chrome --version  # 檢查最新Chrome版本
+          # 如果需要xvfb，保持原樣；否則可試移除xvfb-run，因為新headless模式唔一定需要
       - name: Set timezone to HKT
         run: |
           sudo ln -sf /usr/share/zoneinfo/Asia/Hong_Kong /etc/localtime
