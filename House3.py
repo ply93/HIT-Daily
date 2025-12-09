@@ -96,10 +96,14 @@ def wait_for_new_file(download_dir, initial_files, timeout=20, prefixes=None):
 
 def handle_popup(driver, wait):
     try:
-        error_div = WebDriverWait(driver, 3).until(
+        popup_div = WebDriverWait(driver, 3).until(
             EC.presence_of_element_located((By.XPATH, "//div[contains(text(), 'System Error') or contains(@class, 'MuiDialog-container') or contains(@class, 'MuiDialog') and not(@aria-label='menu')]"))
         )
-        logging.info("檢測到彈出視窗")
+        popup_text = popup_div.text.strip()  # 讀取彈出完整文字
+        logging.info(f"檢測到彈出視窗，內容: {popup_text}")  # log內容診斷
+        if "Error" in popup_text or "no data" in popup_text.lower() or "無數據" in popup_text or "failed" in popup_text.lower():
+            logging.warning(f"彈出視窗有錯誤: {popup_text}，跳過此報告")  # 如果有錯誤關鍵字，警告並返回False
+            return False
         close_button = wait.until(
             EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Close') or contains(text(), 'OK') or contains(text(), 'Cancel') or contains(@class, 'MuiButton') and not(@aria-label='menu')]"))
         )
@@ -112,14 +116,17 @@ def handle_popup(driver, wait):
             EC.invisibility_of_element_located((By.XPATH, "//div[contains(text(), 'System Error') or contains(@class, 'MuiDialog-container') or contains(@class, 'MuiDialog')]"))
         )
         logging.info("彈出視窗已消失")
+        return True  # 成功關閉
     except TimeoutException:
         logging.debug("無彈出視窗檢測到")
+        return True
     except ElementClickInterceptedException as e:
         logging.warning(f"關閉彈出視窗失敗: {str(e)}")
-        driver.save_screenshot("popup_close_failure.png")
+        driver.save_screenshot("popup_close_failure.png")  # 加截圖診斷失敗
         with open("popup_close_failure.html", "w", encoding="utf-8") as f:
-            f.write(driver.page_source)
-
+            f.write(driver.page_source)  # 加source診斷
+        return False
+        
 def cplus_login(driver, wait):
     for retry in range(MAX_RETRIES):
         try:
