@@ -11,9 +11,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            ~/.cache/pip
-            ~/.wdm
-          key: ${{ runner.os }}-pip-chromium-wdm-${{ hashFiles('House3.py') }}  # 用腳本檔案 hash，避免 requirements.txt 問題
+            ~/.wdm  # 只快取 webdriver-manager，避免 pip 快取干擾最新版本
+          key: ${{ runner.os }}-pip-chromium-wdm-${{ hashFiles('House3.py') }}  # 用腳本檔案 hash
           restore-keys: |
             ${{ runner.os }}-pip-chromium-wdm-
       - name: Set up Python
@@ -22,9 +21,15 @@ jobs:
           python-version: '3.9'
       - name: Install dependencies
         run: |
-          pip install --no-cache-dir selenium webdriver-manager pytz
+          pip install --upgrade selenium webdriver-manager pytz  # 加 --upgrade 強制安裝最新版本，唔用 requirements.txt
           sudo apt-get update -qq
-          sudo apt-get install -y chromium-browser chromium-chromedriver xvfb
+          sudo apt-get install -y chromium-browser xvfb  # 只安裝 chromium-browser 和 xvfb，Chromedriver 用 webdriver-manager 處理
+      - name: Check Package Versions
+        run: |
+          pip show selenium | grep Version  # 輸出 selenium 版本
+          pip show webdriver-manager | grep Version  # 輸出 webdriver-manager 版本
+          pip show pytz | grep Version  # 輸出 pytz 版本
+        continue-on-error: true  # 即使失敗也繼續，方便 debug
       - name: Set timezone to HKT
         run: |
           sudo ln -sf /usr/share/zoneinfo/Asia/Hong_Kong /etc/localtime
