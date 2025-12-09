@@ -13,7 +13,7 @@ jobs:
           path: |
             ~/.cache/pip
             ~/.wdm
-          key: ${{ runner.os }}-pip-chromium-wdm-${{ hashFiles('**/requirements.txt') }}
+          key: ${{ runner.os }}-pip-chromium-wdm-${{ hashFiles('House3.py') }}  # 用腳本檔案 hash，避免 requirements.txt 問題
           restore-keys: |
             ${{ runner.os }}-pip-chromium-wdm-
       - name: Set up Python
@@ -29,6 +29,7 @@ jobs:
         run: |
           sudo ln -sf /usr/share/zoneinfo/Asia/Hong_Kong /etc/localtime
           sudo sh -c 'echo "Asia/Hong_Kong" > /etc/timezone'
+          export TZ=Asia/Hong_Kong  # 新增環境變數，強化時區設定
       - name: Verify timezone
         run: date
       - name: Run Download Script
@@ -38,12 +39,15 @@ jobs:
           ZOHO_PASSWORD: ${{ secrets.ZOHO_PASSWORD }}
           BARGE_PASSWORD: ${{ secrets.BARGE_PASSWORD }}
         run: xvfb-run --auto-servernum python House3.py  # 用 xvfb-run 跑 python，讓 headless 有 display
-      - name: Upload artifacts # 新加步驟
-        if: always() # 即使失敗都上傳
+        continue-on-error: true  # 新增，即使失敗也繼續，方便 debug
+      - name: Upload artifacts  # 新加步驟
+        if: always()  # 即使失敗都上傳
         uses: actions/upload-artifact@v4
         with:
           name: debug-files
           path: |
             *.png
             *.html
-            *.txt # 上傳 screenshot, html, logs
+            *.txt
+            *.log  # 新增 log 檔案上傳，如果你的腳本有產生
+          
