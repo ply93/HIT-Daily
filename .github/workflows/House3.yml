@@ -1,4 +1,4 @@
-name: House3
+name: CPLUS & BARGE Daily
 on:
   workflow_dispatch:
 jobs:
@@ -11,8 +11,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            ~/.wdm  # 只快取 webdriver-manager，避免 pip 快取干擾最新版本
-          key: ${{ runner.os }}-pip-chromium-wdm-${{ hashFiles('House3.py') }}  # 用腳本檔案 hash
+            ~/.cache/pip
+            ~/.wdm
+          key: ${{ runner.os }}-pip-chromium-wdm-${{ hashFiles('**/requirements.txt') }}
           restore-keys: |
             ${{ runner.os }}-pip-chromium-wdm-
       - name: Set up Python
@@ -21,20 +22,13 @@ jobs:
           python-version: '3.9'
       - name: Install dependencies
         run: |
-          pip install --upgrade selenium webdriver-manager pytz  # 加 --upgrade 強制安裝最新版本，唔用 requirements.txt
+          pip install --no-cache-dir selenium webdriver-manager pytz
           sudo apt-get update -qq
-          sudo apt-get install -y chromium-browser xvfb  # 只安裝 chromium-browser 和 xvfb，Chromedriver 用 webdriver-manager 處理
-      - name: Check Package Versions
-        run: |
-          pip show selenium | grep Version  # 輸出 selenium 版本
-          pip show webdriver-manager | grep Version  # 輸出 webdriver-manager 版本
-          pip show pytz | grep Version  # 輸出 pytz 版本
-        continue-on-error: true  # 即使失敗也繼續，方便 debug
+          sudo apt-get install -y chromium-browser chromium-chromedriver xvfb
       - name: Set timezone to HKT
         run: |
           sudo ln -sf /usr/share/zoneinfo/Asia/Hong_Kong /etc/localtime
           sudo sh -c 'echo "Asia/Hong_Kong" > /etc/timezone'
-          export TZ=Asia/Hong_Kong  # 新增環境變數，強化時區設定
       - name: Verify timezone
         run: date
       - name: Run Download Script
@@ -43,16 +37,13 @@ jobs:
           ZOHO_EMAIL: ${{ secrets.ZOHO_EMAIL }}
           ZOHO_PASSWORD: ${{ secrets.ZOHO_PASSWORD }}
           BARGE_PASSWORD: ${{ secrets.BARGE_PASSWORD }}
-        run: xvfb-run --auto-servernum python House3.py  # 用 xvfb-run 跑 python，讓 headless 有 display
-        continue-on-error: true  # 新增，即使失敗也繼續，方便 debug
-      - name: Upload artifacts  # 新加步驟
-        if: always()  # 即使失敗都上傳
+        run: xvfb-run --auto-servernum python HITDAILY.py  # 用 xvfb-run 跑 python，讓 headless 有 display
+      - name: Upload artifacts # 新加步驟
+        if: always() # 即使失敗都上傳
         uses: actions/upload-artifact@v4
         with:
           name: debug-files
           path: |
             *.png
             *.html
-            *.txt
-            *.log  # 新增 log 檔案上傳，如果你的腳本有產生
-          
+            *.txt # 上傳 screenshot, html, logs
