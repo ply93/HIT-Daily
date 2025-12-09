@@ -36,11 +36,11 @@ def clear_download_dirs():
 
 def setup_environment():
     try:
-        result = subprocess.run(['which', 'chromium-browser'], capture_output=True, text=True)
+        result = subprocess.run(['which', 'google-chrome'], capture_output=True, text=True)
         if result.returncode != 0:
-            raise Exception("Chromium 未安裝，請檢查 GitHub Actions YML 安裝步驟")
+            raise Exception("Google Chrome 未安裝，請檢查 GitHub Actions YML Setup Chrome 步驟")
         else:
-            logging.info("Chromium 及 ChromeDriver 已存在，跳過安裝")
+            logging.info("Google Chrome 已存在，跳過安裝")
         
         result = subprocess.run(['pip', 'show', 'selenium'], capture_output=True, text=True)
         if "selenium" not in result.stdout:
@@ -55,7 +55,7 @@ def setup_environment():
 
 def get_chrome_options(download_dir):
     chrome_options = Options()
-    chrome_options.add_argument('--headless=new') # 改成新 headless 模式
+    chrome_options.add_argument('--headless=new')  # 新headless模式，唔需要xvfb
     chrome_options.add_argument('--no-sandbox')
     chrome_options.add_argument('--disable-dev-shm-usage')
     chrome_options.add_argument('--disable-gpu')
@@ -77,7 +77,7 @@ def get_chrome_options(download_dir):
         "safebrowsing.enabled": False
     }
     chrome_options.add_experimental_option("prefs", prefs)
-    chrome_options.binary_location = '/usr/bin/chromium-browser'
+    chrome_options.binary_location = '/usr/bin/google-chrome'  # 改為Google Chrome路徑，因為action安裝咗
     return chrome_options
 
 def wait_for_new_file(download_dir, initial_files, timeout=20, prefixes=None):
