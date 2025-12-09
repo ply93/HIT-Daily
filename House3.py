@@ -98,13 +98,27 @@ def wait_for_new_file(download_dir, initial_files, timeout=20, prefixes=None):
 def handle_popup(driver, wait):
     try:
         popup_div = WebDriverWait(driver, 3).until(
-            EC.presence_of_element_located((By.XPATH, "//div[contains(text(), 'System Error') or contains(@class, 'MuiDialog-container') or contains(@class, 'MuiDialog') and not(@aria-label='menu')]"))
+            EC.presence_of_element_located((By.XPATH, "//div[contains(@class, 'MuiDialog-root') or contains(@id, 'errDialog') or contains(text(), 'System Error')]"))
         )
-        popup_text = popup_div.text.strip()  # 讀取彈出完整文字
-        logging.info(f"檢測到彈出視窗，內容: {popup_text}")  # log內容診斷
-        if "Error" in popup_text or "no data" in popup_text.lower() or "無數據" in popup_text or "failed" in popup_text.lower():
-            logging.warning(f"彈出視窗有錯誤: {popup_text}，跳過此報告")  # 如果有錯誤關鍵字，警告並返回False
-            return False
+        # 改: 捉完整text，包括子元素
+        popup_text = driver.execute_script("return arguments[0].innerText;", popup_div).strip()
+        logging.info(f"檢測到彈出視窗，內容: {popup_text}")  # log完整內容診斷
+        if "System Error" in popup_text or "Error Message" in popup_text or "Please contact our Service Desk" in popup_text or "no data" in popup_text.lower() or "failed" in popup_text.lower():
+            logging.warning(f"彈出視窗有系統錯誤: {popup_text}，跳過此報告")  # 如果有錯誤關鍵字，警告並skip
+            # 加: 捉彈出截圖診斷
+            driver.save_screenshot("popup_error.png")
+            with open("popup_error.html", "w", encoding="utf-8") as f:
+                f.write(driver.page_source)
+            # 試關閉彈出
+            close_button = wait.until(
+                EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Close') or contains(text(), 'OK') or contains(text(), 'Cancel') or contains(@class, 'MuiButton')]"))
+            )
+            driver.execute_script("arguments[0].click();", close_button)
+            WebDriverWait(driver, 3).until_not(
+                EC.presence_of_element_located((By.XPATH, "//div[contains(@class, 'MuiDialog-root') or contains(@id, 'errDialog')]"))
+            )
+            return False  # 返回False表示錯誤，迴圈skip
+        # 如果無錯誤，正常關閉
         close_button = wait.until(
             EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Close') or contains(text(), 'OK') or contains(text(), 'Cancel') or contains(@class, 'MuiButton') and not(@aria-label='menu')]"))
         )
@@ -123,9 +137,12 @@ def handle_popup(driver, wait):
         return True
     except ElementClickInterceptedException as e:
         logging.warning(f"關閉彈出視窗失敗: {str(e)}")
-        driver.save_screenshot("popup_close_failure.png")  # 加截圖診斷失敗
+        driver.save_screenshot("popup_close_failure.png")
         with open("popup_close_failure.html", "w", encoding="utf-8") as f:
-            f.write(driver.page_source)  # 加source診斷
+            f.write(driver.page_source)
+        return False
+    except Exception as e:
+        logging.error(f"處理彈出視窗異常: {str(e)}")
         return False
 
 def cplus_login(driver, wait):
