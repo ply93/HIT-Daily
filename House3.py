@@ -35,11 +35,27 @@ def clear_download_dirs():
         logging.info(f"創建下載目錄: {dir_path}")
 
 def setup_environment():
-    pass  # 移除 pip show 檢查，讓 GitHub Actions 的 pip install -r requirements.txt 處理安裝，避免重複
+    try:
+        result = subprocess.run(['which', 'chromium-browser'], capture_output=True, text=True)
+        if result.returncode != 0:
+            raise Exception("Chromium 未安裝，請檢查 GitHub Actions YML 安裝步驟")
+        else:
+            logging.info("Chromium 及 ChromeDriver 已存在，跳過安裝")
+        
+        result = subprocess.run(['pip', 'show', 'selenium'], capture_output=True, text=True)
+        if "selenium" not in result.stdout:
+            raise Exception("Selenium 未安裝，請檢查 GitHub Actions YML pip 步驟")
+        result = subprocess.run(['pip', 'show', 'webdriver-manager'], capture_output=True, text=True)
+        if "webdriver-manager" not in result.stdout:
+            raise Exception("WebDriver Manager 未安裝，請檢查 GitHub Actions YML pip 步驟")
+        logging.info("Selenium 及 WebDriver Manager 已存在，跳過安裝")
+    except Exception as e:
+        logging.error(f"環境檢查失敗: {e}")
+        raise
 
 def get_chrome_options(download_dir):
     chrome_options = Options()
-    chrome_options.add_argument('--headless=new')  # 新headless模式，唔需要xvfb
+    chrome_options.add_argument('--headless=new') # 改成新 headless 模式
     chrome_options.add_argument('--no-sandbox')
     chrome_options.add_argument('--disable-dev-shm-usage')
     chrome_options.add_argument('--disable-gpu')
@@ -61,65 +77,49 @@ def get_chrome_options(download_dir):
         "safebrowsing.enabled": False
     }
     chrome_options.add_experimental_option("prefs", prefs)
-    chrome_options.binary_location = '/usr/bin/google-chrome'  # 改為Google Chrome路徑，因為action安裝咗
+    chrome_options.binary_location = '/usr/bin/chromium-browser'
     return chrome_options
 
-def wait_for_new_file(download_dir, initial_files, timeout=20, prefixes=None):  # 縮到20秒
+def wait_for_new_file(download_dir, initial_files, timeout=20, prefixes=None):
     start_time = time.time()
     while time.time() - start_time < timeout:
-        # 偵測所有潛在文件，包括臨時 .crdownload 或 .part
-        all_files = set(os.listdir(download_dir))
-        logging.debug(f"當前目錄文件: {all_files}")  # 加 log 檢查內容
-        current_files = set(f for f in all_files if f.endswith(('.csv', '.xlsx')) or f.endswith('.crdownload') or f.endswith('.part'))
+        current_files = set(f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx')))
         new_files = current_files - initial_files
         if new_files:
-            # 等臨時文件完成（.crdownload 消失）
-            completed_files = {f.replace('.crdownload', '').replace('.part', '') for f in new_files if not f.endswith(('.crdownload', '.part'))}
-            if completed_files:
-                if prefixes:
-                    filtered_new = [f for f in completed_files if any(f.startswith(p) for p in prefixes)]
-                    if filtered_new:
-                        return set(filtered_new)
-                else:
-                    return completed_files
-        time.sleep(1)  # 每秒檢查
-    logging.warning(f"等待新檔案超時 ({timeout} 秒)，無新文件，目錄內容: {os.listdir(download_dir)}")  # 加詳細 log
+            if prefixes:
+                filtered_new = [f for f in new_files if any(f.startswith(p) for p in prefixes)]
+                if filtered_new:
+                    return set(filtered_new)
+            else:
+                return new_files
+        time.sleep(1)  # 每秒檢查一次
     return set()
 
 def handle_popup(driver, wait):
-    max_attempts = 5  # 最多試 5 次，防無限循環
-    for attempt in range(max_attempts):
-        try:
-            error_div = WebDriverWait(driver, 3).until(
-                EC.presence_of_element_located((By.XPATH, "//div[contains(text(), 'System Error') or contains(@class, 'MuiDialog-container') or contains(@class, 'MuiDialog') and not(@aria-label='menu') and not(@role='menu')]"))  # 精確 locator，加 not(@role='menu') 避免錯配
-            )
-            logging.info(f"檢測到彈出視窗 (嘗試 {attempt+1})")
-            close_buttons = driver.find_elements(By.XPATH, "//button[contains(text(), 'Close') or contains(text(), 'OK') or contains(text(), 'Cancel') or contains(@class, 'MuiButton') and not(@aria-label='menu')]")
-            if close_buttons:
-                close_button = close_buttons[0]  # 取第一個
-                wait.until(EC.visibility_of(close_button))
-                driver.execute_script("arguments[0].scrollIntoView(true);", close_button)
-                time.sleep(0.5)
-                close_button.click()
-                logging.info("已點擊關閉按鈕")
-                WebDriverWait(driver, 3).until(
-                    EC.invisibility_of_element_located((By.XPATH, "//div[contains(text(), 'System Error') or contains(@class, 'MuiDialog-container') or contains(@class, 'MuiDialog') and not(@aria-label='menu') and not(@role='menu')]"))
-                )
-                logging.info("彈出視窗已消失")
-            else:
-                logging.warning("無關閉按鈕找到")
-                break
-        except TimeoutException:
-            logging.debug("無更多彈出視窗檢測到")
-            break
-        except ElementClickInterceptedException as e:
-            logging.warning(f"關閉彈出視窗失敗: {str(e)}")
-            driver.save_screenshot("popup_close_failure.png")
-            with open("popup_close_failure.html", "w", encoding="utf-8") as f:
-                f.write(driver.page_source)
-            break
-    if attempt == max_attempts - 1:
-        logging.error("彈出視窗處理達到最大嘗試次數")
+    try:
+        error_div = WebDriverWait(driver, 3).until(
+            EC.presence_of_element_located((By.XPATH, "//div[contains(text(), 'System Error') or contains(@class, 'MuiDialog-container') or contains(@class, 'MuiDialog') and not(@aria-label='menu')]"))
+        )
+        logging.info("檢測到彈出視窗")
+        close_button = wait.until(
+            EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Close') or contains(text(), 'OK') or contains(text(), 'Cancel') or contains(@class, 'MuiButton') and not(@aria-label='menu')]"))
+        )
+        wait.until(EC.visibility_of(close_button))
+        driver.execute_script("arguments[0].scrollIntoView(true);", close_button)
+        time.sleep(0.5)
+        close_button.click()
+        logging.info("已點擊關閉按鈕")
+        WebDriverWait(driver, 3).until(
+            EC.invisibility_of_element_located((By.XPATH, "//div[contains(text(), 'System Error') or contains(@class, 'MuiDialog-container') or contains(@class, 'MuiDialog')]"))
+        )
+        logging.info("彈出視窗已消失")
+    except TimeoutException:
+        logging.debug("無彈出視窗檢測到")
+    except ElementClickInterceptedException as e:
+        logging.warning(f"關閉彈出視窗失敗: {str(e)}")
+        driver.save_screenshot("popup_close_failure.png")
+        with open("popup_close_failure.html", "w", encoding="utf-8") as f:
+            f.write(driver.page_source)
 
 def cplus_login(driver, wait):
     logging.info("CPLUS: 嘗試打開網站 https://cplus.hit.com.hk/frontpage/#/")
@@ -401,7 +401,7 @@ def process_cplus_house(driver, wait, initial_files):
                     driver.save_screenshot("house_load_failure.png")
                     with open("house_load_failure.html", "w", encoding="utf-8") as f:
                         f.write(driver.page_source)
-                    break # 不 raise，繼續
+                    break  # 不 raise，繼續
             logging.info("CPLUS: 表格加載完成")
             success_load = True
             break
@@ -410,7 +410,7 @@ def process_cplus_house(driver, wait, initial_files):
             driver.refresh()
     if not success_load:
         logging.error("CPLUS: Housekeeping Reports 表格加載失敗3次，繼續其他邏輯...")
-    time.sleep(1) # 減到1s
+    time.sleep(1)  # 減到1s
     logging.info("CPLUS: 等待 Excel 按鈕出現...")
     try:
         WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)]")))
@@ -423,7 +423,7 @@ def process_cplus_house(driver, wait, initial_files):
     logging.info("CPLUS: 定位並點擊所有 Excel 下載按鈕...")
     local_initial = initial_files.copy()
     new_files = set()
-    report_files = {} # 儲存報告名稱與 {'file': file_name, 'mod_time': mod_time} 的映射
+    report_files = {}  # 儲存報告名稱與 {'file': file_name, 'mod_time': mod_time} 的映射
     excel_buttons = driver.find_elements(By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)]")
     button_count = len(excel_buttons)
     logging.info(f"CPLUS: 找到 {button_count} 個 Excel 下載按鈕")
@@ -432,11 +432,12 @@ def process_cplus_house(driver, wait, initial_files):
         excel_buttons = driver.find_elements(By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button[not(@disabled)]//svg[@viewBox='0 0 24 24']//path[@fill='#036e11']")
         button_count = len(excel_buttons)
         logging.info(f"CPLUS: 備用定位找到 {button_count} 個 Excel 下載按鈕")
+    # 每個按鈕前清視窗
     handle_popup(driver, wait)
-    housekeep_prefixes = ['IE2_', 'DM1C_', 'IA17_', 'GA1_', 'IA5_', 'IA15_', 'INV-114_'] # 用於過濾
+    housekeep_prefixes = ['IE2_', 'DM1C_', 'IA17_', 'GA1_', 'IA5_', 'IA15_', 'INV-114_']  # 用於過濾
     for idx in range(button_count):
         success = False
-        for retry in range(3): # 加重試 3 次每個按鈕
+        for retry in range(3):  # 加重試 3 次每個按鈕
             try:
                 button_xpath = f"(//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button[not(@disabled)])[{idx+1}]"
                 button = wait.until(EC.element_to_be_clickable((By.XPATH, button_xpath)))
@@ -445,16 +446,13 @@ def process_cplus_house(driver, wait, initial_files):
                     logging.info(f"CPLUS: 準備點擊第 {idx+1} 個 Excel 按鈕，報告名稱: {report_name}")
                 except:
                     logging.debug(f"CPLUS: 無法獲取第 {idx+1} 個按鈕的報告名稱")
-                    report_name = f"Unknown Report {idx+1}" # 後備名稱，避免 key error
-                # 加模擬用戶行為和隨機間隔，防反自動化
-                simulate_user_activity(driver)
-                time.sleep(random.uniform(2, 5)) # 加隨機 2-5 秒間隔，防 rate limit
-                # 改用 ActionChains hover + click，模擬真用戶點擊，解決 JS click 未觸發事件
-                ActionChains(driver).move_to_element(button).pause(0.5).click(button).perform()
-                logging.info(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 ActionChains 點擊成功")
-                time.sleep(0.5) # 加小延遲等待彈出
-                handle_popup(driver, wait) # 改用循環處理多層彈出
-                temp_new = wait_for_new_file(cplus_download_dir, local_initial, timeout=20, prefixes=housekeep_prefixes) # 縮到20s，並改善偵測臨時文件
+                    report_name = f"Unknown Report {idx+1}"  # 後備名稱，避免 key error
+                # 用 JS 點擊
+                driver.execute_script("arguments[0].click();", button)
+                logging.info(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 JavaScript 點擊成功")
+                time.sleep(0.5)  # 加小延遲等待彈出
+                handle_popup(driver, wait)
+                temp_new = wait_for_new_file(cplus_download_dir, local_initial, timeout=20, prefixes=housekeep_prefixes)  # 20s
                 if temp_new:
                     file_name = temp_new.pop()
                     logging.info(f"CPLUS: 第 {idx+1} 個按鈕下載新文件: {file_name}")
@@ -477,9 +475,9 @@ def process_cplus_house(driver, wait, initial_files):
                     time.sleep(1)
             except Exception as e:
                 logging.error(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕點擊失敗 (重試 {retry+1}/3): {str(e)}")
-                handle_popup(driver, wait) # 失敗時再清視窗
+                handle_popup(driver, wait)  # 失敗時再清視窗
                 time.sleep(1)
-                if retry == 2: # 最後一次記錄 debug
+                if retry == 2:  # 最後一次記錄 debug
                     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                     driver.save_screenshot(f"house_button_failure_{idx+1}_{timestamp}.png")
                     with open(f"house_button_failure_{idx+1}_{timestamp}.html", "w", encoding="utf-8") as f:
@@ -489,8 +487,8 @@ def process_cplus_house(driver, wait, initial_files):
     if new_files:
         logging.info(f"CPLUS: Housekeeping Reports 下載完成，共 {len(new_files)} 個文件，預期 {button_count} 個")
         if len(new_files) != button_count:
-            logging.warning(f"CPLUS: 下載數 {len(new_files)} 不等於按鈕數 {button_count}，但繼續抽取現有檔案") # 不 raise，繼續抽取
-    return new_files, len(new_files), button_count, report_files
+            logging.warning(f"CPLUS: 下載數 {len(new_files)} 不等於按鈕數 {button_count}，但繼續抽取現有檔案")  # 不 raise，繼續抽取
+    return new_files, len(new_files), button_count, report_files  # 無 new_files 也繼續
         
 def process_cplus():
     driver = None
