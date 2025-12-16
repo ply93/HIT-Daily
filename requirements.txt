@@ -1,4 +1,5 @@
-# 這是完整 requirements.txt，用於 Dependabot 更新 Python 包
-selenium>=4.36.0  # 允許更新到最新
-webdriver-manager>=4.0.2  # 允許更新到最新
-pytz>=2025.2  # 允許更新到最新
+# 這是完整 requirements.txt，用於 Dependabot 自動更新 Python 包版本
+# 使用 >= 允許自動升級到最新相容版本
+selenium>=4.36.0  # 自動更新到最新如 4.39.0
+webdriver-manager>=4.0.2  # 自動更新到最新如 6.3.3
+pytz>=2025.2  # 自動更新到最新時區資料庫版本
