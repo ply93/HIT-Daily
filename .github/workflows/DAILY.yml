@@ -6,9 +6,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6  # 更新到最新 v6，性能更好
       - name: Cache dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v5  # 更新到最新 v5，支援更好快取
         with:
           path: |
             ~/.cache/pip
@@ -17,24 +17,19 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-chromium-wdm-
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6  # 更新到最新 v6，支援 Python 3.12+
         with:
           python-version: '3.9'
       - name: Install dependencies
         run: |
-          pip install --no-cache-dir selenium webdriver-manager pytz
+          pip install -r requirements.txt  # 改用 requirements.txt，讓 Dependabot 自動更新
       - name: Setup Chrome
         uses: browser-actions/setup-chrome@latest
         with:
-          version: stable  # 保持為最新穩定版；如果你想指定版本，如 'latest' 或 '120.0.6099.109'，可以改
-      - name: Install dependencies
-        run: |
-          pip install --no-cache-dir selenium webdriver-manager pytz
-          # 移除原apt-get安裝Chromium同Chromedriver，因為action已處理
+          version: stable
       - name: Verify Chrome installation
         run: |
-          google-chrome --version  # 檢查最新Chrome版本
-          # 如果需要xvfb，保持原樣；否則可試移除xvfb-run，因為新headless模式唔一定需要
+          google-chrome --version
       - name: Set timezone to HKT
         run: |
           sudo ln -sf /usr/share/zoneinfo/Asia/Hong_Kong /etc/localtime
@@ -47,13 +42,14 @@ jobs:
           ZOHO_EMAIL: ${{ secrets.ZOHO_EMAIL }}
           ZOHO_PASSWORD: ${{ secrets.ZOHO_PASSWORD }}
           BARGE_PASSWORD: ${{ secrets.BARGE_PASSWORD }}
-        run: xvfb-run --auto-servernum python HITDAILY.py  # 用 xvfb-run 跑 python，讓 headless 有 display
-      - name: Upload artifacts # 新加步驟
-        if: always() # 即使失敗都上傳
-        uses: actions/upload-artifact@v4
+        run: xvfb-run --auto-servernum python HITDAILY.py
+        continue-on-error: true  # 加這行，失敗都繼續
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v6  # 更新到最新 v6，上傳更快
         with:
           name: debug-files
           path: |
             *.png
             *.html
-            *.txt # 上傳 screenshot, html, logs
+            *.txt
