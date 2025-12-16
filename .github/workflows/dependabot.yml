@@ -1,0 +1,17 @@
+# 這是完整 dependabot.yml，用於更新 GitHub Actions 和 Python 包
+version: 2
+updates:
+  - package-ecosystem: "github-actions"  # 自動更新 Actions 如 checkout@v6
+    directory: "/"  # workflow 目錄
+    schedule:
+      interval: "weekly"  # 每週檢查
+    open-pull-requests-limit: 5  # 最多 5 個 PR
+
+  - package-ecosystem: "pip"  # 自動更新 Python 包如 selenium
+    directory: "/"  # requirements.txt 位置
+    schedule:
+      interval: "daily"  # 每日檢查
+    open-pull-requests-limit: 10  # 最多 10 個 PR
+    ignore:
+      - dependency-name: "*"  # 可忽略特定包，若無則刪除
+        update-types: ["version-update:semver-patch"]  # 只更新 major/minor
