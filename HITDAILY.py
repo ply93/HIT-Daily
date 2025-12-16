@@ -52,7 +52,7 @@ def get_chrome_options(download_dir):
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36"
     ]
     chrome_options.add_argument(f'--user-agent={random.choice(user_agents)}')
-    chrome_options.add_argument(f'--window-size={random.randint(1200, 1920)},{random.randint(800, 1080)}')
+    chrome_options.add_argument(f'--window-size={random.randint(1200, 1920)},{random.randint(1440, 2560)}')
     chrome_options.add_argument('--disable-blink-features=AutomationControlled')
     chrome_options.add_experimental_option('excludeSwitches', ['enable-automation'])
     prefs = {
