@@ -68,7 +68,7 @@ def get_chrome_options(download_dir):
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36"
     ]
     chrome_options.add_argument(f'--user-agent={random.choice(user_agents)}')
-    chrome_options.add_argument(f'--window-size={random.randint(1200, 1920)},{random.randint(800, 1080)}')
+    chrome_options.add_argument(f'--window-size={random.randint(2560, 1440)},{random.randint(2560, 1440)}')
     chrome_options.add_argument('--disable-blink-features=AutomationControlled')
     chrome_options.add_experimental_option('excludeSwitches', ['enable-automation'])
     prefs = {
@@ -95,12 +95,14 @@ def wait_for_new_file(download_dir, initial_files, timeout=20, prefixes=None):
         time.sleep(1)  # 每秒檢查一次
     return set()
 
+# 完整 sub code: 修改 handle_popup 函數，加記錄彈出內容（替換原 handle_popup）
 def handle_popup(driver, wait):
     try:
-        error_div = WebDriverWait(driver, 3).until(
+        popup = WebDriverWait(driver, 3).until(
             EC.presence_of_element_located((By.XPATH, "//div[contains(text(), 'System Error') or contains(@class, 'MuiDialog-container') or contains(@class, 'MuiDialog') and not(@aria-label='menu')]"))
         )
-        logging.info("檢測到彈出視窗")
+        popup_text = popup.text  # 記錄彈出內容
+        logging.info(f"檢測到彈出視窗，內容: {popup_text}")
         close_button = wait.until(
             EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Close') or contains(text(), 'OK') or contains(text(), 'Cancel') or contains(@class, 'MuiButton') and not(@aria-label='menu')]"))
         )
@@ -120,6 +122,8 @@ def handle_popup(driver, wait):
         driver.save_screenshot("popup_close_failure.png")
         with open("popup_close_failure.html", "w", encoding="utf-8") as f:
             f.write(driver.page_source)
+    except Exception as e:
+        logging.error(f"處理彈出視窗意外錯誤: {str(e)}")
 
 def cplus_login(driver, wait):
     logging.info("CPLUS: 嘗試打開網站 https://cplus.hit.com.hk/frontpage/#/")
@@ -381,6 +385,7 @@ def process_cplus_onhand(driver, wait, initial_files):
             f.write(driver.page_source)
         raise Exception("CPLUS: OnHandContainerList 未觸發新文件下載")
 
+# 完整 SUB CODE: 成個 process_cplus_house 函數，加 scrollIntoView（替換原 process_cplus_house 全部內容）
 def process_cplus_house(driver, wait, initial_files):
     logging.info("CPLUS: 前往 Housekeeping Reports 頁面...")
     driver.get("https://cplus.hit.com.hk/app/#/report/housekeepReport")
@@ -441,6 +446,9 @@ def process_cplus_house(driver, wait, initial_files):
             try:
                 button_xpath = f"(//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button[not(@disabled)])[{idx+1}]"
                 button = wait.until(EC.element_to_be_clickable((By.XPATH, button_xpath)))
+                # 加 scrollIntoView 確保元素在視窗中心
+                driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", button)
+                time.sleep(1)  # 等待滾動完成，避免點擊失敗
                 try:
                     report_name = driver.find_element(By.XPATH, f"//table[contains(@class, 'MuiTable-root')]//tbody//tr[{idx+1}]//td[3]").text
                     logging.info(f"CPLUS: 準備點擊第 {idx+1} 個 Excel 按鈕，報告名稱: {report_name}")
