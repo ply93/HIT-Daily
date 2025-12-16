@@ -35,23 +35,7 @@ def clear_download_dirs():
         logging.info(f"創建下載目錄: {dir_path}")
 
 def setup_environment():
-    try:
-        result = subprocess.run(['which', 'google-chrome'], capture_output=True, text=True)
-        if result.returncode != 0:
-            raise Exception("Google Chrome 未安裝，請檢查 GitHub Actions YML Setup Chrome 步驟")
-        else:
-            logging.info("Google Chrome 已存在，跳過安裝")
-        
-        result = subprocess.run(['pip', 'show', 'selenium'], capture_output=True, text=True)
-        if "selenium" not in result.stdout:
-            raise Exception("Selenium 未安裝，請檢查 GitHub Actions YML pip 步驟")
-        result = subprocess.run(['pip', 'show', 'webdriver-manager'], capture_output=True, text=True)
-        if "webdriver-manager" not in result.stdout:
-            raise Exception("WebDriver Manager 未安裝，請檢查 GitHub Actions YML pip 步驟")
-        logging.info("Selenium 及 WebDriver Manager 已存在，跳過安裝")
-    except Exception as e:
-        logging.error(f"環境檢查失敗: {e}")
-        raise
+    pass  # 移除 pip show 檢查，讓 GitHub Actions 的 pip install -r requirements.txt 處理安裝，避免重複
 
 def get_chrome_options(download_dir):
     chrome_options = Options()
@@ -80,7 +64,7 @@ def get_chrome_options(download_dir):
     chrome_options.binary_location = '/usr/bin/google-chrome'  # 改為Google Chrome路徑，因為action安裝咗
     return chrome_options
 
-def wait_for_new_file(download_dir, initial_files, timeout=20, prefixes=None):
+def wait_for_new_file(download_dir, initial_files, timeout=30, prefixes=None):  # 增加 timeout 到 30 秒
     start_time = time.time()
     while time.time() - start_time < timeout:
         current_files = set(f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx')))
@@ -93,6 +77,7 @@ def wait_for_new_file(download_dir, initial_files, timeout=20, prefixes=None):
             else:
                 return new_files
         time.sleep(1)  # 每秒檢查一次
+    logging.warning(f"等待新檔案超時 ({timeout} 秒)，無新文件")  # 加警告 logging
     return set()
 
 def handle_popup(driver, wait):
