@@ -386,7 +386,7 @@ def process_cplus_onhand(driver, wait, initial_files):
             f.write(driver.page_source)
         raise Exception("CPLUS: OnHandContainerList 未觸發新文件下載")
 
-# 完整 SUB CODE: 成個 process_cplus_house 函數，加 scrollIntoView（替換原 process_cplus_house 全部內容）
+# 完整 SUB CODE: 修改 process_cplus_house 函數，加每個點擊後刷新頁面（替換原 process_cplus_house 全部內容）
 def process_cplus_house(driver, wait, initial_files):
     logging.info("CPLUS: 前往 Housekeeping Reports 頁面...")
     driver.get("https://cplus.hit.com.hk/app/#/report/housekeepReport")
@@ -407,7 +407,7 @@ def process_cplus_house(driver, wait, initial_files):
                     driver.save_screenshot("house_load_failure.png")
                     with open("house_load_failure.html", "w", encoding="utf-8") as f:
                         f.write(driver.page_source)
-                    break  # 不 raise，繼續
+                    break # 不 raise，繼續
             logging.info("CPLUS: 表格加載完成")
             success_load = True
             break
@@ -416,7 +416,7 @@ def process_cplus_house(driver, wait, initial_files):
             driver.refresh()
     if not success_load:
         logging.error("CPLUS: Housekeeping Reports 表格加載失敗3次，繼續其他邏輯...")
-    time.sleep(1)  # 減到1s
+    time.sleep(1) # 減到1s
     logging.info("CPLUS: 等待 Excel 按鈕出現...")
     try:
         WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)]")))
@@ -429,7 +429,7 @@ def process_cplus_house(driver, wait, initial_files):
     logging.info("CPLUS: 定位並點擊所有 Excel 下載按鈕...")
     local_initial = initial_files.copy()
     new_files = set()
-    report_files = {}  # 儲存報告名稱與 {'file': file_name, 'mod_time': mod_time} 的映射
+    report_files = {} # 儲存報告名稱與 {'file': file_name, 'mod_time': mod_time} 的映射
     excel_buttons = driver.find_elements(By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)]")
     button_count = len(excel_buttons)
     logging.info(f"CPLUS: 找到 {button_count} 個 Excel 下載按鈕")
@@ -440,28 +440,28 @@ def process_cplus_house(driver, wait, initial_files):
         logging.info(f"CPLUS: 備用定位找到 {button_count} 個 Excel 下載按鈕")
     # 每個按鈕前清視窗
     handle_popup(driver, wait)
-    housekeep_prefixes = ['IE2_', 'DM1C_', 'IA17_', 'GA1_', 'IA5_', 'IA15_', 'INV-114_']  # 用於過濾
+    housekeep_prefixes = ['IE2_', 'DM1C_', 'IA17_', 'GA1_', 'IA5_', 'IA15_', 'INV-114_'] # 用於過濾
     for idx in range(button_count):
         success = False
-        for retry in range(3):  # 加重試 3 次每個按鈕
+        for retry in range(3): # 加重試 3 次每個按鈕
             try:
                 button_xpath = f"(//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button[not(@disabled)])[{idx+1}]"
                 button = wait.until(EC.element_to_be_clickable((By.XPATH, button_xpath)))
                 # 加 scrollIntoView 確保元素在視窗中心
                 driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", button)
-                time.sleep(1)  # 等待滾動完成，避免點擊失敗
+                time.sleep(1) # 等待滾動完成，避免點擊失敗
                 try:
                     report_name = driver.find_element(By.XPATH, f"//table[contains(@class, 'MuiTable-root')]//tbody//tr[{idx+1}]//td[3]").text
                     logging.info(f"CPLUS: 準備點擊第 {idx+1} 個 Excel 按鈕，報告名稱: {report_name}")
                 except:
                     logging.debug(f"CPLUS: 無法獲取第 {idx+1} 個按鈕的報告名稱")
-                    report_name = f"Unknown Report {idx+1}"  # 後備名稱，避免 key error
+                    report_name = f"Unknown Report {idx+1}" # 後備名稱，避免 key error
                 # 用 JS 點擊
                 driver.execute_script("arguments[0].click();", button)
                 logging.info(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕 JavaScript 點擊成功")
-                time.sleep(0.5)  # 加小延遲等待彈出
+                time.sleep(0.5) # 加小延遲等待彈出
                 handle_popup(driver, wait)
-                temp_new = wait_for_new_file(cplus_download_dir, local_initial, timeout=20, prefixes=housekeep_prefixes)  # 20s
+                temp_new = wait_for_new_file(cplus_download_dir, local_initial, timeout=20, prefixes=housekeep_prefixes) # 20s
                 if temp_new:
                     file_name = temp_new.pop()
                     logging.info(f"CPLUS: 第 {idx+1} 個按鈕下載新文件: {file_name}")
@@ -478,15 +478,19 @@ def process_cplus_house(driver, wait, initial_files):
                     else:
                         report_files[report_name] = {'file': file_name, 'mod_time': mod_time}
                     success = True
+                    # 加: 成功後刷新頁面，重置狀態
+                    logging.info(f"CPLUS: 第 {idx+1} 個下載成功，刷新頁面重置狀態...")
+                    driver.refresh()
+                    time.sleep(5)  # 等待刷新完成
                     break
                 else:
                     logging.warning(f"CPLUS: 第 {idx+1} 個按鈕未觸發新文件下載 (重試 {retry+1}/3)")
                     time.sleep(1)
             except Exception as e:
                 logging.error(f"CPLUS: 第 {idx+1} 個 Excel 下載按鈕點擊失敗 (重試 {retry+1}/3): {str(e)}")
-                handle_popup(driver, wait)  # 失敗時再清視窗
+                handle_popup(driver, wait) # 失敗時再清視窗
                 time.sleep(1)
-                if retry == 2:  # 最後一次記錄 debug
+                if retry == 2: # 最後一次記錄 debug
                     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                     driver.save_screenshot(f"house_button_failure_{idx+1}_{timestamp}.png")
                     with open(f"house_button_failure_{idx+1}_{timestamp}.html", "w", encoding="utf-8") as f:
@@ -496,8 +500,8 @@ def process_cplus_house(driver, wait, initial_files):
     if new_files:
         logging.info(f"CPLUS: Housekeeping Reports 下載完成，共 {len(new_files)} 個文件，預期 {button_count} 個")
         if len(new_files) != button_count:
-            logging.warning(f"CPLUS: 下載數 {len(new_files)} 不等於按鈕數 {button_count}，但繼續抽取現有檔案")  # 不 raise，繼續抽取
-    return new_files, len(new_files), button_count, report_files  # 無 new_files 也繼續
+            logging.warning(f"CPLUS: 下載數 {len(new_files)} 不等於按鈕數 {button_count}，但繼續抽取現有檔案") # 不 raise，繼續
+    return new_files, len(new_files), button_count, report_files # 無 new_files 也繼續
         
 def process_cplus():
     driver = None
