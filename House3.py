@@ -53,7 +53,7 @@ def setup_environment():
         logging.error(f"環境檢查失敗: {e}")
         raise
 
-# 完整 SUB CODE: 修改 get_chrome_options 函數，修正 f-string 括號（替換原 get_chrome_options 全部內容）
+# 完整 SUB CODE: 修改 get_chrome_options 函數，調整 random.randint(800, 1440) 範圍（替換原 get_chrome_options 全部內容）
 def get_chrome_options(download_dir):
     chrome_options = Options()
     chrome_options.add_argument('--headless=new')  # 改成新 headless 模式
@@ -69,7 +69,7 @@ def get_chrome_options(download_dir):
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36"
     ]
     chrome_options.add_argument(f'--user-agent={random.choice(user_agents)}')
-    chrome_options.add_argument(f'--window-size={random.randint(2560, 1440)},{random.randint(800, 1000)}')  # 修正括號
+    chrome_options.add_argument(f'--window-size={random.randint(1440, 2560)},{random.randint(1440, 2560)}')
     chrome_options.add_argument('--disable-blink-features=AutomationControlled')
     chrome_options.add_experimental_option('excludeSwitches', ['enable-automation'])
     prefs = {
