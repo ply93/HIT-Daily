@@ -25,7 +25,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 cplus_download_dir = os.path.abspath("downloads_cplus")
 barge_download_dir = os.path.abspath("downloads_barge")
 MAX_RETRIES = 3
-DOWNLOAD_TIMEOUT = 60  # 延長至 60 秒
+DOWNLOAD_TIMEOUT = 30  # 延長至 60 秒
 
 def clear_download_dirs():
     for dir_path in [cplus_download_dir, barge_download_dir]:
@@ -35,11 +35,28 @@ def clear_download_dirs():
         logging.info(f"創建下載目錄: {dir_path}")
 
 def setup_environment():
-    pass  # 移除 pip show 檢查，讓 GitHub Actions 的 pip install -r requirements.txt 處理安裝，避免重複
+    try:
+        result = subprocess.run(['which', 'chromium-browser'], capture_output=True, text=True)
+        if result.returncode != 0:
+            raise Exception("Chromium 未安裝，請檢查 GitHub Actions YML 安裝步驟")
+        else:
+            logging.info("Chromium 及 ChromeDriver 已存在，跳過安裝")
+        
+        result = subprocess.run(['pip', 'show', 'selenium'], capture_output=True, text=True)
+        if "selenium" not in result.stdout:
+            raise Exception("Selenium 未安裝，請檢查 GitHub Actions YML pip 步驟")
+        result = subprocess.run(['pip', 'show', 'webdriver-manager'], capture_output=True, text=True)
+        if "webdriver-manager" not in result.stdout:
+            raise Exception("WebDriver Manager 未安裝，請檢查 GitHub Actions YML pip 步驟")
+        logging.info("Selenium 及 WebDriver Manager 已存在，跳過安裝")
+    except Exception as e:
+        logging.error(f"環境檢查失敗: {e}")
+        raise
 
+# 完整 SUB CODE: 修改 get_chrome_options 函數，調整 random.randint(800, 1440) 範圍（替換原 get_chrome_options 全部內容）
 def get_chrome_options(download_dir):
     chrome_options = Options()
-    chrome_options.add_argument('--headless=new')  # 新headless模式，唔需要xvfb
+    chrome_options.add_argument('--headless=new')  # 改成新 headless 模式
     chrome_options.add_argument('--no-sandbox')
     chrome_options.add_argument('--disable-dev-shm-usage')
     chrome_options.add_argument('--disable-gpu')
@@ -52,7 +69,7 @@ def get_chrome_options(download_dir):
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36"
     ]
     chrome_options.add_argument(f'--user-agent={random.choice(user_agents)}')
-    chrome_options.add_argument(f'--window-size={random.randint(1200, 1920)},{random.randint(1440, 2560)}')
+    chrome_options.add_argument(f'--window-size={random.randint(1440, 2560)},{random.randint(1440, 2560)}')
     chrome_options.add_argument('--disable-blink-features=AutomationControlled')
     chrome_options.add_experimental_option('excludeSwitches', ['enable-automation'])
     prefs = {
@@ -61,10 +78,10 @@ def get_chrome_options(download_dir):
         "safebrowsing.enabled": False
     }
     chrome_options.add_experimental_option("prefs", prefs)
-    chrome_options.binary_location = '/usr/bin/google-chrome'  # 改為Google Chrome路徑，因為action安裝咗
+    chrome_options.binary_location = '/usr/bin/chromium-browser'
     return chrome_options
 
-def wait_for_new_file(download_dir, initial_files, timeout=30, prefixes=None):  # 增加 timeout 到 30 秒
+def wait_for_new_file(download_dir, initial_files, timeout=20, prefixes=None):
     start_time = time.time()
     while time.time() - start_time < timeout:
         current_files = set(f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx')))
@@ -77,15 +94,16 @@ def wait_for_new_file(download_dir, initial_files, timeout=30, prefixes=None):  
             else:
                 return new_files
         time.sleep(1)  # 每秒檢查一次
-    logging.warning(f"等待新檔案超時 ({timeout} 秒)，無新文件")  # 加警告 logging
     return set()
 
+# 完整 sub code: 修改 handle_popup 函數，加記錄彈出內容（替換原 handle_popup）
 def handle_popup(driver, wait):
     try:
-        error_div = WebDriverWait(driver, 3).until(
+        popup = WebDriverWait(driver, 3).until(
             EC.presence_of_element_located((By.XPATH, "//div[contains(text(), 'System Error') or contains(@class, 'MuiDialog-container') or contains(@class, 'MuiDialog') and not(@aria-label='menu')]"))
         )
-        logging.info("檢測到彈出視窗")
+        popup_text = popup.text  # 記錄彈出內容
+        logging.info(f"檢測到彈出視窗，內容: {popup_text}")
         close_button = wait.until(
             EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Close') or contains(text(), 'OK') or contains(text(), 'Cancel') or contains(@class, 'MuiButton') and not(@aria-label='menu')]"))
         )
@@ -105,6 +123,8 @@ def handle_popup(driver, wait):
         driver.save_screenshot("popup_close_failure.png")
         with open("popup_close_failure.html", "w", encoding="utf-8") as f:
             f.write(driver.page_source)
+    except Exception as e:
+        logging.error(f"處理彈出視窗意外錯誤: {str(e)}")
 
 def cplus_login(driver, wait):
     logging.info("CPLUS: 嘗試打開網站 https://cplus.hit.com.hk/frontpage/#/")
@@ -366,6 +386,7 @@ def process_cplus_onhand(driver, wait, initial_files):
             f.write(driver.page_source)
         raise Exception("CPLUS: OnHandContainerList 未觸發新文件下載")
 
+# 完整 SUB CODE: 修改 process_cplus_house 函數，加每個點擊後刷新頁面（替換原 process_cplus_house 全部內容）
 def process_cplus_house(driver, wait, initial_files):
     logging.info("CPLUS: 前往 Housekeeping Reports 頁面...")
     driver.get("https://cplus.hit.com.hk/app/#/report/housekeepReport")
