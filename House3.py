@@ -80,19 +80,24 @@ def get_chrome_options(download_dir):
     chrome_options.binary_location = '/usr/bin/chromium-browser'
     return chrome_options
 
-def wait_for_new_file(download_dir, initial_files, timeout=20, prefixes=None):
+def wait_for_new_file(download_dir, initial_files, timeout=60, prefixes=None):
+    """等待新文件下載，增加timeout同debug"""
     start_time = time.time()
     while time.time() - start_time < timeout:
-        current_files = set(f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx')))
+        current_files = set(os.listdir(download_dir))
         new_files = current_files - initial_files
+        logging.debug(f"當前目錄文件: {current_files} | 初始文件: {initial_files} | 新文件: {new_files}")
         if new_files:
             if prefixes:
-                filtered_new = [f for f in new_files if any(f.startswith(p) for p in prefixes)]
+                filtered_new = {f for f in new_files if any(f.startswith(p) for p in prefixes)}
                 if filtered_new:
-                    return set(filtered_new)
+                    logging.info(f"檢測到新文件 (匹配prefixes): {filtered_new}")
+                    return filtered_new
             else:
+                logging.info(f"檢測到新文件 (無prefixes): {new_files}")
                 return new_files
         time.sleep(1)  # 每秒檢查一次
+    logging.warning(f"超過 {timeout}s 無新文件，目錄無變化")
     return set()
 
 def handle_popup(driver, wait):
