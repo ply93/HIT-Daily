@@ -429,15 +429,22 @@ def process_cplus_house(driver, wait, initial_files):
     local_initial = initial_files.copy()
     new_files = set()
     report_files = {} # 儲存報告名稱與 {'file': file_name, 'mod_time': mod_time} 的映射
-    # 先獲取一次總數
-    buttons = driver.find_elements(By.CSS_SELECTOR, "button[title='Excel']")
+    # 使用與等待一致的XPATH定位按鈕
+    button_locator = "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)]"
+    buttons = driver.find_elements(By.XPATH, button_locator)
     total_buttons = len(buttons)
-    logging.info(f"CPLUS: 搵到 {total_buttons} 個 Excel 下載按鈕")
+    logging.info(f"CPLUS: 搵到 {total_buttons} 個 Excel 下載按鈕 (使用穩定XPATH)")
     if total_buttons == 0:
-        logging.debug("CPLUS: 未找到 Excel 按鈕，嘗試備用定位...")
-        buttons = driver.find_elements(By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]//button[not(@disabled)]//svg[@viewBox='0 0 24 24']//path[@fill='#036e11']")
+        logging.debug("CPLUS: 未找到 Excel 按鈕，嘗試備用CSS...")
+        buttons = driver.find_elements(By.CSS_SELECTOR, "button[title='Excel']")  # 保留原備用
         total_buttons = len(buttons)
-        logging.info(f"CPLUS: 備用定位找到 {total_buttons} 個 Excel 下載按鈕")
+        logging.info(f"CPLUS: 備用CSS找到 {total_buttons} 個 Excel 下載按鈕")
+    if total_buttons == 0:
+        logging.warning("CPLUS: 定位失敗，找到0個按鈕，記錄debug資訊...")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        driver.save_screenshot(f"house_locator_failure_{timestamp}.png")
+        with open(f"house_locator_failure_{timestamp}.html", "w", encoding="utf-8") as f:
+            f.write(driver.page_source)
     # 每個按鈕前清視窗
     handle_popup(driver, wait)
     housekeep_prefixes = ['IE2_', 'DM1C_', 'IA17_', 'GA1_', 'IA5_', 'IA15_', 'INV-114_'] # 用於過濾
@@ -446,7 +453,7 @@ def process_cplus_house(driver, wait, initial_files):
         for retry in range(3): # 加重試 3 次每個按鈕
             try:
                 # 【重要】每次 loop 都重新搵一次所有按鈕，避免元素失效
-                current_buttons = driver.find_elements(By.CSS_SELECTOR, "button[title='Excel']")
+                current_buttons = driver.find_elements(By.XPATH, button_locator)
                 btn = current_buttons[i]
                 # 捲動到該按鈕位置，確保佢喺畫面內
                 driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", btn)
