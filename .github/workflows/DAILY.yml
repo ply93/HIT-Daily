@@ -6,9 +6,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6  # 更新到最新 v6，性能更好
+        uses: actions/checkout@v6 # 更新到最新 v6，性能更好
       - name: Cache dependencies
-        uses: actions/cache@v5  # 更新到最新 v5，支援更好快取
+        uses: actions/cache@v5 # 更新到最新 v5，支援更好快取
         with:
           path: |
             ~/.cache/pip
@@ -17,12 +17,12 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-chromium-wdm-
       - name: Set up Python
-        uses: actions/setup-python@v6  # 更新到最新 v6，支援 Python 3.12+
+        uses: actions/setup-python@v6 # 更新到最新 v6，支援 Python 3.12+
         with:
           python-version: '3.9'
       - name: Install dependencies
         run: |
-          pip install -r requirements.txt  # 改用 requirements.txt，讓 Dependabot 自動更新
+          pip install -r requirements.txt # 改用 requirements.txt，讓 Dependabot 自動更新
       - name: Setup Chrome
         uses: browser-actions/setup-chrome@latest
         with:
@@ -42,11 +42,11 @@ jobs:
           ZOHO_EMAIL: ${{ secrets.ZOHO_EMAIL }}
           ZOHO_PASSWORD: ${{ secrets.ZOHO_PASSWORD }}
           BARGE_PASSWORD: ${{ secrets.BARGE_PASSWORD }}
-        run: xvfb-run --auto-servernum python HITDAILY.py
-        continue-on-error: true  # 加這行，失敗都繼續
+        run: xvfb-run --server-args="-screen 0 1920x1080x24" python HITDAILY.py
+        continue-on-error: true # 加這行，失敗都繼續
       - name: Upload artifacts
         if: always()
-        uses: actions/upload-artifact@v6  # 更新到最新 v6，上傳更快
+        uses: actions/upload-artifact@v6 # 更新到最新 v6，上傳更快
         with:
           name: debug-files
           path: |
