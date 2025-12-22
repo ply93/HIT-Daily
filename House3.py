@@ -80,8 +80,8 @@ def get_chrome_options(download_dir):
     chrome_options.binary_location = '/usr/bin/chromium-browser'
     return chrome_options
 
-def wait_for_new_file(download_dir, initial_files, timeout=60, prefixes=None):
-    """等待新文件下載，增加timeout同debug"""
+def wait_for_new_file(download_dir, initial_files, timeout=15, prefixes=None):
+    """等待新文件下載，改爲15s timeout，加debug"""
     start_time = time.time()
     while time.time() - start_time < timeout:
         current_files = set(os.listdir(download_dir))
@@ -473,7 +473,8 @@ def process_cplus_house(driver, wait, initial_files):
                 time.sleep(0.5) # 加小延遲等待彈出
                 # 等待下載或彈窗處理 (保留你原本處理彈窗嘅 code)
                 handle_popup(driver, wait)
-                temp_new = wait_for_new_file(cplus_download_dir, local_initial, timeout=60, prefixes=housekeep_prefixes) # 增加到60s
+                current_timeout = 15 * (retry + 1)  # 漸增: 15s, 30s, 45s
+                temp_new = wait_for_new_file(cplus_download_dir, local_initial, timeout=current_timeout, prefixes=housekeep_prefixes) # 漸增timeout
                 if temp_new:
                     file_name = temp_new.pop()
                     logging.info(f"CPLUS: 第 {i+1} 個按鈕下載新文件: {file_name}")
