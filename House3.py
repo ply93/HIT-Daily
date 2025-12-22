@@ -454,6 +454,9 @@ def process_cplus_house(driver, wait, initial_files):
             try:
                 # 【重要】每次 loop 都重新搵一次所有按鈕，避免元素失效
                 current_buttons = driver.find_elements(By.XPATH, button_locator)
+                if len(current_buttons) <= i:
+                    logging.warning(f"CPLUS: 按鈕列表長度 {len(current_buttons)} 少於預期索引 {i}，可能頁面變化，跳過此按鈕")
+                    break  # 跳出重試，避免index error
                 btn = current_buttons[i]
                 # 捲動到該按鈕位置，確保佢喺畫面內
                 driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", btn)
@@ -487,11 +490,7 @@ def process_cplus_house(driver, wait, initial_files):
                     else:
                         report_files[report_name] = {'file': file_name, 'mod_time': mod_time}
                     success = True
-                    # 加: 成功後刷新頁面，重置狀態
-                    logging.info(f"CPLUS: 第 {i+1} 個下載成功，刷新頁面重置狀態...")
-                    driver.refresh()
-                    time.sleep(5) # 等待刷新完成
-                    break
+                    break  # 無需刷新，移除以避免index問題
                 else:
                     logging.warning(f"CPLUS: 第 {i+1} 個按鈕未觸發新文件下載 (重試 {retry+1}/3)")
                     time.sleep(1)
