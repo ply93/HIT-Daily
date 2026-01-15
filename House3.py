@@ -764,35 +764,56 @@ def process_barge():
         try:
             if driver:
                 logging.info("Barge: 點擊工具欄進行登出...")
-                try:
-                    logout_toolbar_barge = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='main-toolbar']/button[4]/span[1]")))
-                    driver.execute_script("arguments[0].scrollIntoView(true);", logout_toolbar_barge)
-                    time.sleep(1)
-                    driver.execute_script("arguments[0].click();", logout_toolbar_barge)
-                    logging.info("Barge: 工具欄點擊成功")
-                except TimeoutException:
-                    logging.debug("Barge: 主工具欄登出按鈕未找到，嘗試備用定位...")
-                    raise
-                time.sleep(2)
-                logging.info("Barge: 點擊 Logout 選項...")
-                try:
-                    logout_span_xpath = "//div[contains(@class, 'mat-menu-panel')]//button//span[contains(text(), 'Logout')]"
-                    logout_button_barge = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, logout_span_xpath)))
-                    driver.execute_script("arguments[0].scrollIntoView(true);", logout_button_barge)
-                    time.sleep(1)
-                    driver.execute_script("arguments[0].click();", logout_button_barge)
-                    logging.info("Barge: Logout 選項點擊成功")
-                except TimeoutException:
-                    logging.debug("Barge: Logout 選項未找到，嘗試備用定位...")
-                    backup_logout_xpath = "//button[.//span[contains(text(), 'Logout')]]"
-                    logout_button_barge = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, backup_logout_xpath)))
-                    driver.execute_script("arguments[0].scrollIntoView(true);", logout_button_barge)
-                    time.sleep(1)
-                    driver.execute_script("arguments[0].click();", logout_button_barge)
-                    logging.info("Barge: 備用 Logout 選項點擊成功")
-                time.sleep(5)
+                success_logout = False
+                for retry in range(2):  # 加重試 2 次
+                    try:
+                        # 點擊工具欄
+                        logout_toolbar_barge = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='main-toolbar']/button[4]/span[1]")))
+                        driver.execute_script("arguments[0].scrollIntoView(true);", logout_toolbar_barge)
+                        time.sleep(1)
+                        driver.execute_script("arguments[0].click();", logout_toolbar_barge)
+                        logging.info("Barge: 工具欄點擊成功")
+                        
+                        # 點擊 Logout 選項
+                        logout_span_xpath = "//div[contains(@class, 'mat-menu-panel')]//button//span[contains(text(), 'Logout')]"
+                        logout_button_barge = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, logout_span_xpath)))
+                        driver.execute_script("arguments[0].scrollIntoView(true);", logout_button_barge)
+                        time.sleep(1)
+                        driver.execute_script("arguments[0].click();", logout_button_barge)
+                        logging.info("Barge: Logout 選項點擊成功")
+                        
+                        # 等待頁面跳轉到登入頁（檢查 URL 或特定元素）
+                        WebDriverWait(driver, 10).until(EC.url_contains("login"))
+                        logging.info("Barge: 登出成功，頁面已跳轉到登入頁")
+                        success_logout = True
+                        break
+                    except (TimeoutException, NoSuchElementException, WebDriverException) as te:
+                        logging.warning(f"Barge: 登出嘗試 {retry+1}/2 失敗: {str(te)}，嘗試備用定位...")
+                        try:
+                            # 備用 Logout 定位
+                            backup_logout_xpath = "//button[.//span[contains(text(), 'Logout')]]"
+                            logout_button_barge = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, backup_logout_xpath)))
+                            driver.execute_script("arguments[0].scrollIntoView(true);", logout_button_barge)
+                            time.sleep(1)
+                            driver.execute_script("arguments[0].click();", logout_button_barge)
+                            logging.info("Barge: 備用 Logout 選項點擊成功")
+                            
+                            # 等待跳轉
+                            WebDriverWait(driver, 10).until(EC.url_contains("login"))
+                            logging.info("Barge: 登出成功，頁面已跳轉到登入頁")
+                            success_logout = True
+                            break
+                        except Exception as be:
+                            logging.warning(f"Barge: 備用登出失敗: {str(be)}")
+                            if retry == 1:  # 最後一次記錄 debug
+                                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                                driver.save_screenshot(f"barge_logout_failure_{timestamp}.png")
+                                with open(f"barge_logout_failure_{timestamp}.html", "w", encoding="utf-8") as f:
+                                    f.write(driver.page_source)
+                if not success_logout:
+                    logging.error("Barge: 登出經過 2 次重試失敗，直接關閉 driver")
         except Exception as e:
-            logging.error(f"Barge: 登出失敗: {str(e)}")
+            logging.error(f"Barge: 登出總失敗: {str(e)}")
 
 def get_latest_file(download_dir, pattern):
     """
