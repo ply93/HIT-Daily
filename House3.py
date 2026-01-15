@@ -25,7 +25,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 cplus_download_dir = os.path.abspath("downloads_cplus")
 barge_download_dir = os.path.abspath("downloads_barge")
 MAX_RETRIES = 3
-DOWNLOAD_TIMEOUT = 60  # 延長至 60 秒
+DOWNLOAD_TIMEOUT = 30  # 延長至 60 秒
 
 def clear_download_dirs():
     for dir_path in [cplus_download_dir, barge_download_dir]:
@@ -53,9 +53,10 @@ def setup_environment():
         logging.error(f"環境檢查失敗: {e}")
         raise
 
+# 完整 SUB CODE: 修改 get_chrome_options 函數，調整 random.randint(800, 1440) 範圍（替換原 get_chrome_options 全部內容）
 def get_chrome_options(download_dir):
     chrome_options = Options()
-    chrome_options.add_argument('--headless=new') # 改成新 headless 模式
+    chrome_options.add_argument('--headless=new')  # 改成新 headless 模式
     chrome_options.add_argument('--no-sandbox')
     chrome_options.add_argument('--disable-dev-shm-usage')
     chrome_options.add_argument('--disable-gpu')
@@ -68,7 +69,7 @@ def get_chrome_options(download_dir):
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36"
     ]
     chrome_options.add_argument(f'--user-agent={random.choice(user_agents)}')
-    chrome_options.add_argument(f'--window-size={random.randint(1200, 1920)},{random.randint(800, 1080)}')
+    chrome_options.add_argument(f'--window-size={random.randint(1440, 2560)},{random.randint(1440, 2560)}')
     chrome_options.add_argument('--disable-blink-features=AutomationControlled')
     chrome_options.add_experimental_option('excludeSwitches', ['enable-automation'])
     prefs = {
@@ -80,32 +81,40 @@ def get_chrome_options(download_dir):
     chrome_options.binary_location = '/usr/bin/chromium-browser'
     return chrome_options
 
-def wait_for_new_file(download_dir, initial_files, timeout=15, prefixes=None):
-    """等待新文件下載，改爲15s timeout，加debug"""
+def wait_for_new_file(download_dir, initial_files, timeout=20, prefixes=None):
     start_time = time.time()
     while time.time() - start_time < timeout:
-        current_files = set(os.listdir(download_dir))
+        current_files = set(f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx', '.xls')))  # 加 .xls 以防格式變
+        temp_files = set(f for f in os.listdir(download_dir) if f.endswith('.crdownload'))  # 監測臨時檔
+        if temp_files:
+            logging.info(f"檢測到臨時檔: {temp_files}，繼續等完成...")  # 加 log 記錄臨時檔
+            time.sleep(1)  # 唔延長整體，但加短間隔等臨時檔
+            continue
         new_files = current_files - initial_files
-        logging.debug(f"當前目錄文件: {current_files} | 初始文件: {initial_files} | 新文件: {new_files}")
+        logging.debug(f"當前檔案: {current_files} | 新檔案: {new_files}")  # 加 debug log，方便追蹤檢測過程
         if new_files:
             if prefixes:
-                filtered_new = {f for f in new_files if any(f.startswith(p) for p in prefixes)}
+                filtered_new = []
+                for f in new_files:
+                    cleaned_f = f.replace(' (1)', '').replace(' (2)', '')  # 處理重名，加去掉括號邏輯
+                    if any(cleaned_f.startswith(p) for p in prefixes):
+                        filtered_new.append(f)
                 if filtered_new:
-                    logging.info(f"檢測到新文件 (匹配prefixes): {filtered_new}")
-                    return filtered_new
+                    return set(filtered_new)
             else:
-                logging.info(f"檢測到新文件 (無prefixes): {new_files}")
                 return new_files
-        time.sleep(1)  # 每秒檢查一次
-    logging.warning(f"超過 {timeout}s 無新文件，目錄無變化")
-    return set()
+        time.sleep(1)  # 原間隔
+    logging.warning("wait_for_new_file 超時，無新檔檢測到，檢查目錄: {os.listdir(download_dir)}")  # 加警告並記錄目錄
+    return set()  # 返回空，避免下游錯誤
 
+# 完整 sub code: 修改 handle_popup 函數，加記錄彈出內容（替換原 handle_popup）
 def handle_popup(driver, wait):
     try:
-        error_div = WebDriverWait(driver, 3).until(
+        popup = WebDriverWait(driver, 3).until(
             EC.presence_of_element_located((By.XPATH, "//div[contains(text(), 'System Error') or contains(@class, 'MuiDialog-container') or contains(@class, 'MuiDialog') and not(@aria-label='menu')]"))
         )
-        logging.info("檢測到彈出視窗")
+        popup_text = popup.text  # 記錄彈出內容
+        logging.info(f"檢測到彈出視窗，內容: {popup_text}")
         close_button = wait.until(
             EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Close') or contains(text(), 'OK') or contains(text(), 'Cancel') or contains(@class, 'MuiButton') and not(@aria-label='menu')]"))
         )
@@ -125,6 +134,8 @@ def handle_popup(driver, wait):
         driver.save_screenshot("popup_close_failure.png")
         with open("popup_close_failure.html", "w", encoding="utf-8") as f:
             f.write(driver.page_source)
+    except Exception as e:
+        logging.error(f"處理彈出視窗意外錯誤: {str(e)}")
 
 def cplus_login(driver, wait):
     logging.info("CPLUS: 嘗試打開網站 https://cplus.hit.com.hk/frontpage/#/")
@@ -454,9 +465,6 @@ def process_cplus_house(driver, wait, initial_files):
             try:
                 # 【重要】每次 loop 都重新搵一次所有按鈕，避免元素失效
                 current_buttons = driver.find_elements(By.XPATH, button_locator)
-                if len(current_buttons) <= i:
-                    logging.warning(f"CPLUS: 按鈕列表長度 {len(current_buttons)} 少於預期索引 {i}，可能頁面變化，跳過此按鈕")
-                    break  # 跳出重試，避免index error
                 btn = current_buttons[i]
                 # 捲動到該按鈕位置，確保佢喺畫面內
                 driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", btn)
@@ -473,8 +481,7 @@ def process_cplus_house(driver, wait, initial_files):
                 time.sleep(0.5) # 加小延遲等待彈出
                 # 等待下載或彈窗處理 (保留你原本處理彈窗嘅 code)
                 handle_popup(driver, wait)
-                current_timeout = 15 * (retry + 1)  # 漸增: 15s, 30s, 45s
-                temp_new = wait_for_new_file(cplus_download_dir, local_initial, timeout=current_timeout, prefixes=housekeep_prefixes) # 漸增timeout
+                temp_new = wait_for_new_file(cplus_download_dir, local_initial, timeout=20, prefixes=housekeep_prefixes) # 20s
                 if temp_new:
                     file_name = temp_new.pop()
                     logging.info(f"CPLUS: 第 {i+1} 個按鈕下載新文件: {file_name}")
@@ -491,6 +498,10 @@ def process_cplus_house(driver, wait, initial_files):
                     else:
                         report_files[report_name] = {'file': file_name, 'mod_time': mod_time}
                     success = True
+                    # 加: 成功後刷新頁面，重置狀態
+                    logging.info(f"CPLUS: 第 {i+1} 個下載成功，刷新頁面重置狀態...")
+                    driver.refresh()
+                    time.sleep(5) # 等待刷新完成
                     break
                 else:
                     logging.warning(f"CPLUS: 第 {i+1} 個按鈕未觸發新文件下載 (重試 {retry+1}/3)")
@@ -507,8 +518,6 @@ def process_cplus_house(driver, wait, initial_files):
                         f.write(driver.page_source)
         if not success:
             logging.warning(f"CPLUS: 第 {i+1} 個 Excel 下載按鈕經過 3 次重試失敗")
-            driver.refresh()  # 只在失敗時刷新，重置狀態
-            time.sleep(5)  # 等待刷新
             continue
     if new_files:
         logging.info(f"CPLUS: Housekeeping Reports 下載完成，共 {len(new_files)} 個文件，預期 {total_buttons} 個")
@@ -784,7 +793,7 @@ def send_daily_email(house_report_files, house_button_count, cplus_dir, barge_di
         smtp_port = int(os.environ.get('SMTP_PORT', 587))
         sender_email = os.environ['ZOHO_EMAIL']
         sender_password = os.environ['ZOHO_PASSWORD']
-        receiver_emails = os.environ.get('RECEIVER_EMAILS', 'paklun@ckline.com.hk').split(',')
+        receiver_emails = os.environ.get('RECEIVER_EMAILS', 'ckeqc@ckline.com.hk').split(',')
         cc_emails = os.environ.get('CC_EMAILS', '').split(',') if os.environ.get('CC_EMAILS') else []
         dry_run = os.environ.get('DRY_RUN', 'False').lower() == 'true'
         gen_time = datetime.now().strftime('%d/%m/%Y %H:%M')
