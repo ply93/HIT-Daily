@@ -418,44 +418,51 @@ def process_cplus_house(driver, wait, initial_files):
     driver.get("https://cplus.hit.com.hk/app/#/report/housekeepReport")
     wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
     logging.info("CPLUS: Housekeeping Reports 頁面加載完成")
-    logging.info("CPLUS: 等待表格加載...")
-    success_load = False
-    for load_retry in range(3):
-        try:
-            rows = WebDriverWait(driver, 30).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
-            if len(rows) == 0 or all(not row.text.strip() for row in rows):
-                logging.debug("表格數據空或無效，刷新頁面...")
-                driver.refresh()
-                WebDriverWait(driver, 30).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
+    
+    def wait_for_table_and_buttons(load_retry_max=3):
+        """共用函數：等待表格加載同 Excel 按鈕出現"""
+        success_load = False
+        for load_retry in range(load_retry_max):
+            try:
+                # 等待表格行出現，並檢查至少 6 行（預期報告數）
                 rows = WebDriverWait(driver, 30).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
-                if len(rows) < 6:
-                    logging.warning("刷新後表格數據仍不足，記錄頁面狀態...")
-                    driver.save_screenshot("house_load_failure.png")
-                    with open("house_load_failure.html", "w", encoding="utf-8") as f:
-                        f.write(driver.page_source)
-                    break # 不 raise，繼續
-            logging.info("CPLUS: 表格加載完成")
-            success_load = True
-            break
+                if len(rows) < 6 or all(not row.text.strip() for row in rows):
+                    logging.debug(f"表格數據不足或空 (現在 {len(rows)} 行 < 預期 6)，刷新頁面重試...")
+                    driver.refresh()
+                    # 再等待
+                    rows = WebDriverWait(driver, 30).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
+                    if len(rows) < 6:
+                        logging.warning("刷新後表格數據仍不足，記錄頁面狀態...")
+                        driver.save_screenshot("house_load_failure.png")
+                        with open("house_load_failure.html", "w", encoding="utf-8") as f:
+                            f.write(driver.page_source)
+                        break  # 不 raise，繼續
+                logging.info("CPLUS: 表格加載完成")
+                success_load = True
+                break
+            except TimeoutException:
+                logging.warning(f"CPLUS: 表格未加載 (重試 {load_retry+1}/{load_retry_max})，嘗試刷新頁面...")
+                driver.refresh()
+        if not success_load:
+            logging.error("CPLUS: Housekeeping Reports 表格加載失敗3次，繼續其他邏輯...")
+        
+        logging.info("CPLUS: 等待 Excel 按鈕出現...")
+        try:
+            WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)]")))
+            logging.info("CPLUS: Excel 按鈕已出現")
         except TimeoutException:
-            logging.warning(f"CPLUS: 表格未加載 (重試 {load_retry+1}/3)，嘗試刷新頁面...")
-            driver.refresh()
-    if not success_load:
-        logging.error("CPLUS: Housekeeping Reports 表格加載失敗3次，繼續其他邏輯...")
-    time.sleep(1) # 減到1s
-    logging.info("CPLUS: 等待 Excel 按鈕出現...")
-    try:
-        WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)]")))
-        logging.info("CPLUS: Excel 按鈕已出現")
-    except TimeoutException:
-        logging.warning("CPLUS: Excel 按鈕未出現，記錄狀態...")
-        driver.save_screenshot("house_button_wait_failure.png")
-        with open("house_button_wait_failure.html", "w", encoding="utf-8") as f:
-            f.write(driver.page_source)
+            logging.warning("CPLUS: Excel 按鈕未出現，記錄狀態...")
+            driver.save_screenshot("house_button_wait_failure.png")
+            with open("house_button_wait_failure.html", "w", encoding="utf-8") as f:
+                f.write(driver.page_source)
+    
+    # 初始等待
+    wait_for_table_and_buttons()
+    
     logging.info("CPLUS: 定位並點擊所有 Excel 下載按鈕...")
     local_initial = initial_files.copy()
     new_files = set()
-    report_files = {} # 儲存報告名稱與 {'file': file_name, 'mod_time': mod_time} 的映射
+    report_files = {}  # 儲存報告名稱與 {'file': file_name, 'mod_time': mod_time} 的映射
     # 使用與等待一致的XPATH定位按鈕
     button_locator = "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)]"
     buttons = driver.find_elements(By.XPATH, button_locator)
@@ -474,30 +481,34 @@ def process_cplus_house(driver, wait, initial_files):
             f.write(driver.page_source)
     # 每個按鈕前清視窗
     handle_popup(driver, wait)
-    housekeep_prefixes = ['IE2_', 'DM1C_', 'IA17_', 'GA1_', 'IA5_', 'IA15_', 'INV-114_'] # 用於過濾
+    housekeep_prefixes = ['IE2_', 'DM1C_', 'IA17_', 'GA1_', 'IA5_', 'IA15_', 'INV-114_']  # 用於過濾
     for i in range(total_buttons):
         success = False
-        for retry in range(3): # 加重試 3 次每個按鈕
+        for retry in range(3):  # 加重試 3 次每個按鈕
             try:
                 # 【重要】每次 loop 都重新搵一次所有按鈕，避免元素失效
                 current_buttons = driver.find_elements(By.XPATH, button_locator)
+                if len(current_buttons) < total_buttons:
+                    logging.warning(f"CPLUS: 按鈕數不足 (現在 {len(current_buttons)} < 預期 {total_buttons})，等待再試...")
+                    wait_for_table_and_buttons(load_retry_max=1)  # 快速重試一次等待
+                    continue  # 跳過本次 retry
                 btn = current_buttons[i]
                 # 捲動到該按鈕位置，確保佢喺畫面內
                 driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", btn)
-                time.sleep(1) # 等待滾動完成，避免點擊失敗
+                time.sleep(1)  # 等待滾動完成，避免點擊失敗
                 try:
                     report_name = driver.find_element(By.XPATH, f"//table[contains(@class, 'MuiTable-root')]//tbody//tr[{i+1}]//td[3]").text
                     logging.info(f"CPLUS: 準備點擊第 {i+1} 個 Excel 按鈕，報告名稱: {report_name}")
                 except:
                     logging.debug(f"CPLUS: 無法獲取第 {i+1} 個按鈕的報告名稱")
-                    report_name = f"Unknown Report {i+1}" # 後備名稱，避免 key error
+                    report_name = f"Unknown Report {i+1}"  # 後備名稱，避免 key error
                 # 執行點擊
                 driver.execute_script("arguments[0].click();", btn)
                 logging.info(f"CPLUS: 第 {i+1} 個 Excel 按鈕點擊成功")
-                time.sleep(0.5) # 加小延遲等待彈出
+                time.sleep(0.5)  # 加小延遲等待彈出
                 # 等待下載或彈窗處理 (保留你原本處理彈窗嘅 code)
                 handle_popup(driver, wait)
-                temp_new = wait_for_new_file(cplus_download_dir, local_initial, timeout=20, prefixes=housekeep_prefixes) # 20s
+                temp_new = wait_for_new_file(cplus_download_dir, local_initial, timeout=20, prefixes=housekeep_prefixes)  # 20s
                 if temp_new:
                     file_name = temp_new.pop()
                     logging.info(f"CPLUS: 第 {i+1} 個按鈕下載新文件: {file_name}")
@@ -517,17 +528,26 @@ def process_cplus_house(driver, wait, initial_files):
                     # 加: 成功後刷新頁面，重置狀態
                     logging.info(f"CPLUS: 第 {i+1} 個下載成功，刷新頁面重置狀態...")
                     driver.refresh()
-                    time.sleep(5) # 等待刷新完成
+                    # 新加：刷新後重新等待表格同按鈕，確保下一個 loop 穩定（無固定 sleep）
+                    wait_for_table_and_buttons(load_retry_max=2)  # 減到2次，避免太長
                     break
                 else:
                     logging.warning(f"CPLUS: 第 {i+1} 個按鈕未觸發新文件下載 (重試 {retry+1}/3)")
                     time.sleep(1)
-                time.sleep(3) # 給予時間反應
+                time.sleep(3)  # 給予時間反應
+            except IndexError as ie:
+                logging.error(f"CPLUS: 第 {i+1} 個按鈕處理出錯 (IndexError): {str(ie)} - 可能按鈕列表不足")
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                driver.save_screenshot(f"house_index_error_{i+1}_{retry+1}_{timestamp}.png")
+                with open(f"house_index_error_{i+1}_{retry+1}_{timestamp}.html", "w", encoding="utf-8") as f:
+                    f.write(driver.page_source)
+                handle_popup(driver, wait)  # 失敗時再清視窗
+                time.sleep(2)  # 等再試
             except Exception as e:
                 logging.error(f"CPLUS: 第 {i+1} 個按鈕處理出錯: {str(e)}")
-                handle_popup(driver, wait) # 失敗時再清視窗
+                handle_popup(driver, wait)  # 失敗時再清視窗
                 time.sleep(1)
-                if retry == 2: # 最後一次記錄 debug
+                if retry == 2:  # 最後一次記錄 debug
                     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                     driver.save_screenshot(f"house_button_failure_{i+1}_{timestamp}.png")
                     with open(f"house_button_failure_{i+1}_{timestamp}.html", "w", encoding="utf-8") as f:
@@ -538,8 +558,8 @@ def process_cplus_house(driver, wait, initial_files):
     if new_files:
         logging.info(f"CPLUS: Housekeeping Reports 下載完成，共 {len(new_files)} 個文件，預期 {total_buttons} 個")
         if len(new_files) != total_buttons:
-            logging.warning(f"CPLUS: 下載數 {len(new_files)} 不等於按鈕數 {total_buttons}，但繼續抽取現有檔案") # 不 raise，繼續
-    return new_files, len(new_files), total_buttons, report_files # 無 new_files 也繼續
+            logging.warning(f"CPLUS: 下載數 {len(new_files)} 不等於按鈕數 {total_buttons}，但繼續抽取現有檔案")  # 不 raise，繼續
+    return new_files, len(new_files), total_buttons, report_files  # 無 new_files 也繼續
         
 def process_cplus():
     driver = None
