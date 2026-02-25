@@ -81,46 +81,40 @@ def get_chrome_options(download_dir):
     chrome_options.binary_location = '/usr/bin/chromium-browser'
     return chrome_options
 
-def wait_for_new_file(download_dir, initial_files, timeout=20, prefixes=None):
+def wait_for_new_file(download_dir, initial_files, timeout=35, prefixes=None):
+    """加強版：更長 timeout + 更好穩定檢查"""
     start_time = time.time()
     while time.time() - start_time < timeout:
-        # 先檢查有冇下載中檔案 (.crdownload)
-        downloading_files = [f for f in os.listdir(download_dir) if f.endswith('.crdownload')]
-        if downloading_files:
-            logging.debug(f"檢測到下載中檔案: {downloading_files}，繼續等待...")
-            time.sleep(1)
-            continue  # 如果有下載中，跳過新檔案檢查，等完成
+        downloading = [f for f in os.listdir(download_dir) if f.endswith('.crdownload')]
+        if downloading:
+            time.sleep(1.5)
+            continue
         
-        # 檢查完成檔案
-        current_files = set(f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx')))
-        new_files = current_files - initial_files
+        current = set(f for f in os.listdir(download_dir) if f.endswith(('.csv', '.xlsx')))
+        new_files = current - initial_files
         
         if new_files:
-            # 確保每個新檔案大小穩定（下載完成）
-            stable_files = []
-            for file in new_files:
-                file_path = os.path.join(download_dir, file)
-                size1 = os.path.getsize(file_path)
-                time.sleep(1)  # 等 1 秒再 check 大小
-                size2 = os.path.getsize(file_path)
-                if size1 == size2 and size1 > 0:  # 大小穩定且非空
-                    stable_files.append(file)
-                else:
-                    logging.debug(f"檔案 {file} 大小不穩定 ({size1} -> {size2})，繼續等待...")
+            stable = []
+            for f in new_files:
+                path = os.path.join(download_dir, f)
+                size1 = os.path.getsize(path)
+                time.sleep(1.5)
+                size2 = os.path.getsize(path)
+                if size1 == size2 and size1 > 1024:  # 至少 1KB
+                    stable.append(f)
             
-            if stable_files:
+            if stable:
                 if prefixes:
-                    filtered_new = [f for f in stable_files if any(f.startswith(p) for p in prefixes)]
-                    if filtered_new:
-                        logging.info(f"下載完成並穩定: {filtered_new}")
-                        return set(filtered_new)
+                    filtered = [f for f in stable if any(f.startswith(p) for p in prefixes)]
+                    if filtered:
+                        logging.info(f"下載完成並穩定: {filtered}")
+                        return set(filtered)
                 else:
-                    logging.info(f"下載完成並穩定: {stable_files}")
-                    return set(stable_files)
-        
-        time.sleep(1)  # 每秒檢查一次
+                    logging.info(f"下載完成並穩定: {stable}")
+                    return set(stable)
+        time.sleep(1)
     
-    logging.warning(f"等待 {timeout} 秒後仍無新穩定檔案，返回空集")
+    logging.warning(f"等待 {timeout} 秒後無新穩定檔案")
     return set()
 
 # 完整 sub code: 修改 handle_popup 函數，加記錄彈出內容（替換原 handle_popup）
@@ -420,146 +414,124 @@ def process_cplus_house(driver, wait, initial_files):
     logging.info("CPLUS: Housekeeping Reports 頁面加載完成")
     
     def wait_for_table_and_buttons(load_retry_max=3):
-        """共用函數：等待表格加載同 Excel 按鈕出現"""
+        """內部共用函數：等待表格同按鈕（加強版）"""
         success_load = False
         for load_retry in range(load_retry_max):
             try:
-                # 等待表格行出現，並檢查至少 6 行（預期報告數）
-                rows = WebDriverWait(driver, 30).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
-                if len(rows) < 6 or all(not row.text.strip() for row in rows):
-                    logging.debug(f"表格數據不足或空 (現在 {len(rows)} 行 < 預期 6)，刷新頁面重試...")
+                rows = WebDriverWait(driver, 40).until(
+                    EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr"))
+                )
+                if len(rows) >= 6 and any(row.text.strip() for row in rows):
+                    logging.info("CPLUS: 表格加載完成")
+                    success_load = True
+                    break
+                else:
+                    logging.warning(f"表格數據不足 (現在 {len(rows)} 行)，刷新重試...")
                     driver.refresh()
-                    # 再等待
-                    rows = WebDriverWait(driver, 30).until(EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr")))
-                    if len(rows) < 6:
-                        logging.warning("刷新後表格數據仍不足，記錄頁面狀態...")
-                        driver.save_screenshot("house_load_failure.png")
-                        with open("house_load_failure.html", "w", encoding="utf-8") as f:
-                            f.write(driver.page_source)
-                        break  # 不 raise，繼續
-                logging.info("CPLUS: 表格加載完成")
-                success_load = True
-                break
+                    time.sleep(3)
             except TimeoutException:
-                logging.warning(f"CPLUS: 表格未加載 (重試 {load_retry+1}/{load_retry_max})，嘗試刷新頁面...")
+                logging.warning(f"CPLUS: 表格未加載 (重試 {load_retry+1}/{load_retry_max})，刷新...")
                 driver.refresh()
+                time.sleep(3)
+        
         if not success_load:
             logging.error("CPLUS: Housekeeping Reports 表格加載失敗3次，繼續其他邏輯...")
         
-        logging.info("CPLUS: 等待 Excel 按鈕出現...")
-        try:
-            WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)]")))
-            logging.info("CPLUS: Excel 按鈕已出現")
-        except TimeoutException:
-            logging.warning("CPLUS: Excel 按鈕未出現，記錄狀態...")
-            driver.save_screenshot("house_button_wait_failure.png")
-            with open("house_button_wait_failure.html", "w", encoding="utf-8") as f:
-                f.write(driver.page_source)
+        # 等待按鈕出現
+        WebDriverWait(driver, 15).until(
+            EC.presence_of_element_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)]"))
+        )
+        logging.info("CPLUS: Excel 按鈕已出現")
     
-    # 初始等待
+    # 開始處理
     wait_for_table_and_buttons()
     
     logging.info("CPLUS: 定位並點擊所有 Excel 下載按鈕...")
     local_initial = initial_files.copy()
     new_files = set()
-    report_files = {}  # 儲存報告名稱與 {'file': file_name, 'mod_time': mod_time} 的映射
-    # 使用與等待一致的XPATH定位按鈕
+    report_files = {}  # 防止同一報告重複下載
     button_locator = "//table[contains(@class, 'MuiTable-root')]//tbody//tr//td[4]/div/button[not(@disabled)]"
-    buttons = driver.find_elements(By.XPATH, button_locator)
-    total_buttons = len(buttons)
-    logging.info(f"CPLUS: 搵到 {total_buttons} 個 Excel 下載按鈕 (使用穩定XPATH)")
+    
+    # 先搵一次總按鈕數
+    current_buttons = driver.find_elements(By.XPATH, button_locator)
+    total_buttons = len(current_buttons)
+    logging.info(f"CPLUS: 搵到 {total_buttons} 個 Excel 下載按鈕")
+    
     if total_buttons == 0:
-        logging.debug("CPLUS: 未找到 Excel 按鈕，嘗試備用CSS...")
-        buttons = driver.find_elements(By.CSS_SELECTOR, "button[title='Excel']")  # 保留原備用
-        total_buttons = len(buttons)
-        logging.info(f"CPLUS: 備用CSS找到 {total_buttons} 個 Excel 下載按鈕")
-    if total_buttons == 0:
-        logging.warning("CPLUS: 定位失敗，找到0個按鈕，記錄debug資訊...")
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        driver.save_screenshot(f"house_locator_failure_{timestamp}.png")
-        with open(f"house_locator_failure_{timestamp}.html", "w", encoding="utf-8") as f:
+        logging.warning("CPLUS: 未找到按鈕，記錄 debug...")
+        driver.save_screenshot("house_no_button.png")
+        with open("house_no_button.html", "w", encoding="utf-8") as f:
             f.write(driver.page_source)
-    # 每個按鈕前清視窗
-    handle_popup(driver, wait)
-    housekeep_prefixes = ['IE2_', 'DM1C_', 'IA17_', 'GA1_', 'IA5_', 'IA15_', 'INV-114_']  # 用於過濾
+        return set(), 0, 0, {}
+    
+    housekeep_prefixes = ['DM1C_', 'GA1_', 'IA15_', 'IA17_', 'IA5_', 'IE2_']
+    downloaded_reports = set()  # 用來記錄已成功下載嘅按鈕 index
+    
     for i in range(total_buttons):
+        if i in downloaded_reports:
+            continue  # 已經成功過就 skip，防止重複點擊
+        
         success = False
-        for retry in range(3):  # 加重試 3 次每個按鈕
+        for retry in range(4):  # 每個按鈕重試 4 次
             try:
-                # 【重要】每次 loop 都重新搵一次所有按鈕，避免元素失效
+                # 每次都重新搵按鈕，避免 stale element
                 current_buttons = driver.find_elements(By.XPATH, button_locator)
-                if len(current_buttons) < total_buttons:
-                    logging.warning(f"CPLUS: 按鈕數不足 (現在 {len(current_buttons)} < 預期 {total_buttons})，等待再試...")
-                    wait_for_table_and_buttons(load_retry_max=1)  # 快速重試一次等待
-                    continue  # 跳過本次 retry
+                if len(current_buttons) <= i:
+                    logging.warning(f"按鈕數不足，重新等待...")
+                    wait_for_table_and_buttons(load_retry_max=2)
+                    continue
+                
                 btn = current_buttons[i]
-                # 捲動到該按鈕位置，確保佢喺畫面內
                 driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", btn)
-                time.sleep(1)  # 等待滾動完成，避免點擊失敗
-                try:
-                    report_name = driver.find_element(By.XPATH, f"//table[contains(@class, 'MuiTable-root')]//tbody//tr[{i+1}]//td[3]").text
-                    logging.info(f"CPLUS: 準備點擊第 {i+1} 個 Excel 按鈕，報告名稱: {report_name}")
-                except:
-                    logging.debug(f"CPLUS: 無法獲取第 {i+1} 個按鈕的報告名稱")
-                    report_name = f"Unknown Report {i+1}"  # 後備名稱，避免 key error
-                # 執行點擊
+                time.sleep(1.5)
+                
+                # 取得報告名稱
+                report_name = driver.find_element(
+                    By.XPATH, f"//table[contains(@class, 'MuiTable-root')]//tbody//tr[{i+1}]//td[3]"
+                ).text.strip()
+                logging.info(f"CPLUS: 準備點擊第 {i+1} 個 → {report_name}")
+                
+                # JS 點擊更穩定
                 driver.execute_script("arguments[0].click();", btn)
-                logging.info(f"CPLUS: 第 {i+1} 個 Excel 按鈕點擊成功")
-                time.sleep(0.5)  # 加小延遲等待彈出
-                # 等待下載或彈窗處理 (保留你原本處理彈窗嘅 code)
                 handle_popup(driver, wait)
-                temp_new = wait_for_new_file(cplus_download_dir, local_initial, timeout=20, prefixes=housekeep_prefixes)  # 20s
+                
+                # 等待新檔案（加強版）
+                temp_new = wait_for_new_file(cplus_download_dir, local_initial, timeout=35, prefixes=housekeep_prefixes)
                 if temp_new:
-                    file_name = temp_new.pop()
-                    logging.info(f"CPLUS: 第 {i+1} 個按鈕下載新文件: {file_name}")
+                    file_name = list(temp_new)[0]
+                    logging.info(f"CPLUS: 第 {i+1} 個下載成功: {file_name}")
+                    
                     local_initial.add(file_name)
                     new_files.add(file_name)
-                    file_path = os.path.join(cplus_download_dir, file_name)
-                    mod_time = os.path.getmtime(file_path)
-                    # 如果報告已存在，選最新，並優先無 (1) 的
-                    if report_name in report_files:
-                        old_file = report_files[report_name]['file']
-                        old_mod = report_files[report_name]['mod_time']
-                        if mod_time > old_mod or (' (' not in file_name and ' (' in old_file):
-                            report_files[report_name] = {'file': file_name, 'mod_time': mod_time}
-                    else:
-                        report_files[report_name] = {'file': file_name, 'mod_time': mod_time}
-                    success = True
-                    # 加: 成功後刷新頁面，重置狀態
+                    
+                    # 儲存報告 → 防止重複
+                    downloaded_reports.add(i)
+                    report_files[report_name] = {
+                        'file': file_name,
+                        'mod_time': os.path.getmtime(os.path.join(cplus_download_dir, file_name))
+                    }
+                    
+                    # 下載成功後刷新頁面（解決 (1).csv）
+                    time.sleep(2)
                     logging.info(f"CPLUS: 第 {i+1} 個下載成功，刷新頁面重置狀態...")
                     driver.refresh()
-                    # 新加：刷新後重新等待表格同按鈕，確保下一個 loop 穩定（無固定 sleep）
-                    wait_for_table_and_buttons(load_retry_max=2)  # 減到2次，避免太長
+                    wait_for_table_and_buttons(load_retry_max=2)
+                    success = True
                     break
-                else:
-                    logging.warning(f"CPLUS: 第 {i+1} 個按鈕未觸發新文件下載 (重試 {retry+1}/3)")
-                    time.sleep(1)
-                time.sleep(3)  # 給予時間反應
-            except IndexError as ie:
-                logging.error(f"CPLUS: 第 {i+1} 個按鈕處理出錯 (IndexError): {str(ie)} - 可能按鈕列表不足")
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                driver.save_screenshot(f"house_index_error_{i+1}_{retry+1}_{timestamp}.png")
-                with open(f"house_index_error_{i+1}_{retry+1}_{timestamp}.html", "w", encoding="utf-8") as f:
-                    f.write(driver.page_source)
-                handle_popup(driver, wait)  # 失敗時再清視窗
-                time.sleep(2)  # 等再試
+                    
             except Exception as e:
-                logging.error(f"CPLUS: 第 {i+1} 個按鈕處理出錯: {str(e)}")
-                handle_popup(driver, wait)  # 失敗時再清視窗
-                time.sleep(1)
-                if retry == 2:  # 最後一次記錄 debug
-                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    driver.save_screenshot(f"house_button_failure_{i+1}_{timestamp}.png")
-                    with open(f"house_button_failure_{i+1}_{timestamp}.html", "w", encoding="utf-8") as f:
-                        f.write(driver.page_source)
+                logging.error(f"CPLUS: 第 {i+1} 個按鈕出錯 (retry {retry+1}/4): {str(e)}")
+                handle_popup(driver, wait)
+                time.sleep(3)
+        
         if not success:
-            logging.warning(f"CPLUS: 第 {i+1} 個 Excel 下載按鈕經過 3 次重試失敗")
-            continue
-    if new_files:
-        logging.info(f"CPLUS: Housekeeping Reports 下載完成，共 {len(new_files)} 個文件，預期 {total_buttons} 個")
-        if len(new_files) != total_buttons:
-            logging.warning(f"CPLUS: 下載數 {len(new_files)} 不等於按鈕數 {total_buttons}，但繼續抽取現有檔案")  # 不 raise，繼續
-    return new_files, len(new_files), total_buttons, report_files  # 無 new_files 也繼續
+            logging.warning(f"CPLUS: 第 {i+1} 個報告重試 4 次都失敗，跳過")
+    
+    logging.info(f"CPLUS: Housekeeping Reports 下載完成，共 {len(new_files)} 個文件，預期 {total_buttons} 個")
+    if len(new_files) != total_buttons:
+        logging.warning(f"CPLUS: 下載數 {len(new_files)} 不等於按鈕數 {total_buttons}，但繼續")
+    
+    return new_files, len(new_files), total_buttons, report_files
         
 def process_cplus():
     driver = None
@@ -665,31 +637,44 @@ def barge_login(driver, wait):
     logging.info("Barge: 嘗試打開網站 https://barge.oneport.com/login...")
     driver.get("https://barge.oneport.com/login")
     logging.info(f"Barge: 網站已成功打開，當前 URL: {driver.current_url}")
-    time.sleep(3)
-
-    logging.info("Barge: 輸入 COMPANY ID...")
-    company_id_field = wait.until(EC.presence_of_element_located((By.XPATH, "//input[contains(@id, 'mat-input') and @placeholder='Company ID' or contains(@id, 'mat-input-0')]")))
-    company_id_field.send_keys("CKL")
-    logging.info("Barge: COMPANY ID 輸入完成")
-    time.sleep(1)
-
-    logging.info("Barge: 輸入 USER ID...")
-    user_id_field = driver.find_element(By.XPATH, "//input[contains(@id, 'mat-input') and @placeholder='User ID' or contains(@id, 'mat-input-1')]")
-    user_id_field.send_keys("barge")
-    logging.info("Barge: USER ID 輸入完成")
-    time.sleep(1)
-
-    logging.info("Barge: 輸入 PW...")
-    password_field = driver.find_element(By.XPATH, "//input[contains(@id, 'mat-input') and @placeholder='Password' or contains(@id, 'mat-input-2')]")
-    password_field.send_keys(os.environ.get('BARGE_PASSWORD', '123456'))
-    logging.info("Barge: PW 輸入完成")
-    time.sleep(1)
-
-    logging.info("Barge: 點擊 LOGIN 按鈕...")
-    login_button_barge = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'LOGIN') or contains(@class, 'mat-raised-button')]")))
-    ActionChains(driver).move_to_element(login_button_barge).click().perform()
-    logging.info("Barge: LOGIN 按鈕點擊成功")
-    time.sleep(3)
+    
+    # 加強等待，讓頁面完全載入
+    WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.TAG_NAME, "form")))
+    time.sleep(4)  # 多等 4 秒，避免元素未 ready
+    
+    try:
+        logging.info("Barge: 輸入 COMPANY ID...")
+        company_field = wait.until(
+            EC.presence_of_element_located((By.XPATH, "//input[contains(@id, 'mat-input') and (contains(@placeholder, 'Company') or contains(@id, 'mat-input-0'))]"))
+        )
+        driver.execute_script("arguments[0].value = 'CKL';", company_field)
+        logging.info("Barge: COMPANY ID 輸入完成")
+        
+        logging.info("Barge: 輸入 USER ID...")
+        user_field = driver.find_element(By.XPATH, "//input[contains(@id, 'mat-input') and (contains(@placeholder, 'User') or contains(@id, 'mat-input-1'))]")
+        driver.execute_script("arguments[0].value = 'barge';", user_field)
+        logging.info("Barge: USER ID 輸入完成")
+        
+        logging.info("Barge: 輸入 PASSWORD...")
+        pw_field = driver.find_element(By.XPATH, "//input[contains(@id, 'mat-input') and (contains(@placeholder, 'Password') or contains(@id, 'mat-input-2'))]")
+        driver.execute_script(f"arguments[0].value = '{os.environ.get('BARGE_PASSWORD')}';", pw_field)
+        logging.info("Barge: PASSWORD 輸入完成")
+        
+        logging.info("Barge: 點擊 LOGIN 按鈕...")
+        login_btn = wait.until(
+            EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'LOGIN') or contains(@class, 'mat-raised-button')]"))
+        )
+        driver.execute_script("arguments[0].click();", login_btn)
+        logging.info("Barge: LOGIN 按鈕點擊成功")
+        
+        time.sleep(5)  # 等登入後頁面跳轉
+        
+    except Exception as e:
+        logging.error(f"Barge 登入過程出錯: {str(e)}")
+        driver.save_screenshot("barge_login_error.png")
+        with open("barge_login_error.html", "w", encoding="utf-8") as f:
+            f.write(driver.page_source)
+        raise
 
 def process_barge_download(driver, wait, initial_files):
     logging.info("Barge: 直接前往 https://barge.oneport.com/downloadReport...")
@@ -850,7 +835,7 @@ def send_daily_email(house_report_files, house_button_count, cplus_dir, barge_di
         smtp_port = int(os.environ.get('SMTP_PORT', 587))
         sender_email = os.environ['ZOHO_EMAIL']
         sender_password = os.environ['ZOHO_PASSWORD']
-        receiver_emails = os.environ.get('RECEIVER_EMAILS', 'paklun@ckline.com.hk').split(',')
+        receiver_emails = os.environ.get('RECEIVER_EMAILS', 'ckeqc@ckline.com.hk').split(',')
         cc_emails = os.environ.get('CC_EMAILS', '').split(',') if os.environ.get('CC_EMAILS') else []
         dry_run = os.environ.get('DRY_RUN', 'False').lower() == 'true'
         gen_time = datetime.now().strftime('%d/%m/%Y %H:%M')
