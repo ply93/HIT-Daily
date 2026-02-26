@@ -15,7 +15,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, JavascriptException, ElementClickInterceptedException, NoSuchElementException
+from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException, StaleElementReferenceException, ElementClickInterceptedException
 from webdriver_manager.chrome import ChromeDriverManager
 import logging
 from dotenv import load_dotenv
@@ -414,13 +414,12 @@ def process_cplus_house(driver, wait, initial_files):
     logging.info("CPLUS: Housekeeping Reports 頁面加載完成")
     
     def wait_for_table_and_buttons(load_retry_max=2):
-        """內部簡化等待表格"""
         for load_retry in range(load_retry_max):
             try:
                 rows = WebDriverWait(driver, 25).until(
                     EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr"))
                 )
-                if len(rows) >= 5:
+                if len(rows) >= 3:  # 放寬條件，只要有 3 行就視為成功
                     logging.info("CPLUS: 表格加載完成")
                     return True
             except TimeoutException:
@@ -442,19 +441,19 @@ def process_cplus_house(driver, wait, initial_files):
     logging.info(f"CPLUS: 搵到 {total_buttons} 個 Excel 下載按鈕")
     
     if total_buttons == 0:
-        logging.warning("CPLUS: 未找到按鈕")
+        logging.warning("CPLUS: 未找到按鈕，記錄 debug...")
+        driver.save_screenshot("house_no_button.png")
         return set(), 0, 0
     
     housekeep_prefixes = ['DM1C_', 'GA1_', 'IA15_', 'IA17_', 'IA5_', 'IE2_']
     
     for i in range(total_buttons):
         success = False
-        for retry in range(2):  # 只重試 2 次，超快
+        for retry in range(2):
             try:
                 current_buttons = driver.find_elements(By.XPATH, button_locator)
                 if len(current_buttons) <= i:
                     continue
-                
                 btn = current_buttons[i]
                 driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", btn)
                 time.sleep(1)
@@ -467,23 +466,18 @@ def process_cplus_house(driver, wait, initial_files):
                 driver.execute_script("arguments[0].click();", btn)
                 handle_popup(driver, wait)
                 
-                # 用超快版等待下載
                 temp_new = wait_for_new_file(cplus_download_dir, local_initial, timeout=12, prefixes=housekeep_prefixes)
                 if temp_new:
                     file_name = list(temp_new)[0]
                     logging.info(f"CPLUS: 第 {i+1} 個下載成功: {file_name}")
                     local_initial.add(file_name)
                     new_files.add(file_name)
-                    
-                    # 只喺第 1 個同最後 1 個報告後 refresh（大幅加速）
-                    if i == 0 or i == total_buttons - 1:
+                    if i == 0 or i == total_buttons - 1:  # 只喺頭尾刷新
                         time.sleep(1.5)
-                        logging.info("刷新頁面...")
                         driver.refresh()
                         wait_for_table_and_buttons()
                     success = True
                     break
-                    
             except Exception as e:
                 logging.error(f"CPLUS: 第 {i+1} 個出錯 (retry {retry+1}/2): {str(e)}")
                 handle_popup(driver, wait)
@@ -641,43 +635,54 @@ def barge_login(driver, wait):
 def process_barge_download(driver, wait, initial_files):
     logging.info("Barge: 直接前往 https://barge.oneport.com/downloadReport...")
     driver.get("https://barge.oneport.com/downloadReport")
-    time.sleep(3)
-    wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
-    logging.info("Barge: downloadReport 頁面加載完成")
-
-    logging.info("Barge: 選擇 Report Type...")
-    report_type_trigger = wait.until(EC.element_to_be_clickable((By.XPATH, "//mat-form-field[.//mat-label[contains(text(), 'Report Type')]]//div[contains(@class, 'mat-select-trigger')]")))
-    ActionChains(driver).move_to_element(report_type_trigger).click().perform()
-    logging.info("Barge: Report Type 選擇開始")
-    time.sleep(2)
-
-    logging.info("Barge: 點擊 Container Detail...")
-    container_detail_option = wait.until(EC.element_to_be_clickable((By.XPATH, "//mat-option//span[contains(text(), 'Container Detail')]")))
-    ActionChains(driver).move_to_element(container_detail_option).click().perform()
-    logging.info("Barge: Container Detail 點擊成功")
-    time.sleep(2)
-
-    logging.info("Barge: 點擊 Download...")
-    local_initial = initial_files.copy()
-    download_button_barge = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[span[text()='Download']]")))
-    ActionChains(driver).move_to_element(download_button_barge).click().perform()
-    logging.info("Barge: Download 按鈕點擊成功")
-
-    new_files = wait_for_new_file(barge_download_dir, local_initial)
-    if new_files:
-        logging.info(f"Barge: Container Detail 下載完成，檔案位於: {barge_download_dir}")
-        filtered_files = {f for f in new_files if "ContainerDetailReport" in f}
-        for file in filtered_files:
-            logging.info(f"Barge: 新下載檔案: {file}")
-        if not filtered_files:
-            logging.warning("Barge: 未下載預期檔案 (ContainerDetailReport*.csv)，記錄頁面狀態...")
-            driver.save_screenshot("barge_download_failure.png")
-            raise Exception("Barge: Container Detail 未下載預期檔案")
-        return filtered_files
-    else:
-        logging.warning("Barge: Container Detail 未觸發新文件下載，記錄頁面狀態...")
-        driver.save_screenshot("barge_download_failure.png")
-        raise Exception("Barge: Container Detail 未觸發新文件下載")
+    
+    try:
+        # 加強等待頁面完全載入
+        WebDriverWait(driver, 30).until(
+            EC.presence_of_element_located((By.TAG_NAME, "mat-select"))
+        )
+        time.sleep(4)  # 給 Angular Material 足夠時間渲染
+        logging.info("Barge: downloadReport 頁面加載完成")
+        
+        logging.info("Barge: 選擇 Report Type...")
+        # 更穩定位器 + JS 點擊
+        report_select = WebDriverWait(driver, 20).until(
+            EC.element_to_be_clickable((By.XPATH, "//mat-select"))
+        )
+        driver.execute_script("arguments[0].click();", report_select)
+        time.sleep(2.5)
+        
+        logging.info("Barge: 點擊 Container Detail...")
+        container_option = WebDriverWait(driver, 15).until(
+            EC.element_to_be_clickable((By.XPATH, "//mat-option//span[contains(text(), 'Container Detail')]"))
+        )
+        driver.execute_script("arguments[0].click();", container_option)
+        logging.info("Barge: Container Detail 點擊成功")
+        time.sleep(2.5)
+        
+        logging.info("Barge: 點擊 Download...")
+        download_btn = WebDriverWait(driver, 15).until(
+            EC.element_to_be_clickable((By.XPATH, "//button[span[text()='Download']]"))
+        )
+        driver.execute_script("arguments[0].click();", download_btn)
+        logging.info("Barge: Download 按鈕點擊成功")
+        
+        # 等待下載（用你之前優化過嘅 wait_for_new_file）
+        new_files = wait_for_new_file(barge_download_dir, initial_files, timeout=15)
+        if new_files:
+            logging.info(f"Barge: 下載完成，檔案: {new_files}")
+            return new_files
+        else:
+            logging.warning("Barge: 無新檔案下載，記錄 debug...")
+            driver.save_screenshot("barge_no_file.png")
+            return set()
+            
+    except Exception as e:
+        logging.error(f"Barge 下載嘗試失敗: {str(e)}")
+        driver.save_screenshot("barge_error.png")
+        with open("barge_error.html", "w", encoding="utf-8") as f:
+            f.write(driver.page_source)
+        return set()
 
 def process_barge():
     driver = None
