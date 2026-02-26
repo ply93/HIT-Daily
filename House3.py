@@ -413,19 +413,20 @@ def process_cplus_house(driver, wait, initial_files):
     wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']")))
     logging.info("CPLUS: Housekeeping Reports 頁面加載完成")
     
-    def wait_for_table_and_buttons(load_retry_max=2):
+    def wait_for_table_and_buttons(load_retry_max=3):
+        """超穩定等待表格 + 按鈕"""
         for load_retry in range(load_retry_max):
             try:
-                rows = WebDriverWait(driver, 25).until(
+                rows = WebDriverWait(driver, 30).until(
                     EC.presence_of_all_elements_located((By.XPATH, "//table[contains(@class, 'MuiTable-root')]//tbody//tr"))
                 )
-                if len(rows) >= 3:  # 放寬條件，只要有 3 行就視為成功
-                    logging.info("CPLUS: 表格加載完成")
+                if len(rows) >= 4:  # 只要有 4 行就視為成功
+                    logging.info(f"CPLUS: 表格加載完成（{len(rows)} 行）")
                     return True
             except TimeoutException:
-                logging.warning(f"表格未加載，重試 {load_retry+1}/2，刷新...")
+                logging.warning(f"表格未加載，重試 {load_retry+1}/{load_retry_max}，刷新...")
                 driver.refresh()
-                time.sleep(2)
+                time.sleep(2.5)
         logging.error("CPLUS: 表格加載失敗，繼續...")
         return False
     
@@ -443,7 +444,9 @@ def process_cplus_house(driver, wait, initial_files):
     if total_buttons == 0:
         logging.warning("CPLUS: 未找到按鈕，記錄 debug...")
         driver.save_screenshot("house_no_button.png")
-        return set(), 0, 0
+        with open("house_no_button.html", "w", encoding="utf-8") as f:
+            f.write(driver.page_source)
+        return set(), 0, 0, {}  # 返回 4 個值，避免 unpack error
     
     housekeep_prefixes = ['DM1C_', 'GA1_', 'IA15_', 'IA17_', 'IA5_', 'IE2_']
     
@@ -451,13 +454,17 @@ def process_cplus_house(driver, wait, initial_files):
         success = False
         for retry in range(2):
             try:
+                # 每次都重新等待表格 + 重新搵按鈕（最穩）
+                wait_for_table_and_buttons(load_retry_max=1)
                 current_buttons = driver.find_elements(By.XPATH, button_locator)
                 if len(current_buttons) <= i:
                     continue
+                
                 btn = current_buttons[i]
                 driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", btn)
-                time.sleep(1)
+                time.sleep(1.2)
                 
+                # 安全取得報告名稱
                 report_name = driver.find_element(
                     By.XPATH, f"//table[contains(@class, 'MuiTable-root')]//tbody//tr[{i+1}]//td[3]"
                 ).text.strip()
@@ -472,8 +479,10 @@ def process_cplus_house(driver, wait, initial_files):
                     logging.info(f"CPLUS: 第 {i+1} 個下載成功: {file_name}")
                     local_initial.add(file_name)
                     new_files.add(file_name)
-                    if i == 0 or i == total_buttons - 1:  # 只喺頭尾刷新
-                        time.sleep(1.5)
+                    
+                    # 只喺第 1 個同最後 1 個刷新（減少失敗）
+                    if i == 0 or i == total_buttons - 1:
+                        time.sleep(1.8)
                         driver.refresh()
                         wait_for_table_and_buttons()
                     success = True
@@ -487,7 +496,7 @@ def process_cplus_house(driver, wait, initial_files):
             logging.warning(f"CPLUS: 第 {i+1} 個報告失敗，跳過")
     
     logging.info(f"CPLUS: Housekeeping Reports 完成，共 {len(new_files)} 個文件")
-    return new_files, len(new_files), total_buttons
+    return new_files, len(new_files), total_buttons, {}  # 返回 4 個值（最後一個是空 dict，兼容舊主程式）
         
 def process_cplus():
     driver = None
