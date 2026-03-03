@@ -46,7 +46,7 @@ jobs:
         continue-on-error: true # 加這行，失敗都繼續
       - name: Upload artifacts
         if: always()
-        uses: actions/upload-artifact@v6 # 更新到最新 v6，上傳更快
+        uses: actions/upload-artifact@v7 # 更新到最新 v6，上傳更快
         with:
           name: debug-files
           path: |
