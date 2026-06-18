@@ -42,7 +42,7 @@ jobs:
           ZOHO_EMAIL: ${{ secrets.ZOHO_EMAIL }}
           ZOHO_PASSWORD: ${{ secrets.ZOHO_PASSWORD }}
           BARGE_PASSWORD: ${{ secrets.BARGE_PASSWORD }}
-        run: xvfb-run --server-args="-screen 0 1920x1080x24" python HITDAILY.py
+        run: xvfb-run --server-args="-screen 0 1920x1080x24" python HITDAILY.1.py
         continue-on-error: true # 加這行，失敗都繼續
       - name: Upload artifacts
         if: always()
