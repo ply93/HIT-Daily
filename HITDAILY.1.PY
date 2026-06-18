@@ -19,6 +19,11 @@ from selenium.common.exceptions import TimeoutException, JavascriptException, El
 from webdriver_manager.chrome import ChromeDriverManager
 import logging
 from dotenv import load_dotenv
+import imaplib
+import email
+import re
+from email.header import decode_header
+import time
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -153,46 +158,167 @@ def handle_popup(driver, wait):
     except Exception as e:
         logging.error(f"處理彈出視窗意外錯誤: {str(e)}")
 
+def get_cplus_2fa_code_from_zoho(max_wait=60):
+    """
+    從 Zoho Mail 讀取最新 Cplus 2FA code（只讀 Subject）
+    """
+    load_dotenv()
+    zoho_email = os.environ.get('ZOHO_EMAIL')
+    zoho_password = os.environ.get('ZOHO_PASSWORD')  # 建議用 App Password
+    
+    if not zoho_email or not zoho_password:
+        logging.error("缺少 ZOHO_EMAIL 或 ZOHO_PASSWORD")
+        return None
+
+    start_time = time.time()
+    while time.time() - start_time < max_wait:
+        try:
+            mail = imaplib.IMAP4_SSL("imap.zoho.com", 993)
+            mail.login(zoho_email, zoho_password)
+            mail.select("inbox")
+
+            # 搜尋 HIT 寄件人
+            status, messages = mail.search(None, 'FROM "paklun@XXXXXX.com.hk"')
+            if status == "OK" and messages[0]:
+                email_ids = messages[0].split()
+                latest_id = email_ids[-1]
+
+                status, msg_data = mail.fetch(latest_id, "(RFC822)")
+                raw_email = msg_data[0][1]
+                msg = email.message_from_bytes(raw_email)
+
+                subject = ""
+                if msg["Subject"]:
+                    subject, encoding = decode_header(msg["Subject"])[0]
+                    if isinstance(subject, bytes):
+                        subject = subject.decode(encoding or "utf-8")
+
+                # 提取 code
+                match = re.search(r'Cplus - (\d{6}) is your verification code', subject)
+                if match:
+                    code = match.group(1)
+                    logging.info(f"✅ 成功讀取 2FA Code: {code}")
+                    mail.logout()
+                    return code
+
+            mail.logout()
+        except Exception as e:
+            logging.warning(f"讀取 Zoho Mail 失敗: {e}")
+
+        time.sleep(3)  # 每 3 秒 check 一次
+
+    logging.error("等待 2FA email 超時")
+    return None
+
 def cplus_login(driver, wait):
     logging.info("CPLUS: 嘗試打開網站 https://cplus.hit.com.hk/frontpage/#/")
     driver.get("https://cplus.hit.com.hk/frontpage/#/")
-    logging.info(f"CPLUS: 網站已成功打開，當前 URL: {driver.current_url}")
     time.sleep(2)
-    logging.info("CPLUS: 點擊登錄前按鈕...")
-    login_button_pre = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
+
+    # 點擊登入前按鈕
+    login_button_pre = wait.until(EC.element_to_be_clickable(
+        (By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
     ActionChains(driver).move_to_element(login_button_pre).click().perform()
     logging.info("CPLUS: 登錄前按鈕點擊成功")
     time.sleep(2)
-    logging.info("CPLUS: 輸入 COMPANY CODE...")
+
+    # 輸入 COMPANY CODE
     company_code_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='companyCode']")))
     company_code_field.send_keys("CKL")
     logging.info("CPLUS: COMPANY CODE 輸入完成")
     time.sleep(1)
-    logging.info("CPLUS: 輸入 USER ID...")
+
+    # 輸入 USER ID
     user_id_field = driver.find_element(By.XPATH, "//*[@id='userId']")
     user_id_field.send_keys("KEN")
     logging.info("CPLUS: USER ID 輸入完成")
     time.sleep(1)
-    logging.info("CPLUS: 輸入 PASSWORD...")
+
+    # 輸入 PASSWORD
     password_field = driver.find_element(By.XPATH, "//*[@id='passwd']")
     password_field.send_keys(os.environ.get('SITE_PASSWORD'))
     logging.info("CPLUS: PASSWORD 輸入完成")
     time.sleep(1)
-    logging.info("CPLUS: 點擊 LOGIN 按鈕...")
+
+    # 點擊 LOGIN 按鈕
     login_button = driver.find_element(By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/div[2]/div/div/form/button/span[1]")
     ActionChains(driver).move_to_element(login_button).click().perform()
-    logging.info("CPLUS: LOGIN 按鈕點擊成功")
-    time.sleep(2)
-    # 加: 檢查 session 是否有效（看用戶菜單元素是否存在）
-    try:
-        wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))  # 用戶按鈕
-        logging.info("CPLUS: 登入 session 有效")
-    except TimeoutException:
-        logging.error("CPLUS: 登入後 session 失效或 cookie 問題，記錄狀態...")
-        driver.save_screenshot("login_session_failure.png")
-        with open("login_session_failure.html", "w", encoding="utf-8") as f:
+    logging.info("CPLUS: 已點擊 LOGIN，等待 2FA email...")
+
+    # ==================== 新增 2FA 處理 ====================
+    code = get_cplus_2fa_code_from_zoho(max_wait=60)
+    if not code:
+        driver.save_screenshot("2fa_code_not_found.png")
+        raise Exception("CPLUS: 無法讀取 2FA Code")
+
+    logging.info(f"CPLUS: 成功讀取 2FA Code = {code}")
+
+    # 嘗試輸入 2FA Code（多個備用 XPath）
+    code_input = None
+    code_locators = [
+        (By.XPATH, "//input[contains(@placeholder, 'Code') or contains(@placeholder, '驗證碼') or contains(@id, 'code') or contains(@name, 'code')]"),
+        (By.CSS_SELECTOR, "input[type='text'][maxlength='6']"),
+        (By.XPATH, "//input[contains(@class, 'MuiInputBase-input') and string-length(@value) <= 6]")
+    ]
+
+    for locator in code_locators:
+        try:
+            code_input = WebDriverWait(driver, 8).until(EC.presence_of_element_located(locator))
+            if code_input:
+                break
+        except:
+            continue
+
+    if not code_input:
+        driver.save_screenshot("2fa_input_field_not_found.png")
+        with open("2fa_input_field_not_found.html", "w", encoding="utf-8") as f:
             f.write(driver.page_source)
-        raise Exception("CPLUS: 登入 session 失效")
+        raise Exception("CPLUS: 搵唔到 2FA 輸入框")
+
+    code_input.clear()
+    code_input.send_keys(code)
+    logging.info("CPLUS: 2FA Code 已輸入")
+
+    time.sleep(1)
+
+    # 點擊 Verify / Submit 按鈕
+    verify_button = None
+    verify_locators = [
+        (By.XPATH, "//button[contains(text(), 'Verify') or contains(text(), '確認') or contains(text(), 'Submit')]"),
+        (By.XPATH, "//button[contains(@class, 'MuiButton-containedPrimary')]//span[contains(text(), 'Verify') or contains(text(), '確認')]"),
+        (By.CSS_SELECTOR, "button.MuiButton-containedPrimary")
+    ]
+
+    for locator in verify_locators:
+        try:
+            verify_button = WebDriverWait(driver, 6).until(EC.element_to_be_clickable(locator))
+            if verify_button:
+                break
+        except:
+            continue
+
+    if verify_button:
+        try:
+            ActionChains(driver).move_to_element(verify_button).click().perform()
+            logging.info("CPLUS: 已點擊 Verify 按鈕")
+        except:
+            driver.execute_script("arguments[0].click();", verify_button)
+            logging.info("CPLUS: 已用 JavaScript 點擊 Verify 按鈕")
+    else:
+        logging.warning("CPLUS: 搵唔到 Verify 按鈕，嘗試直接按 Enter")
+        code_input.send_keys(Keys.ENTER)
+
+    time.sleep(4)
+
+    # 檢查登入是否成功
+    try:
+        wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
+        logging.info("✅ CPLUS: 登入成功（已通過 2FA）")
+    except TimeoutException:
+        driver.save_screenshot("login_after_2fa_failed.png")
+        with open("login_after_2fa_failed.html", "w", encoding="utf-8") as f:
+            f.write(driver.page_source)
+        raise Exception("CPLUS: 登入失敗（2FA 後）")
 
 def simulate_user_activity(driver):
     ActionChains(driver).move_by_offset(random.randint(-50, 50), random.randint(-50, 50)).perform()
