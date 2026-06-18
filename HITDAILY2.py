@@ -246,7 +246,7 @@ def cplus_login(driver, wait):
     logging.info("CPLUS: 已點擊 LOGIN，等待 2FA email...")
 
     # ==================== 新增 2FA 處理 ====================
-    code = get_cplus_2fa_code_from_zoho(max_wait=60)
+    code = get_cplus_2fa_code_from_zoho(max_wait=90)
     if not code:
         driver.save_screenshot("2fa_code_not_found.png")
         raise Exception("CPLUS: 無法讀取 2FA Code")
