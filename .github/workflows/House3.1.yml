@@ -19,6 +19,11 @@ from selenium.common.exceptions import TimeoutException, NoSuchElementException,
 from webdriver_manager.chrome import ChromeDriverManager
 import logging
 from dotenv import load_dotenv
+import imaplib
+import email
+import re
+from email.header import decode_header
+import time
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -147,46 +152,115 @@ def handle_popup(driver, wait):
     except Exception as e:
         logging.error(f"處理彈出視窗意外錯誤: {str(e)}")
 
+def get_cplus_2fa_code_from_zoho(max_wait=60):
+    """
+    從 Zoho Mail 讀取最新 Cplus 2FA code（只讀 Subject）
+    Subject 格式：Cplus - XXXXXX is your verification code
+    """
+    load_dotenv()
+    zoho_email = os.environ.get('ZOHO_EMAIL')
+    zoho_password = os.environ.get('ZOHO_PASSWORD')
+
+    if not zoho_email or not zoho_password:
+        logging.error("❌ 缺少 ZOHO_EMAIL 或 ZOHO_PASSWORD（請檢查 GitHub Secrets）")
+        return None
+
+    start_time = time.time()
+    while time.time() - start_time < max_wait:
+        try:
+            mail = imaplib.IMAP4_SSL("imap.zoho.com", 993)
+            mail.login(zoho_email, zoho_password)
+            mail.select("inbox")
+
+            # 搜尋 HIT 寄件人
+            status, messages = mail.search(None, 'FROM "paklun@XXXXXX.com.hk"')
+            if status == "OK" and messages[0]:
+                email_ids = messages[0].split()
+                latest_id = email_ids[-1]
+
+                status, msg_data = mail.fetch(latest_id, "(RFC822)")
+                raw_email = msg_data[0][1]
+                msg = email.message_from_bytes(raw_email)
+
+                # 讀取 Subject
+                subject = ""
+                if msg["Subject"]:
+                    subject_header = decode_header(msg["Subject"])[0]
+                    subject = subject_header[0]
+                    if isinstance(subject, bytes):
+                        subject = subject.decode(subject_header[1] or "utf-8")
+
+                # 提取 6 位數字 code
+                match = re.search(r'Cplus - (\d{6}) is your verification code', subject)
+                if match:
+                    code = match.group(1)
+                    logging.info(f"✅ 成功讀取 2FA Code: {code}")
+                    mail.logout()
+                    return code
+
+            mail.logout()
+        except Exception as e:
+            logging.warning(f"讀取 Zoho Mail 失敗: {str(e)}")
+
+        time.sleep(3)  # 每 3 秒檢查一次新 email
+
+    logging.error("❌ 等待 2FA email 超時（60秒）")
+    return None
+
 def cplus_login(driver, wait):
     logging.info("CPLUS: 嘗試打開網站 https://cplus.hit.com.hk/frontpage/#/")
     driver.get("https://cplus.hit.com.hk/frontpage/#/")
-    logging.info(f"CPLUS: 網站已成功打開，當前 URL: {driver.current_url}")
     time.sleep(2)
-    logging.info("CPLUS: 點擊登錄前按鈕...")
+
+    # 點擊登入前按鈕
     login_button_pre = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
     ActionChains(driver).move_to_element(login_button_pre).click().perform()
-    logging.info("CPLUS: 登錄前按鈕點擊成功")
     time.sleep(2)
-    logging.info("CPLUS: 輸入 COMPANY CODE...")
+
+    # 輸入 COMPANY CODE, USER ID, PASSWORD（保持你原本 code）
     company_code_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='companyCode']")))
     company_code_field.send_keys("CKL")
-    logging.info("CPLUS: COMPANY CODE 輸入完成")
-    time.sleep(1)
-    logging.info("CPLUS: 輸入 USER ID...")
+
     user_id_field = driver.find_element(By.XPATH, "//*[@id='userId']")
     user_id_field.send_keys("KEN")
-    logging.info("CPLUS: USER ID 輸入完成")
-    time.sleep(1)
-    logging.info("CPLUS: 輸入 PASSWORD...")
+
     password_field = driver.find_element(By.XPATH, "//*[@id='passwd']")
     password_field.send_keys(os.environ.get('SITE_PASSWORD'))
-    logging.info("CPLUS: PASSWORD 輸入完成")
-    time.sleep(1)
-    logging.info("CPLUS: 點擊 LOGIN 按鈕...")
+
+    # 點擊 LOGIN
     login_button = driver.find_element(By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/div[2]/div/div/form/button/span[1]")
     ActionChains(driver).move_to_element(login_button).click().perform()
-    logging.info("CPLUS: LOGIN 按鈕點擊成功")
-    time.sleep(2)
-    # 加: 檢查 session 是否有效（看用戶菜單元素是否存在）
+    logging.info("CPLUS: 已點擊 Login，等待 2FA email...")
+
+    # === 新增：讀取 2FA Code ===
+    code = get_cplus_2fa_code_from_zoho(max_wait=60)
+    if not code:
+        raise Exception("無法讀取 2FA Code")
+
+    # 輸入 2FA Code（你可能要調整 XPath）
     try:
-        wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))  # 用戶按鈕
-        logging.info("CPLUS: 登入 session 有效")
+        code_field = wait.until(EC.presence_of_element_located((By.XPATH, "//input[contains(@placeholder, 'Code') or contains(@id, 'code') or contains(@name, 'code')]")))
+        code_field.send_keys(code)
+        logging.info(f"CPLUS: 已輸入 2FA Code: {code}")
+
+        # 點擊 Verify / Submit 按鈕（請確認 XPath）
+        verify_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Verify') or contains(text(), 'Submit') or contains(text(), '確認')]")))
+        verify_button.click()
+        logging.info("CPLUS: 已點擊 Verify")
+        time.sleep(3)
+    except Exception as e:
+        logging.error(f"輸入 2FA Code 失敗: {e}")
+        driver.save_screenshot("2fa_input_failure.png")
+        raise
+
+    # 檢查登入是否成功
+    try:
+        wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
+        logging.info("CPLUS: 登入成功（包含 2FA）")
     except TimeoutException:
-        logging.error("CPLUS: 登入後 session 失效或 cookie 問題，記錄狀態...")
-        driver.save_screenshot("login_session_failure.png")
-        with open("login_session_failure.html", "w", encoding="utf-8") as f:
-            f.write(driver.page_source)
-        raise Exception("CPLUS: 登入 session 失效")
+        logging.error("CPLUS: 登入失敗")
+        driver.save_screenshot("login_after_2fa_failure.png")
+        raise Exception("CPLUS: 登入失敗")
 
 def simulate_user_activity(driver):
     ActionChains(driver).move_by_offset(random.randint(-50, 50), random.randint(-50, 50)).perform()
