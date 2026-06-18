@@ -213,54 +213,109 @@ def cplus_login(driver, wait):
     time.sleep(2)
 
     # 點擊登入前按鈕
-    login_button_pre = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
+    login_button_pre = wait.until(EC.element_to_be_clickable(
+        (By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
     ActionChains(driver).move_to_element(login_button_pre).click().perform()
+    logging.info("CPLUS: 登錄前按鈕點擊成功")
     time.sleep(2)
 
-    # 輸入 COMPANY CODE, USER ID, PASSWORD（保持你原本 code）
+    # 輸入 COMPANY CODE
     company_code_field = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='companyCode']")))
     company_code_field.send_keys("CKL")
+    logging.info("CPLUS: COMPANY CODE 輸入完成")
+    time.sleep(1)
 
+    # 輸入 USER ID
     user_id_field = driver.find_element(By.XPATH, "//*[@id='userId']")
     user_id_field.send_keys("KEN")
+    logging.info("CPLUS: USER ID 輸入完成")
+    time.sleep(1)
 
+    # 輸入 PASSWORD
     password_field = driver.find_element(By.XPATH, "//*[@id='passwd']")
     password_field.send_keys(os.environ.get('SITE_PASSWORD'))
+    logging.info("CPLUS: PASSWORD 輸入完成")
+    time.sleep(1)
 
-    # 點擊 LOGIN
+    # 點擊 LOGIN 按鈕
     login_button = driver.find_element(By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/div[2]/div/div/form/button/span[1]")
     ActionChains(driver).move_to_element(login_button).click().perform()
-    logging.info("CPLUS: 已點擊 Login，等待 2FA email...")
+    logging.info("CPLUS: 已點擊 LOGIN，等待 2FA email...")
 
-    # === 新增：讀取 2FA Code ===
+    # ==================== 新增 2FA 處理 ====================
     code = get_cplus_2fa_code_from_zoho(max_wait=60)
     if not code:
-        raise Exception("無法讀取 2FA Code")
+        driver.save_screenshot("2fa_code_not_found.png")
+        raise Exception("CPLUS: 無法讀取 2FA Code")
 
-    # 輸入 2FA Code（你可能要調整 XPath）
-    try:
-        code_field = wait.until(EC.presence_of_element_located((By.XPATH, "//input[contains(@placeholder, 'Code') or contains(@id, 'code') or contains(@name, 'code')]")))
-        code_field.send_keys(code)
-        logging.info(f"CPLUS: 已輸入 2FA Code: {code}")
+    logging.info(f"CPLUS: 成功讀取 2FA Code = {code}")
 
-        # 點擊 Verify / Submit 按鈕（請確認 XPath）
-        verify_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Verify') or contains(text(), 'Submit') or contains(text(), '確認')]")))
-        verify_button.click()
-        logging.info("CPLUS: 已點擊 Verify")
-        time.sleep(3)
-    except Exception as e:
-        logging.error(f"輸入 2FA Code 失敗: {e}")
-        driver.save_screenshot("2fa_input_failure.png")
-        raise
+    # 嘗試輸入 2FA Code（多個備用 XPath）
+    code_input = None
+    code_locators = [
+        (By.XPATH, "//input[contains(@placeholder, 'Code') or contains(@placeholder, '驗證碼') or contains(@id, 'code') or contains(@name, 'code')]"),
+        (By.CSS_SELECTOR, "input[type='text'][maxlength='6']"),
+        (By.XPATH, "//input[contains(@class, 'MuiInputBase-input') and string-length(@value) <= 6]")
+    ]
+
+    for locator in code_locators:
+        try:
+            code_input = WebDriverWait(driver, 8).until(EC.presence_of_element_located(locator))
+            if code_input:
+                break
+        except:
+            continue
+
+    if not code_input:
+        driver.save_screenshot("2fa_input_field_not_found.png")
+        with open("2fa_input_field_not_found.html", "w", encoding="utf-8") as f:
+            f.write(driver.page_source)
+        raise Exception("CPLUS: 搵唔到 2FA 輸入框")
+
+    code_input.clear()
+    code_input.send_keys(code)
+    logging.info("CPLUS: 2FA Code 已輸入")
+
+    time.sleep(1)
+
+    # 點擊 Verify / Submit 按鈕
+    verify_button = None
+    verify_locators = [
+        (By.XPATH, "//button[contains(text(), 'Verify') or contains(text(), '確認') or contains(text(), 'Submit')]"),
+        (By.XPATH, "//button[contains(@class, 'MuiButton-containedPrimary')]//span[contains(text(), 'Verify') or contains(text(), '確認')]"),
+        (By.CSS_SELECTOR, "button.MuiButton-containedPrimary")
+    ]
+
+    for locator in verify_locators:
+        try:
+            verify_button = WebDriverWait(driver, 6).until(EC.element_to_be_clickable(locator))
+            if verify_button:
+                break
+        except:
+            continue
+
+    if verify_button:
+        try:
+            ActionChains(driver).move_to_element(verify_button).click().perform()
+            logging.info("CPLUS: 已點擊 Verify 按鈕")
+        except:
+            driver.execute_script("arguments[0].click();", verify_button)
+            logging.info("CPLUS: 已用 JavaScript 點擊 Verify 按鈕")
+    else:
+        logging.warning("CPLUS: 搵唔到 Verify 按鈕，嘗試直接按 Enter")
+        code_input.send_keys(Keys.ENTER)
+
+    time.sleep(4)
 
     # 檢查登入是否成功
     try:
         wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='root']/div/div[1]/header/div/div[4]/button/span[1]")))
-        logging.info("CPLUS: 登入成功（包含 2FA）")
+        logging.info("✅ CPLUS: 登入成功（已通過 2FA）")
     except TimeoutException:
-        logging.error("CPLUS: 登入失敗")
-        driver.save_screenshot("login_after_2fa_failure.png")
-        raise Exception("CPLUS: 登入失敗")
+        driver.save_screenshot("login_after_2fa_failed.png")
+        with open("login_after_2fa_failed.html", "w", encoding="utf-8") as f:
+            f.write(driver.page_source)
+        raise Exception("CPLUS: 登入失敗（2FA 後）")
 
 def simulate_user_activity(driver):
     ActionChains(driver).move_by_offset(random.randint(-50, 50), random.randint(-50, 50)).perform()
